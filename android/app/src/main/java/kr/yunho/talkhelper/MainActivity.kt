@@ -201,7 +201,7 @@ class MainActivity : Activity() {
     private fun stepAccessibility() {
         val box = bigCard(
             "카톡 위 버튼 켜기",
-            "아래 노란 버튼을 누르면 설정 화면이 열립니다.\n\n'${getString(R.string.app_name)}'를 눌러 켜고, '허용'을 누른 뒤\n뒤로 가기(◁)로 돌아오세요."
+            "아래 노란 버튼을 누르면 설정 화면이 열립니다.\n\n'${getString(R.string.app_name)}'을 눌러 켜고, '허용'을 누른 뒤\n뒤로 가기(◁)로 돌아오세요."
         )
         box.add(Ui.button(this, "👉  설정 열기", sp = 24f) {
             // 구글 플레이 정책: 접근성 권한을 켜기 전에 무엇을 왜 쓰는지 크게 알리고 동의를 받아야 함
@@ -274,7 +274,7 @@ class MainActivity : Activity() {
     private fun stepSetupCode() {
         val box = bigCard(
             "설정 받기",
-            "자녀가 카톡으로 보내 준 '카톡 도우미 설정' 메시지를\n길게 눌러 '복사'한 뒤, 이 앱으로 돌아와\n아래 버튼을 누르세요."
+            "자녀가 카톡으로 보내 준 '말로 답장 설정' 메시지를\n길게 눌러 '복사'한 뒤, 이 앱으로 돌아와\n아래 버튼을 누르세요."
         )
         box.add(Ui.button(this, "👉  복사한 설정 넣기", sp = 24f) { importFromClipboard(silent = false) }
             .apply { minHeight = Ui.dp(this@MainActivity, 88) }, 18)
@@ -299,7 +299,7 @@ class MainActivity : Activity() {
         val key = SetupCode.decode(text)
         if (key == null) {
             if (!silent) AlertDialog.Builder(this)
-                .setMessage("복사한 설정을 찾지 못했어요.\n\n카톡에서 '카톡 도우미 설정' 메시지를 길게 눌러 '복사'를 누른 뒤 다시 해 주세요.")
+                .setMessage("복사한 설정을 찾지 못했어요.\n\n카톡에서 '말로 답장 설정' 메시지를 길게 눌러 '복사'를 누른 뒤 다시 해 주세요.")
                 .setPositiveButton("확인", null).show()
             return
         }
