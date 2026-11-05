@@ -389,6 +389,11 @@ class MainActivity : Activity() {
             KakaoAccessibilityService.instance?.redrawBubble()
             Toast.makeText(this, "버튼을 오른쪽 가운데로 되돌렸어요. 카톡을 다시 열어 보세요.", Toast.LENGTH_LONG).show()
         }, 6)
+        // 요금 정하기용 사용량 (휴대폰 안에만 셈)
+        body.add(Ui.text(this, "이번 달 사용량", 14f, bold = true, color = Ui.MUTED), 24)
+        body.add(Ui.text(this,
+            p.monthUsage().describe() + (p.lastMonthUsage()?.let { (m, u) -> "\n지난달($m): ${u.describe()}" } ?: ""),
+            13f, color = Ui.MUTED).apply { setTextIsSelectable(true) }, 4)
         p.lastUsage.takeIf { it.isNotBlank() }?.let {
             body.add(Ui.text(this, "마지막 다듬기 사용량", 14f, bold = true, color = Ui.MUTED), 24)
             body.add(Ui.text(this, it, 13f, color = Ui.MUTED), 4)
