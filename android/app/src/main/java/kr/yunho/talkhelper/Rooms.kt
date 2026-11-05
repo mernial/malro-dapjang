@@ -23,6 +23,7 @@ object Rooms {
 
     fun all(c: Context): List<RoomMatch.Entry> = synchronized(lock) {
         migrate(c)
+        repair(c)
         read(c)
     }
 
@@ -69,16 +70,13 @@ object Rooms {
     }
 
     /**
-     * 1.106 이전처럼 방 이름으로 저장된 대화(<방>.txt)를 번호로 옮김.
-     * 이름 자체와, 예전에 사용자가 직접 골라 기억한 카톡 방 이름을 짝으로 넘김. 한 번만 함.
+     * 1.106 이전처럼 방 이름으로 저장된 대화(<방>.txt)를 번호로 옮김. 짝은 그 이름 하나만 넘김.
+     * (예전 '방 이름 짝'에는 화면 내용으로 잘못 짐작한 짝이 섞여 있어서 넘기지 않음) 한 번만 함.
      */
     private fun migrate(c: Context) {
         val sp = c.getSharedPreferences("settings", Context.MODE_PRIVATE)
         if (sp.getBoolean("roomsV3", false)) return
         val dir = ChatStore.dir(c)
-        val aliases = (sp.getString("roomAliases", "") ?: "").lines().mapNotNull { l ->
-            l.split('\t').takeIf { it.size == 2 }?.let { it[0] to it[1] }
-        }
         val list = read(c).toMutableList()
         val edit = sp.edit()
         dir.listFiles { f -> f.name.endsWith(".txt") }.orEmpty().forEach { f ->
@@ -90,12 +88,22 @@ object Rooms {
             if (!f.renameTo(moved)) return@forEach
             moved.setLastModified(stamp)
             File(dir, "$name.media").takeIf { it.exists() }?.renameTo(File(dir, "$id.media"))
-            val titles = (listOf(RoomMatch.norm(name)) + aliases.filter { it.second == name }.map { it.first })
-                .filter { it.isNotEmpty() }.toSet()
+            val titles = setOf(RoomMatch.norm(name)).filter { it.isNotEmpty() }.toSet()
             list.add(RoomMatch.Entry(id, name, titles))
             sp.getString("kakaoMe:$name", null)?.let { edit.putString("kakaoMe:$id", it).remove("kakaoMe:$name") }
         }
         write(c, list)
         edit.remove("roomAliases").putBoolean("roomAliasesV2", true).putBoolean("roomsV3", true).apply()
+    }
+
+    /**
+     * 1.108 은 옮길 때 예전에 잘못 짐작한 짝(예: 1:1 방 → 그 사람이 든 단체방)까지 넘겼음.
+     * 그때 생긴 대화들은 짝을 자기 이름 하나로 되돌림. 한 번만 함.
+     */
+    private fun repair(c: Context) {
+        val sp = c.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        if (sp.getBoolean("roomsV4", false)) return
+        write(c, read(c).map { e -> e.copy(titles = setOf(RoomMatch.norm(e.name)).filter { it.isNotEmpty() }.toSet()) })
+        sp.edit().putBoolean("roomsV4", true).apply()
     }
 }
