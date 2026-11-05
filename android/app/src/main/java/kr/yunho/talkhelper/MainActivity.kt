@@ -130,9 +130,37 @@ class MainActivity : Activity() {
                 1 -> stepMic()
                 2 -> stepSetupCode()
             }
+            footer()
             return
         }
         if (!showAdvanced) done() else advanced()
+        footer()
+    }
+
+    /** 모든 화면 맨 아래: 개인정보처리방침과 문의 (구글 플레이 정책: 앱 안에서도 방침을 볼 수 있어야 함) */
+    private fun footer() {
+        body.add(Ui.button(this, "개인정보처리방침 보기", Ui.CARD, sp = 14f) {
+            runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_URL))) }
+                .onFailure { Toast.makeText(this, PRIVACY_URL, Toast.LENGTH_LONG).show() }
+        }, 32)
+        body.add(Ui.text(this, "문의·불편 신고: $REPORT_EMAIL\n이 앱은 카카오와 관련이 없는 독립 앱입니다.", 13f, color = Ui.MUTED)
+            .apply { setTextIsSelectable(true) }, 8)
+        body.add(View(this), 24)
+    }
+
+    /** 이 폰에 저장한 대화·사진·기록을 모두 지움 (설정은 그대로) */
+    private fun confirmClearAll() {
+        AlertDialog.Builder(this)
+            .setTitle("저장한 것 모두 지우기")
+            .setMessage("이 앱이 휴대폰에 저장한 것을 모두 지웁니다.\n\n• 내보낸 카톡 대화와 사진\n• 사용량, 보내기·찾기 기록\n\nAPI 키와 말투·보내는 방식 같은 설정은 남습니다. 카카오톡의 대화는 지워지지 않습니다.")
+            .setPositiveButton("모두 지우기") { _, _ ->
+                ChatStore.dir(this).deleteRecursively()
+                Prefs(this).clearRecords()
+                Toast.makeText(this, "저장한 대화와 기록을 모두 지웠어요.", Toast.LENGTH_LONG).show()
+                render()
+            }
+            .setNegativeButton("취소", null)
+            .show()
     }
 
     private fun bigCard(title: String, desc: String): LinearLayout {
@@ -399,6 +427,7 @@ class MainActivity : Activity() {
             body.add(Ui.text(this, it, 13f, color = Ui.MUTED), 4)
         }
         sendLog()
+        body.add(Ui.button(this, "🗑 저장한 대화·기록 모두 지우기", Ui.CARD, Ui.RED, sp = 15f) { confirmClearAll() }, 24)
     }
 
     private fun sendLog() {

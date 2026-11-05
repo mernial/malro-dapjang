@@ -13,6 +13,8 @@ import java.util.concurrent.Executors
 const val KAKAO = "com.kakao.talk"
 /** 문의·신고 받는 메일 (스토어·개인정보처리방침과 같은 주소) */
 const val REPORT_EMAIL = "mernial@naver.com"
+/** 개인정보처리방침 (플레이에 등록한 주소와 같음. 예전 저장소 catholic-shorts 의 GitHub Pages) */
+const val PRIVACY_URL = "https://mernial.github.io/catholic-shorts/talk-helper-privacy.html"
 
 /** 백그라운드에서 일하고 결과는 메인 스레드로 */
 object Bg {

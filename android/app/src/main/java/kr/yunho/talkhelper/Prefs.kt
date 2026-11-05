@@ -86,6 +86,17 @@ class Prefs(ctx: Context) {
         val cur = if (sp.getString("usageMonth", now) == now) kr.yunho.talkhelper.core.UsageStats.decode(sp.getString("usage", null)) else kr.yunho.talkhelper.core.UsageStats()
         e.putString("usageMonth", now).putString("usage", cur.add(kind, u).encode()).apply()
     }
+    /**
+     * 기록만 지움: 사용량, 보내기·내보내기 기록, 방마다 '나' 이름.
+     * API 키·이름·말투·보내는 방식 같은 설정은 그대로 둠
+     */
+    fun clearRecords() {
+        val e = sp.edit()
+        listOf("exportLog", "lastSendLog", "lastUsage", "usage", "usageMonth", "lastMonthUsage", "bubbleDiag").forEach { e.remove(it) }
+        sp.all.keys.filter { it.startsWith("kakaoMe") }.forEach { e.remove(it) }
+        e.apply()
+    }
+
     fun monthUsage(): kr.yunho.talkhelper.core.UsageStats =
         if (sp.getString("usageMonth", null) == monthKey()) kr.yunho.talkhelper.core.UsageStats.decode(sp.getString("usage", null))
         else kr.yunho.talkhelper.core.UsageStats()
