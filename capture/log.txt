@@ -1,0 +1,26 @@
+== 언어: ko-KR
+== 설치
+Performing Streamed Install
+Success
+== 찍음: 01_첫화면
+== 누름: 설정 열기 (540 1467)
+== 찍음: 02_접근성안내
+== 누름: 동의 안 함 (595 1903)
+== 찍음: 03_동의안함_후
+== 누름: 설정 열기 (540 1467)
+== 누름: 동의하고 켜기 (840 1903)
+== 찍음: 04_접근성설정
+== 누름: 말로 답장 (293 817)
+== 찍음: 05_접근성_앱화면
+== 누름: 말로 답장 사용 (446 742)
+== 찍음: 06_허용묻기
+== 누름: 허용 (540 1663)
+== 찍음: 07_접근성켜짐
+== 찍음: 08_다음단계
+== 영상 받음
+== 찍음: 09_준비3_설정코드
+== 찍음: 10_자세한설정
+== 찍음: 11_대화에서찾기
+     Enabled services:{{kr.yunho.talkhelper/kr.yunho.talkhelper.KakaoAccessibilityService}}
+[com.google.android.inputmethod.latin][com.google.android.apps.nexuslauncher][com.google.android.youtube][com.google.android.apps.nexuslauncher][com.google.android.apps.youtube.music][com.android.systemui][com.google.android.apps.nexuslauncher][kr.yunho.talkhelper][com.google.android.as][com.google.android.contacts][com.google.android.apps.wellbeing][com.google.android.googlequicksearchbox][com.google.android.googlequicksearchbox]}]
+== 끝
