@@ -39,33 +39,39 @@
 ## 4. 스토어 등록정보
 - **앱 이름 (30자):** `말로 답장 - 말하면 정중하게 바꿔 보내는 답장`
 - **간단한 설명 (80자):** `자판이 어려워도 괜찮아요. 말로 하면 정중하게·친근하게·업무용으로 다듬어 카카오톡에 보내 드려요.`
-- **자세한 설명:**
+- **자세한 설명:** (2026-11-05 지금 기능에 맞게 고침)
 ```
 휴대폰 자판으로 글 쓰기가 어려운 분을 위한 답장 도우미입니다.
 
-카카오톡 대화방에서 '도우미' 버튼을 누르고 편하게 말하세요.
+카카오톡 대화방에서 🎤 버튼을 누르고 편하게 말하세요.
 "이거 토요일에 하자고 보내 줘"
-→ "이 일은 토요일에 하도록 하겠습니다."
+→ "이건 토요일에 해요."
 
 ■ 이런 분께 좋아요
 • 글씨가 작고 자판이 불편한 어르신
 • 바쁠 때 말로 빠르게 답장하고 싶은 분
 • 정중한 표현이 늘 고민되는 분
 
-■ 말투 세 가지
-• 정중하게: 어른·처음 연락하는 분께
-• 친구처럼: 편하고 다정하게
-• 업무 연락: 용건을 짧고 분명하게
+■ 말투
+• 정중하게 · 친구처럼 · 업무 연락 · 자녀에게 · 내 말투(그 방에서 내가 쓰던 말투)
 
 ■ 이렇게 동작해요
-1. 대화방의 '도우미' 버튼을 누릅니다.
+1. 대화방의 🎤 버튼을 누릅니다.
 2. 하고 싶은 말을 하고 끝에 "보내 줘"라고 말합니다.
-3. AI가 대화 흐름에 맞게 다듬어 보여 주고, 3초 뒤 보냅니다. 그 사이 '취소'할 수 있습니다.
+3. AI가 대화 흐름에 맞게 다듬어 보여 줍니다.
+4. 고른 방식대로 보냅니다: 3초 뒤(그 사이 취소 가능) · '보내기'를 눌러 확인 후 · 읽어 드리고 "보내"라고 하면.
+   확인 없이 바로 보내는 일은 없습니다.
+
+■ 대화에서 찾기
+• "지난번에 모임 날짜 언제로 정했지?"처럼 물으면, 화면에 보이는 대화에서 찾아 정리해 드립니다.
+• 예전 대화까지 찾으려면 카카오톡의 '대화 내용 내보내기'로 이 앱에 직접 보내 주세요.
+  내보낸 대화(사진 포함)는 이 휴대폰 안에만 보관되고, 앱에서 언제든 지울 수 있습니다.
 
 ■ 개인정보
-• 버튼을 누른 순간 화면에 보이는 대화 글과 말한 내용만 답장을 다듬는 데 쓰며, 저장하지 않습니다.
-• 답장 다듬기에는 Anthropic의 Claude AI를 사용합니다.
+• 버튼을 누른 순간 화면에 보이는 대화 글과 말한 내용, 찾을 때는 질문과 관련된 대화 부분만
+  Anthropic의 Claude AI(미국)로 보내 답을 받습니다. 사진은 휴대폰 밖으로 보내지 않습니다.
 • 카카오톡 이외의 앱 화면은 읽지 않습니다.
+• 이상한 AI 결과는 🚩 버튼으로 알려 주세요.
 
 ※ 이 앱은 카카오와 관련이 없는 독립 앱입니다. 'Claude API 키'가 필요합니다.
 ```
@@ -97,31 +103,36 @@
 - 심사가 끝나면 그 키를 삭제하세요.
 
 ## 데이터 보안 답변
+(2026-11-05 고침: 예전 답은 "저장 안 함·일시적 처리"였으나, 지금은 대화 내보내기를 폰에 저장하고 Anthropic이 API 데이터를 일정 기간 보관할 수 있어 아래처럼 답합니다.)
+
 | 질문 | 답 |
 |---|---|
 | 데이터를 수집하거나 공유하나요? | **예** |
 | 전송 중 암호화 | **예** (HTTPS) |
-| 삭제 요청 방법 | 저장하지 않음. 앱 삭제 시 설정도 삭제 |
-| 수집 항목 | **메시지 → 기타 앱 내 메시지**: 수집 **아니요(일시적 처리)** / **공유 예**(Anthropic, 앱 기능을 위해). 목적: **앱 기능** |
-| | **오디오**: 아니요. 음성은 휴대폰 음성 인식이 글로 바꾸고, 글만 위 '메시지'에 포함됩니다 |
-| | 위치·연락처·사진·기기 ID 등: 모두 아니요 |
-| 처리 방식 | **일시적으로만 처리**(ephemeral), 필수(선택 불가) |
+| 삭제 요청 방법 | 앱 안에서 직접 삭제(대화에서 찾기 → 이 대화 지우기), 앱 삭제 시 모두 삭제, 문의 메일 mernial@naver.com |
+| **메시지 → 기타 앱 내 메시지** | **수집 예** · 공유 아니요 (Anthropic은 우리 대신 처리하는 서비스 제공자라 '공유'가 아님) · 일시적 처리 **아니요** · **필수** · 목적: **앱 기능** |
+| 오디오 | 아니요. 음성은 휴대폰(구글) 음성 인식이 글로 바꾸고, 앱은 글만 보냅니다 |
+| 사진 및 동영상 | 아니요. 내보낸 사진은 폰 안에만 두고 밖으로 보내지 않습니다 (기기 밖 전송이 없으면 '수집' 아님) |
+| 개인 정보(이름) | 아니요. 숨은 설정의 '내 이름·역할'은 메시지 다듬기 요청에 함께 들어가므로 위 '메시지'로 봅니다 |
+| 위치·연락처·기기 ID·앱 활동 등 | 모두 아니요 |
 
 ## 접근성 API 신고서
 Play Console → 앱 콘텐츠 → **민감한 권한 및 API** → 접근성 API.
 
 - **isAccessibilityTool:** 사용 안 함. 장애인 보조 도구로 신청하지 않습니다.
 - **앱 안 공개와 동의:** 있음. 첫 화면의 '설정 열기'를 누르면 「접근성 권한 사용 안내」 창이 뜨고, **동의해야** 설정으로 이동합니다.
-- **사용 목적 (영문 신고 예시):**
+- **사용 목적 (영문 신고 예시):** (2026-11-05 고침: 자동 내보내기·자동 넘기기·바로 보내기를 뺀 지금 동작 기준)
 ```
 The app helps users who have difficulty typing (e.g., elderly users) reply in KakaoTalk by voice.
-The AccessibilityService is used only when the user taps the app's floating button inside KakaoTalk:
-(1) to show the floating button while KakaoTalk is in the foreground,
-(2) to read the text currently visible on the KakaoTalk chat screen at the moment of the tap, so the reply fits the conversation,
-(3) to type the reply the user dictated and confirmed into the KakaoTalk input box and press its send button.
-Every action is initiated by the user (tap + speech), the drafted message is shown before sending with a cancel option,
-and the app never acts on its own. It does not read other apps. Screen text and the user's words are sent to the Anthropic Claude API
-only to rewrite the reply and are not stored. A prominent disclosure and consent dialog is shown before enabling the service.
+The AccessibilityService is used only for these user-initiated purposes:
+(1) to show the app's floating button while KakaoTalk is in the foreground (window changes are observed only to show/hide the button),
+(2) when the user taps the button, to read the text currently visible on the KakaoTalk chat screen so the reply fits the conversation,
+(3) after the user dictates a reply and it is shown to them, to type it into the KakaoTalk input box and press its send button.
+Sending always gives the user a chance to review: a 3-second countdown with a cancel button, an explicit "Send" tap, or a spoken "send" confirmation.
+There is no immediate send without review. The app does not navigate KakaoTalk menus, scroll conversations, or perform any action on its own.
+It does not read or act on any app other than KakaoTalk.
+Screen text and the user's words are sent to the Anthropic Claude API only to draft the reply or answer the user's question.
+A prominent disclosure and consent dialog is shown before the service can be enabled.
 ```
 - **영상 (필수, 30초~1분, 유튜브 미등록 링크):**
   1. 앱 첫 화면 → '설정 열기' → **공개·동의 창**이 보이게 → 동의
@@ -133,3 +144,4 @@ only to rewrite the reply and are not stored. A prominent disclosure and consent
 - 접근성 API로 **다른 앱(카카오톡)에 입력하고 전송**하는 기능 자체가 거절될 수 있습니다. 거절 사유를 보내 주시면 고쳐서 다시 신청하겠습니다.
 - 그래도 안 되면 대안이 있습니다. 카카오톡 **알림의 '답장' 기능**으로 보내는 방식이라 접근성이 필요 없습니다. 대신 카톡 위 버튼과 화면 읽기가 빠집니다.
 - **카카오 약관**에서 자동 입력·전송을 허용하는지는 별도로 확인이 필요합니다.
+- 2026-11-05: 플레이판(`STORE_SAFE`)에서 확인 없는 '바로 보내기', 카톡 메뉴를 대신 누르는 '대화 내보내기', 대화방을 대신 넘기는 '예전 대화 모으기'·'해당 메시지로 이동'을 껐습니다. 남은 우려 목록은 `docs/launch-risks.md`.

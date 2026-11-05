@@ -9,6 +9,12 @@ enum class SendMode(val label: String, val desc: String) {
     COUNTDOWN("3초 뒤", "3초 동안 보여 주고 보냅니다 (그 사이 취소 가능)"),
     CONFIRM("확인 후", "다듬은 문장을 보고 '보내기'를 눌러야 보냅니다"),
     VOICE("듣고 확인", "다듬은 문장을 읽어 드리고, \"보내\"라고 하시면 보냅니다 (\"다시\"·\"취소\"도 돼요)"),
+    ;
+
+    companion object {
+        /** 고를 수 있는 방식. 플레이판은 사람이 확인하거나 취소할 틈이 없는 '바로'를 뺌 */
+        fun available(): List<SendMode> = values().filter { it != INSTANT || !BuildConfig.STORE_SAFE }
+    }
 }
 
 class Prefs(ctx: Context) {
@@ -37,6 +43,7 @@ class Prefs(ctx: Context) {
     /** 다듬은 문장을 언제 보낼지 (예전 '자동 전송' 체크 설정을 이어받음) */
     var sendMode: SendMode
         get() = sp.getString("sendMode", null)?.let { runCatching { SendMode.valueOf(it) }.getOrNull() }
+            ?.takeIf { it in SendMode.available() }
             ?: if (sp.getBoolean("autoSend", true)) SendMode.COUNTDOWN else SendMode.CONFIRM
         set(v) = sp.edit().putString("sendMode", v.name).apply()
 

@@ -7,6 +7,8 @@ import kr.yunho.talkhelper.core.Claude
 import java.util.concurrent.Executors
 
 const val KAKAO = "com.kakao.talk"
+/** 문의·신고 받는 메일 (스토어·개인정보처리방침과 같은 주소) */
+const val REPORT_EMAIL = "mernial@naver.com"
 
 /** 백그라운드에서 일하고 결과는 메인 스레드로 */
 object Bg {
