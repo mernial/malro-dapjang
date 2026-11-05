@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- '알림으로 답장' 예비 기능: 우리 알림 "🎤 말로 답장"을 띄움 (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 고급 받아쓰기 파일을 와이파이에서 받는지 확인 -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
@@ -67,6 +69,17 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
+
+        <!-- '알림으로 답장' 예비 기능: 카톡 알림의 답장 칸으로 보냄 (설정에서 켰을 때만, 카톡 알림만 봄) -->
+        <service
+            android:name=".NotifyReplyService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
 
         <!-- 카톡 위 떠 있는 버튼 + 카톡 입력창에 글을 넣고 전송 -->
         <service

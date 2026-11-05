@@ -148,6 +148,31 @@ class MainActivity : Activity() {
         body.add(View(this), 24)
     }
 
+    /** '알림으로 답장' 켜기 전 안내와 동의 (알림 접근은 민감한 권한이라 무엇을 읽는지 먼저 알림) */
+    private fun confirmNotifyReply() {
+        AlertDialog.Builder(this)
+            .setTitle("알림 접근 권한 사용 안내")
+            .setMessage(
+                "'알림으로 답장'을 쓰려면 알림 접근을 허용해야 합니다. 이 앱은 이 권한을 다음 용도로만 씁니다.\n\n" +
+                    "• 카카오톡 메시지 알림만 봅니다. 다른 앱의 알림은 받는 즉시 버리고 읽지 않습니다.\n" +
+                    "• 알림에 보이는 대화방 이름과 최근 메시지를, 답장을 다듬을 때 Anthropic(Claude AI, 미국)으로 보냅니다.\n" +
+                    "• 다듬은 답장은 사용자가 확인한 뒤 카카오톡 알림의 '답장' 칸으로 보냅니다.\n" +
+                    "• 알림 내용은 휴대폰에 저장하지 않으며, 카카오톡 알림이 사라지면 함께 잊습니다."
+            )
+            .setPositiveButton("동의하고 켜기") { _, _ ->
+                Prefs(this).notifyReply = true
+                if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+                    requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 3)
+                if (!NotifyReplyService.allowed(this)) {
+                    Toast.makeText(this, "목록에서 '${getString(R.string.app_name)}'을 찾아 허용해 주세요.", Toast.LENGTH_LONG).show()
+                    runCatching { startActivity(NotifyReplyService.settingsIntent(this)) }
+                }
+                render()
+            }
+            .setNegativeButton("동의 안 함", null)
+            .show()
+    }
+
     /** 이 폰에 저장한 대화·사진·기록을 모두 지움 (설정은 그대로) */
     private fun confirmClearAll() {
         AlertDialog.Builder(this)
@@ -402,6 +427,21 @@ class MainActivity : Activity() {
             render()
         }, 18)
         body.add(Ui.button(this, "돌아가기", Ui.CARD, sp = 16f) { showAdvanced = false; render() }, 8)
+        // '알림으로 답장' 예비 기능 (접근성 없이)
+        body.add(Ui.text(this, "🔔 알림으로 답장 (예비 기능)", 16f, bold = true), 20)
+        body.add(Ui.text(this,
+            "카톡 메시지 알림 아래에 '🎤 말로 답장'을 띄우고, 다듬은 답장을 카톡 알림의 답장 칸으로 보냅니다. 카톡 화면을 읽거나 누르지 않아요." +
+                (if (p.notifyReply) "\n지금: 켜짐 · 알림 접근 ${if (NotifyReplyService.allowed(this)) "허용됨 ✅" else "허용 안 됨 ❌ (아래 버튼)"}" else "\n지금: 꺼짐"),
+            13f, color = Ui.MUTED), 4)
+        val notifyRow = Ui.hbox(this)
+        notifyRow.add(Ui.button(this, if (p.notifyReply) "끄기" else "켜기", Ui.CARD, sp = 15f) {
+            if (p.notifyReply) { p.notifyReply = false; render() } else confirmNotifyReply()
+        })
+        if (p.notifyReply) notifyRow.add(Ui.button(this, "알림 접근 설정", Ui.CARD, sp = 15f) {
+            runCatching { startActivity(NotifyReplyService.settingsIntent(this)) }
+        })
+        body.add(notifyRow, 6)
+
         body.add(Ui.button(this, "🔎 대화에서 찾기 (대화·사진 저장)", Ui.CARD, sp = 15f) {
             startActivity(Intent(this, AskActivity::class.java))
         }, 20)

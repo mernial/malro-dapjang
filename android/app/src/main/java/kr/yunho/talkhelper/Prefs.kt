@@ -120,6 +120,11 @@ class Prefs(ctx: Context) {
     // 예전 '방 이름 짝'(roomAliases)은 Rooms 로 옮김 (Rooms.migrate)
 
     /** 대화 내보내기·찾기 과정 기록 (안 될 때 원인 확인용, 최근 30줄) */
+    /** '알림으로 답장' 예비 기능 (접근성 없이 카톡 알림의 답장 칸으로 보냄) */
+    var notifyReply: Boolean
+        get() = sp.getBoolean("notifyReply", false)
+        set(v) = sp.edit().putBoolean("notifyReply", v).apply()
+
     /** 🚩 이상한 AI 답장 알림 (최근 20건, 휴대폰 안에만) */
     var aiReports: String
         get() = sp.getString("aiReports", "") ?: ""
