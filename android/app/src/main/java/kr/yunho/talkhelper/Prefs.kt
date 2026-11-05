@@ -77,6 +77,23 @@ class Prefs(ctx: Context) {
         get() = sp.getString("lastUsage", "") ?: ""
         set(v) = sp.edit().putString("lastUsage", v).apply()
 
+    /** 이번 달 사용량 (휴대폰 안에만). 달이 바뀌면 새로 셈, 지난달 것은 lastMonthUsage 로 */
+    private fun monthKey() = java.time.YearMonth.now().toString()   // 예: 2026-11
+    @Synchronized fun addUsage(kind: kr.yunho.talkhelper.core.UsageStats.Kind, u: kr.yunho.talkhelper.core.Usage?) {
+        val now = monthKey()
+        val e = sp.edit()
+        if (sp.getString("usageMonth", now) != now) e.putString("lastMonthUsage", sp.getString("usageMonth", "") + "|" + sp.getString("usage", ""))
+        val cur = if (sp.getString("usageMonth", now) == now) kr.yunho.talkhelper.core.UsageStats.decode(sp.getString("usage", null)) else kr.yunho.talkhelper.core.UsageStats()
+        e.putString("usageMonth", now).putString("usage", cur.add(kind, u).encode()).apply()
+    }
+    fun monthUsage(): kr.yunho.talkhelper.core.UsageStats =
+        if (sp.getString("usageMonth", null) == monthKey()) kr.yunho.talkhelper.core.UsageStats.decode(sp.getString("usage", null))
+        else kr.yunho.talkhelper.core.UsageStats()
+    /** 지난달 사용량 ("2026-10" to 통계), 없으면 null */
+    fun lastMonthUsage(): Pair<String, kr.yunho.talkhelper.core.UsageStats>? =
+        sp.getString("lastMonthUsage", null)?.split('|', limit = 2)?.takeIf { it.size == 2 }
+            ?.let { it[0] to kr.yunho.talkhelper.core.UsageStats.decode(it[1]) }
+
     /** 마지막 카톡 보내기 시도 기록 (문제 진단용) */
     // 예전 '방 이름 짝'(roomAliases)은 Rooms 로 옮김 (Rooms.migrate)
 

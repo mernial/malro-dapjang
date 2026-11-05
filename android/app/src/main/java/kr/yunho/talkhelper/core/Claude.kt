@@ -24,7 +24,7 @@ class HelperException(message: String) : Exception(message)
 /**
  * Claude 호출. 블로킹 함수이므로 반드시 백그라운드 스레드에서 부를 것.
  */
-class Claude(apiKey: String, baseUrl: String? = null) {
+class Claude(apiKey: String, baseUrl: String? = null) : Assistant {
 
     private val client: AnthropicClient = AnthropicOkHttpClient.builder()
         .apiKey(apiKey)
@@ -35,9 +35,9 @@ class Claude(apiKey: String, baseUrl: String? = null) {
     /**
      * 내가 대충 말한 것을 [mode] 말투의 카톡 메시지로. [screenText] 는 그 순간 카톡 화면에 보이던 글.
      */
-    fun rewrite(
+    override fun rewrite(
         mode: Mode, spoken: String, screenText: String?, myName: String, myRole: String,
-        myStyle: List<String> = emptyList(),
+        myStyle: List<String>,
     ): String =
         // 정해진 형식 {"message": "..."} 으로만 받아서, AI 가 생각한 내용이 카톡으로 나가지 않게 함
         messageOnly(ask(Prompts.system(mode), Prompts.user(mode, spoken, screenText, myName, myRole, myStyle), json = true,
@@ -48,7 +48,7 @@ class Claude(apiKey: String, baseUrl: String? = null) {
             .let { TitleGuard.fix(it, spoken) }
 
     /** 카톡 대화에서 [question] 에 대한 답 찾기. [chat] 이 길면 관련 부분만 골라 보냄 */
-    fun answer(question: String, chat: String, room: String?): String =
+    override fun answer(question: String, chat: String, room: String?): String =
         ask(Prompts.ASK_SYSTEM, Prompts.askUser(question, room, ChatSearch.excerpt(chat, question))).trim()
 
     private fun ask(
@@ -107,11 +107,7 @@ class Claude(apiKey: String, baseUrl: String? = null) {
     }
 
     /** 마지막 요청의 토큰 사용량 (캐시가 잘 되는지 확인용) */
-    data class Usage(val input: Long, val cacheRead: Long, val cacheWrite: Long, val output: Long) {
-        fun describe() = "입력 ${input + cacheRead + cacheWrite}토큰 (캐시에서 읽음 $cacheRead, 캐시에 저장 $cacheWrite) · 출력 ${output}토큰"
-    }
-
-    @Volatile var lastUsage: Usage? = null
+    @Volatile override var lastUsage: Usage? = null
         private set
 
     companion object {
