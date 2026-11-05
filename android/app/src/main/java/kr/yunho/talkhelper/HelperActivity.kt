@@ -567,20 +567,14 @@ class HelperActivity : Activity() {
     private var roomTitle: String? = null
     private lateinit var talkRowView: View
 
+    /**
+     * 지금 카톡 방에 해당하는 저장 대화(번호)를 찾아 그 전체 대화 + 지금 화면.
+     * 그 방에서 내보낸 대화만 씀 (비슷한 이름·다른 방은 쓰지 않음). 없으면 화면 대화만
+     */
     private fun chatForThisRoom(): Pair<String, String?> {
         val screen = screenText.orEmpty()
-        val top = screen.lines().take(8).map { it.trim() }
-        val rooms = AskActivity.savedRooms(this)
-        // 1) 방 이름으로 (내보낼 때 기억한 짝, 띄어쓰기·인원수 차이 무시)  2) 화면 윗줄 글자로
-        val room = kr.yunho.talkhelper.core.RoomMatch.find(roomTitle, rooms, prefs.roomAliases())
-            ?: rooms.firstOrNull { name -> top.any { it == name || it.startsWith(name) } }
-            // 3) 이름으로 못 찾으면 대화 내용으로: 화면에 보이는 메시지가 들어 있는 저장된 대화
-            ?: kr.yunho.talkhelper.core.RoomMatch.byContent(screen.lines(), rooms.associateWith { ChatStore.chatText(this, it).orEmpty() })
-                ?.also { r ->
-                    roomTitle?.let { prefs.addRoomAlias(kr.yunho.talkhelper.core.RoomMatch.norm(it), r) }
-                    prefs.logExport("대화 내용으로 방 알아봄: '$r'")
-                }
-        val saved = room?.let { java.io.File(AskActivity.chatsDir(this), "$it.txt").readText() }.orEmpty()
+        val room = kr.yunho.talkhelper.core.RoomMatch.lookup(roomTitle, Rooms.all(this), screen.lines()) { ChatStore.chatText(this, it).orEmpty() }
+        val saved = room?.let { ChatStore.chatText(this, it) }.orEmpty()
         val chat = if (saved.isNotBlank()) "$saved\n\n[지금 카톡 화면]\n$screen" else screen
         return chat to room
     }
@@ -591,29 +585,10 @@ class HelperActivity : Activity() {
         resultBox.visibility = View.GONE
         answerBox.visibility = View.GONE
         val svc = KakaoAccessibilityService.instance
-        // 내보내 저장해 둔 대화가 없으면: 먼저 이 방 대화를 내보낼지 물어봄
+        prefs.logExport("찾기: 카톡 방 '${roomTitle ?: "못 읽음"}' → ${room?.let { "저장된 '${Rooms.name(this, it)}' ($it)" } ?: "저장된 대화 없음"}")
+        // 이 방에서 내보낸 대화가 없으면: 먼저 이 방 대화를 내보낼지 물어봄 (다른 방 대화는 고르게 하지 않음)
         if (room == null && svc != null) {
             showStatus(null)
-            val rooms = AskActivity.savedRooms(this)
-            prefs.logExport("찾기: 방 이름 '${roomTitle ?: "못 읽음"}' · 저장된 방 ${rooms.joinToString().ifBlank { "없음" }} → 짝 못 찾음")
-            // 이미 내보낸 대화가 있으면, 그중에서 이 방을 고르게 함 (고르면 다음부터 바로 찾음)
-            if (rooms.isNotEmpty()) {
-                val items = rooms.map { "💬 $it" } + "➕ 이 방은 처음이에요 (새로 내보내기)"
-                AlertDialog.Builder(this)
-                    .setTitle("이 방 대화를 이미 내보냈나요? 내보낸 대화를 골라 주세요")
-                    .setItems(items.toTypedArray()) { _, i ->
-                        if (i < rooms.size) {
-                            val picked = rooms[i]
-                            roomTitle?.let { prefs.addRoomAlias(kr.yunho.talkhelper.core.RoomMatch.norm(it), picked) }
-                            prefs.logExport("방 고름: '${roomTitle ?: "?"}' = '$picked'")
-                            val saved = ChatStore.chatText(this, picked).orEmpty()
-                            answerFrom(question, "$saved\n\n[지금 카톡 화면]\n${screenText.orEmpty()}", picked, 0)
-                        } else askExport(question, chat, svc)
-                    }
-                    .setNegativeButton("취소", null)
-                    .show()
-                return
-            }
             askExport(question, chat, svc)
             return
         }
@@ -696,12 +671,13 @@ class HelperActivity : Activity() {
 
     private fun answerFrom(question: String, chat: String, room: String?, collectedLines: Int) {
         val claude = ClaudeProvider.get(this) ?: return
+        val roomName = Rooms.name(this, room)
         showStatus(when {
-            room != null -> "🔎 '$room' 대화 전체에서 찾는 중…"
+            room != null -> "🔎 '$roomName' 대화 전체에서 찾는 중…"
             collectedLines > 0 -> "🔎 모은 대화 ${collectedLines}줄에서 찾는 중…"
             else -> "🔎 화면의 대화에서 찾는 중…"
         })
-        Bg.run({ claude.answer(question, chat, room) }) { r ->
+        Bg.run({ claude.answer(question, chat, roomName) }) { r ->
             if (isFinishing) return@run
             askMode = false
             r.onSuccess { full ->
