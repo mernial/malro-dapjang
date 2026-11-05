@@ -631,10 +631,21 @@ class KakaoAccessibilityService : AccessibilityService() {
     private fun updateBubble() {
         val wins = appWindows()
         val apps = wins.mapNotNull { it.root?.packageName?.toString() }
-        // 창 목록을 못 받는 기기에서는 마지막으로 앞에 나온 앱으로 판단
-        val kakao = KAKAO in apps || (apps.isEmpty() && lastPkg == KAKAO)
+        val kakao = if (BuildConfig.STORE_SAFE) {
+            // 플레이판은 접근성 설정에서 카톡·이 앱만 보도록 제한함(packageNames). 다른 앱 창은 내용이 안 보여(root=null)
+            // '앱이 없다'로 보이므로, 카톡 창이 실제로 보일 때만 카톡으로 침. 창 목록을 못 받으면 지금 활성 창으로 판단
+            KAKAO in apps || (wins.isEmpty() && rootInActiveWindow?.packageName == KAKAO)
+        } else {
+            // 창 목록을 못 받는 기기에서는 마지막으로 앞에 나온 앱으로 판단
+            KAKAO in apps || (apps.isEmpty() && lastPkg == KAKAO)
+        }
         val show = kakao && packageName !in apps && Prefs(this).enabled
         if (show) showBubble() else removeBubble()
+        // 플레이판: 카톡을 떠날 때(홈·다른 앱) 그쪽 이벤트는 받지 않으므로, 버튼이 떠 있는 동안 1초마다 다시 확인
+        if (BuildConfig.STORE_SAFE && bubble != null) {
+            handler.removeCallbacks(refresh)
+            handler.postDelayed(refresh, 1000)
+        }
         diag("앱 창 ${wins.size}개 [${apps.joinToString().ifBlank { "없음" }}] · 최근 앱 ${lastPkg.ifBlank { "-" }} · 카톡 ${if (kakao) "인식" else "못 찾음"} · 버튼 ${if (bubble != null) "표시 중" else "숨김"}")
     }
 

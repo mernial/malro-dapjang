@@ -112,11 +112,25 @@ class HelperActivity : Activity() {
         start()
     }
 
+    /** '알림으로 답장'으로 열린 경우 답장할 카톡 대화 (보낼 때 알림의 답장 칸으로 보냄) */
+    private var notifyTarget: NotifyReplyService.Target? = null
+
     private fun start() {
         screenText = pendingScreenText
         pendingScreenText = null
         roomTitle = pendingTitle
         pendingTitle = null
+        notifyTarget = null
+        intent?.getStringExtra(NotifyReplyService.EXTRA_KEY)?.let { key ->
+            val t = NotifyReplyService.target(key)
+            if (t == null) {
+                Toast.makeText(this, "이 메시지 알림이 지나갔어요. 카톡에서 직접 답장해 주세요.", Toast.LENGTH_LONG).show()
+                finish(); return
+            }
+            notifyTarget = t
+            screenText = t.context()   // 화면 대신 알림에 보이던 최근 메시지
+            roomTitle = t.title
+        }
         heard.clear(); partial = ""; lastSpoken = ""
         mode = prefs.mode   // 동그라미 메뉴에서 고른 말투
         val ask = intent?.getBooleanExtra(EXTRA_ASK, false) == true
@@ -909,6 +923,12 @@ class HelperActivity : Activity() {
         val text = resultEdit.text.toString().trim()
         if (text.isEmpty()) return
         val app = applicationContext
+        // '알림으로 답장': 카톡 알림의 답장 칸으로 보냄 (접근성 쓰지 않음)
+        notifyTarget?.let { t ->
+            finish()
+            if (NotifyReplyService.send(app, t, text)) toast(app, "보냈습니다") else copyFallback(app, text)
+            return
+        }
         val pressSend = prefs.autoPressSend
         val svc = KakaoAccessibilityService.instance
         finish() // 이 화면이 닫혀 카톡이 다시 앞에 오면 입력창에 넣음

@@ -1,0 +1,52 @@
+name: 스토어 화면 찍기 (에뮬레이터)
+
+# claude/screenshots-run 브랜치에 push 하거나 손으로 돌릴 때만.
+# 에뮬레이터에 플레이판(디버그)을 깔고 앱 화면 캡처 + 접근성 안내·동의 흐름을 녹화해서
+# 결과를 store-capture 브랜치에 올림. (카톡 위 장면은 카톡이 없어 실제 폰으로 찍어야 함)
+on:
+  push:
+    branches: [claude/screenshots-run]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: 앱 만들기 (플레이판 디버그)
+        working-directory: android
+        run: ./gradlew --no-daemon assemblePlayDebug
+      - name: KVM 켜기
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: 에뮬레이터에서 찍기
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          script: bash .github/capture/capture.sh
+      - name: 결과를 store-capture 브랜치에 올리기
+        if: always()
+        run: |
+          ls -la capture || exit 0
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git checkout --orphan store-capture
+          git rm -rq --cached . || true
+          git add -f capture
+          git commit -qm "스토어 화면 캡처 $(date -u +%F)"
+          git push -f origin store-capture
