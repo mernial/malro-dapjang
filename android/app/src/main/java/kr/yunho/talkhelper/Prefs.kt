@@ -44,8 +44,19 @@ class Prefs(ctx: Context) {
     var sendMode: SendMode
         get() = sp.getString("sendMode", null)?.let { runCatching { SendMode.valueOf(it) }.getOrNull() }
             ?.takeIf { it in SendMode.available() }
-            ?: if (sp.getBoolean("autoSend", true)) SendMode.COUNTDOWN else SendMode.CONFIRM
+            ?: defaultSendMode().also { sp.edit().putString("sendMode", it.name).apply() }
         set(v) = sp.edit().putString("sendMode", v.name).apply()
+
+    /**
+     * 처음 정해지는 보내는 방식. 예전 '자동 전송' 설정이 있으면 이어받고,
+     * 이미 쓰던 사람(API 키가 있음)은 '3초 뒤' 그대로, 플레이판 새 사용자는 '확인 후'
+     * (구글 접근성 정책: AI가 만든 글을 사람 확인 없이 실행하는 것으로 보이지 않게)
+     */
+    private fun defaultSendMode(): SendMode = when {
+        sp.contains("autoSend") -> if (sp.getBoolean("autoSend", true)) SendMode.COUNTDOWN else SendMode.CONFIRM
+        BuildConfig.STORE_SAFE && apiKey.isBlank() -> SendMode.CONFIRM
+        else -> SendMode.COUNTDOWN
+    }
 
     /** 꾹 누르면 펼쳐지는 동그라미 순서 (사용자가 끌어서 바꾼 것) */
     var menuOrder: List<String>

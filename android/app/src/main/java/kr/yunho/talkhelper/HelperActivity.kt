@@ -710,11 +710,16 @@ class HelperActivity : Activity() {
         val spoken = lastSpoken
         AlertDialog.Builder(this)
             .setTitle("🚩 이상한 답장 알리기")
-            .setMessage("AI가 만든 글이 이상하거나 불쾌했나요? '알리기'를 누르면 바로 접수돼요(이 휴대폰에 기록). 운영자에게 메일로도 보낼 수 있어요.")
+            .setMessage("AI가 만든 글이 이상하거나 불쾌했나요? '알리기'를 누르면 말씀하신 내용과 AI가 만든 글이 운영자에게 바로 전달돼요.")
             .setView(note)
             .setPositiveButton("알리기") { _, _ ->
-                prefs.addAiReport(spoken, aiText, note.text.toString().trim())
-                Toast.makeText(this, "알려 주셔서 고마워요. 접수했어요.", Toast.LENGTH_LONG).show()
+                val n = note.text.toString().trim()
+                prefs.addAiReport(spoken, aiText, n)
+                val app = applicationContext
+                Bg.run({ AiReport.send(n, spoken, aiText, BuildConfig.VERSION_NAME) }) { r ->
+                    val sent = r.getOrDefault(false)
+                    Toast.makeText(app, if (sent) "알려 주셔서 고마워요. 운영자에게 전달했어요." else "접수했어요. 지금은 전달하지 못해 이 휴대폰에 기록해 두었어요.", Toast.LENGTH_LONG).show()
+                }
             }
             .setNeutralButton("메일로도 보내기") { _, _ ->
                 val n = note.text.toString().trim()
