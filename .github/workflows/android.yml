@@ -80,9 +80,11 @@ jobs:
               --title "카톡 도우미 설치 파일" \
               --notes "휴대폰에서 아래 talk-helper.apk 를 눌러 받아 설치하세요. 설치 방법은 android/README.md 를 보세요."
           fi
-          gh release upload talk-helper talk-helper.apk version.json --repo "$REPO" --clobber
+          # GitHub 서버가 잠깐 오류(500/502)를 내는 일이 있어 최대 4번 다시 시도
+          upload() { for n in 1 2 3 4; do gh release upload talk-helper "$@" --repo "$REPO" --clobber && return 0; echo "올리기 실패 ($n/4), 20초 뒤 다시"; sleep 20; done; return 1; }
+          upload talk-helper.apk version.json
           # 플레이 콘솔에 올릴 파일 (업로드 키로 서명된 경우만)
-          if [ -n "$SIGNING_STORE_FILE" ]; then gh release upload talk-helper talk-helper-play.aab --repo "$REPO" --clobber; fi
+          if [ -n "$SIGNING_STORE_FILE" ]; then upload talk-helper-play.aab; fi
       # 서비스 계정 키가 등록돼 있고 고정 서명 키로 만든 경우에만, 플레이 내부 테스트에 자동으로 올림
       # (첫 버전은 플레이 콘솔에서 직접 올려야 함)
       # 휴대폰·태블릿에서 키 내용을 복사하면 줄바꿈이 섞여 JSON 이 깨질 수 있어 정리해서 파일로 씀
