@@ -92,7 +92,7 @@ class Prefs(ctx: Context) {
      */
     fun clearRecords() {
         val e = sp.edit()
-        listOf("exportLog", "lastSendLog", "lastUsage", "usage", "usageMonth", "lastMonthUsage", "bubbleDiag").forEach { e.remove(it) }
+        listOf("exportLog", "lastSendLog", "lastUsage", "usage", "usageMonth", "lastMonthUsage", "bubbleDiag", "aiReports").forEach { e.remove(it) }
         sp.all.keys.filter { it.startsWith("kakaoMe") }.forEach { e.remove(it) }
         e.apply()
     }
@@ -109,6 +109,16 @@ class Prefs(ctx: Context) {
     // 예전 '방 이름 짝'(roomAliases)은 Rooms 로 옮김 (Rooms.migrate)
 
     /** 대화 내보내기·찾기 과정 기록 (안 될 때 원인 확인용, 최근 30줄) */
+    /** 🚩 이상한 AI 답장 알림 (최근 20건, 휴대폰 안에만) */
+    var aiReports: String
+        get() = sp.getString("aiReports", "") ?: ""
+        set(v) = sp.edit().putString("aiReports", v).apply()
+    fun addAiReport(spoken: String, aiText: String, note: String) {
+        val stamp = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.KOREA).format(java.util.Date())
+        val entry = "[$stamp] ${note.ifBlank { "(설명 없음)" }}\n  말한 것: ${spoken.take(200).replace('\n', ' ')}\n  AI 글: ${aiText.take(300).replace('\n', ' ')}"
+        aiReports = (listOf(entry) + aiReports.split("\n\n").filter { it.isNotBlank() }).take(20).joinToString("\n\n")
+    }
+
     var exportLog: String
         get() = sp.getString("exportLog", "") ?: ""
         set(v) = sp.edit().putString("exportLog", v).apply()

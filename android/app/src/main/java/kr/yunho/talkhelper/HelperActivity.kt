@@ -706,17 +706,26 @@ class HelperActivity : Activity() {
      * 사용자가 확인한 뒤 메일 앱으로 보냄. 앱이 몰래 보내지 않음.
      */
     private fun reportAi(aiText: String) {
+        val note = EditText(this).apply { hint = "무엇이 이상했나요? (안 적어도 돼요)"; textSize = 16f; minLines = 2 }
+        val spoken = lastSpoken
         AlertDialog.Builder(this)
             .setTitle("🚩 이상한 답장 알리기")
-            .setMessage("AI가 만든 글이 이상하거나 불쾌했나요?\n\n메일 앱이 열리고, 말씀하신 내용과 AI가 만든 글이 함께 담겨요. 확인하고 직접 보내 주세요.")
-            .setPositiveButton("메일로 알리기") { _, _ ->
-                val body = "무엇이 이상했나요? (적어 주세요)\n\n\n---\n[말한 내용]\n${lastSpoken.take(1000)}\n\n[AI가 만든 글]\n${aiText.take(2000)}\n\n앱 버전 ${BuildConfig.VERSION_NAME}"
-                val i = android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:"))
-                    .putExtra(android.content.Intent.EXTRA_EMAIL, arrayOf(REPORT_EMAIL))
-                    .putExtra(android.content.Intent.EXTRA_SUBJECT, "[말로 답장] 이상한 AI 답장 알리기")
-                    .putExtra(android.content.Intent.EXTRA_TEXT, body)
+            .setMessage("AI가 만든 글이 이상하거나 불쾌했나요? '알리기'를 누르면 바로 접수돼요(이 휴대폰에 기록). 운영자에게 메일로도 보낼 수 있어요.")
+            .setView(note)
+            .setPositiveButton("알리기") { _, _ ->
+                prefs.addAiReport(spoken, aiText, note.text.toString().trim())
+                Toast.makeText(this, "알려 주셔서 고마워요. 접수했어요.", Toast.LENGTH_LONG).show()
+            }
+            .setNeutralButton("메일로도 보내기") { _, _ ->
+                val n = note.text.toString().trim()
+                prefs.addAiReport(spoken, aiText, n)
+                val body = "${n.ifBlank { "무엇이 이상했나요? (적어 주세요)" }}\n\n---\n[말한 내용]\n${spoken.take(1000)}\n\n[AI가 만든 글]\n${aiText.take(2000)}\n\n앱 버전 ${BuildConfig.VERSION_NAME}"
+                val i = Intent(Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:"))
+                    .putExtra(Intent.EXTRA_EMAIL, arrayOf(REPORT_EMAIL))
+                    .putExtra(Intent.EXTRA_SUBJECT, "[말로 답장] 이상한 AI 답장 알리기")
+                    .putExtra(Intent.EXTRA_TEXT, body)
                 runCatching { startActivity(i) }.onFailure {
-                    Toast.makeText(this, "메일 앱이 없어요. $REPORT_EMAIL 로 알려 주세요.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "접수했어요. 메일 앱이 없어 $REPORT_EMAIL 로는 보내지 못했어요.", Toast.LENGTH_LONG).show()
                 }
             }
             .setNegativeButton("닫기", null)

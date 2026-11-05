@@ -427,6 +427,10 @@ class MainActivity : Activity() {
             body.add(Ui.text(this, it, 13f, color = Ui.MUTED), 4)
         }
         sendLog()
+        p.aiReports.takeIf { it.isNotBlank() }?.let {
+            body.add(Ui.text(this, "🚩 이상한 답장 알림 (이 휴대폰에만 기록)", 14f, bold = true, color = Ui.MUTED), 24)
+            body.add(Ui.text(this, it, 11f, color = Ui.MUTED).apply { setTextIsSelectable(true) }, 4)
+        }
         body.add(Ui.button(this, "🗑 저장한 대화·기록 모두 지우기", Ui.CARD, Ui.RED, sp = 15f) { confirmClearAll() }, 24)
     }
 
