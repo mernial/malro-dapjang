@@ -33,16 +33,18 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
         const val EXTRA_SCREEN = "screenText"
         /** 카톡 위 카드에서 '내보내고 찾기'를 고른 질문 (내보낸 대화가 들어오면 이어서 답함) */
         @Volatile var pendingQuestion: Pair<String, Long>? = null
-        /** 내보낸 카톡 방의 화면 이름 (저장된 대화와 짝지어 기억) */
+        /** 내보낸 카톡 방의 화면 이름 (저장된 대화와 짝지어 기억). 10분이 지나면 쓰지 않음 */
         @Volatile var pendingTitle: String? = null
+            set(v) { field = v; pendingTitleAt = System.currentTimeMillis() }
+        @Volatile private var pendingTitleAt = 0L
+        private fun freshTitle() = pendingTitle?.takeIf { System.currentTimeMillis() - pendingTitleAt < 10 * 60_000 }
         private const val REQ_SPEECH = 11
         private const val REQ_FOLDER = 12
         private const val SCREEN = "\u0000screen"   // '지금 화면' 을 나타내는 내부 이름
 
         fun chatsDir(c: Context) = ChatStore.dir(c)
-        fun savedRooms(c: Context): List<String> =
-            chatsDir(c).listFiles { f -> f.name.endsWith(".txt") }.orEmpty()
-                .sortedByDescending { it.lastModified() }.map { it.name.removeSuffix(".txt") }
+        /** 저장된 대화 번호들 (최근 순). 보여 줄 이름은 Rooms.name */
+        fun savedRooms(c: Context): List<String> = Rooms.ids(c)
     }
 
     private lateinit var body: LinearLayout
@@ -114,7 +116,7 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
             } else if (Build.VERSION.SDK_INT >= 33) i.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
             else i.getParcelableExtra(Intent.EXTRA_STREAM)
             val text = i.getStringExtra(Intent.EXTRA_TEXT)
-            ChatStore.nameHint = pendingTitle   // 파일에 방 이름이 없으면 카톡 화면의 방 이름으로 저장
+            ChatStore.nameHint = freshTitle()   // 앱에서 내보내기를 시작한 방이면 그 방과 짝지어 저장
             Prefs(this).logExport("받음: ${i.action?.substringAfterLast('.')} ${i.type} 파일=${uri != null} 글=${text?.length ?: 0}자 · 기다리는 질문=${pendingQuestion != null}")
             showBusy("💬 대화를 저장하는 중이에요…\n\n내보낸 대화는 이 휴대폰 안에만 보관돼요")
             importChat {
@@ -138,16 +140,12 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
                     .setPositiveButton("확인", null).show()
                 return@run
             }
-            Prefs(this).logExport("저장: '${saved.room}' 사진 ${saved.photos}장")
-            // 이 방을 다음부터 바로 알아보도록 화면 이름과 짝지어 둠
-            pendingTitle?.let { t ->
-                Prefs(this).addRoomAlias(kr.yunho.talkhelper.core.RoomMatch.norm(t), saved.room)
-                Prefs(this).logExport("방 이름 기억: '$t' = '${saved.room}'")
-            }
+            Prefs(this).logExport("저장: '${saved.name}' (${saved.room}) 사진 ${saved.photos}장 · 카톡 방 '${ChatStore.nameHint ?: "모름"}'")
+            ChatStore.nameHint = null
             pendingTitle = null
             selected = saved.room
             val photos = if (saved.photos > 0) " 사진 ${saved.photos}장도 함께 저장했어요." else ""
-            Toast.makeText(this, "'${saved.room}' 대화를 저장했어요.$photos 이제 물어보세요.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "'${saved.name}' 대화를 저장했어요.$photos 이제 물어보세요.", Toast.LENGTH_LONG).show()
             render()
             // 카드에서 물어본 질문이 기다리고 있으면 바로 찾아서 정리해 드림 (5분 안)
             pendingQuestion?.takeIf { System.currentTimeMillis() - it.second < 5 * 60_000 }?.let { (q, _) ->
@@ -215,7 +213,7 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
                 17f), 8)
         }
         for (s in sources) {
-            val label = if (s == SCREEN) "📱 지금 카톡 화면의 대화" else "💬 $s"
+            val label = if (s == SCREEN) "📱 지금 카톡 화면의 대화" else "💬 ${Rooms.name(this, s)}"
             val on = s == selected
             body.add(Ui.button(this, label, if (on) Ui.YELLOW else Ui.CARD, sp = 18f) { selected = s; render() }
                 .apply { background = Ui.rounded(this@AskActivity, if (on) Ui.YELLOW else Ui.CARD, 18, if (on) Ui.BROWN else Ui.LINE) }, 8)
@@ -262,7 +260,7 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
     }
 
     private fun confirmDelete(name: String) {
-        AlertDialog.Builder(this).setMessage("'$name' 대화를 이 앱에서 지울까요? (카톡 대화는 지워지지 않습니다)")
+        AlertDialog.Builder(this).setMessage("'${Rooms.name(this, name)}' 대화를 이 앱에서 지울까요? (카톡 대화는 지워지지 않습니다)")
             .setPositiveButton("지우기") { _, _ ->
                 ChatStore.delete(this, name)
                 selected = savedRooms(this).firstOrNull() ?: screenText?.let { SCREEN }
@@ -309,10 +307,11 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
         val claude = ClaudeProvider.get(this)
         if (claude == null) { Toast.makeText(this, "먼저 앱 설정을 마쳐 주세요.", Toast.LENGTH_LONG).show(); return }
         val room = selected?.takeIf { it != SCREEN }
-        showBusy("🔎 ${if (room != null) "'$room' 대화에서" else "대화에서"} 찾고 있어요…\n\n물어본 것: $q\n\n어떻게 진행되고 무엇이 정해졌는지 정리하는 중이에요")
+        val roomName = Rooms.name(this, room)
+        showBusy("🔎 ${if (roomName != null) "'$roomName' 대화에서" else "대화에서"} 찾고 있어요…\n\n물어본 것: $q\n\n어떻게 진행되고 무엇이 정해졌는지 정리하는 중이에요")
         answer.visibility = View.GONE
         photoBox.visibility = View.GONE
-        Bg.run({ claude.answer(q, chat, room) }) { r ->
+        Bg.run({ claude.answer(q, chat, roomName) }) { r ->
             if (isFinishing) return@run
             hideBusy()
             Prefs(this).logExport(if (r.isSuccess) "찾기 완료" else "찾기 실패: ${r.exceptionOrNull()?.message}")

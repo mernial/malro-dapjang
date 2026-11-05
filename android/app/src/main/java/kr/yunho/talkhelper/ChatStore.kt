@@ -16,19 +16,22 @@ import java.util.zip.ZipInputStream
 
 /**
  * '대화에서 찾기'용으로 내보낸 카톡 대화를 휴대폰 안(앱 저장공간)에 저장.
- *  - chats/<방>.txt       대화 글
- *  - chats/<방>.media/    함께 내보낸 사진 (있을 때만). 사진은 휴대폰 밖으로 보내지 않음
+ *  - chats/<번호>.txt       대화 글 (번호는 앱이 붙인 고유 번호, 이름·카톡 방 짝은 Rooms 에)
+ *  - chats/<번호>.media/    함께 내보낸 사진 (있을 때만). 사진은 휴대폰 밖으로 보내지 않음
  */
 object ChatStore {
     fun dir(c: Context) = File(c.filesDir, "chats").apply { mkdirs() }
     fun mediaDir(c: Context, room: String) = File(dir(c), "$room.media")
     private fun safe(room: String) = room.replace(Regex("[\\\\/:*?\"<>|]"), "_").take(60)
 
-    /** 내보낸 파일에 방 이름이 없을 때 쓸 이름 (카톡 화면에서 읽은 방 이름) */
+    /**
+     * 앱에서 내보내기를 시작한 카톡 방의 화면 이름. 있으면 저장한 대화를 이 방과 짝지음
+     * (파일에 방 이름이 없을 때 이름으로도 씀)
+     */
     @Volatile var nameHint: String? = null
 
-    /** 저장 결과: 방 이름과 함께 저장한 사진 수 */
-    data class Saved(val room: String, val photos: Int)
+    /** 저장 결과: 대화 번호, 보여 줄 이름, 함께 저장한 사진 수 */
+    data class Saved(val room: String, val name: String, val photos: Int)
 
     /** 공유받은 글(.txt) 또는 압축 파일(.zip, 사진 포함 가능) 저장 */
     fun importStream(c: Context, open: () -> InputStream?): Saved? {
@@ -112,12 +115,17 @@ object ChatStore {
     private fun finish(c: Context, text: String?, incoming: File, photos: Int): Saved? {
         // 카톡 대화가 아니면(다른 앱에서 사진·문서를 잘못 보낸 경우) 저장하지 않음
         if (text.isNullOrBlank() || !looksLikeKakaoChat(text)) { incoming.deleteRecursively(); return null }
-        val room = safe(ChatSearch.roomName(text) ?: nameHint?.takeIf { it.isNotBlank() } ?: "내보낸 대화")
+        val hint = nameHint?.takeIf { it.isNotBlank() }
+        val name = safe(ChatSearch.roomName(text) ?: hint ?: "내보낸 대화")
+        // 같은 방을 다시 내보낸 것이면 그 번호에 덮어쓰고, 아니면 새 번호 (이름만 같은 다른 방은 섞지 않음)
+        val room = kr.yunho.talkhelper.core.RoomMatch.reuseTarget(hint, name, text, Rooms.all(c)) { chatText(c, it).orEmpty() }
+            ?: Rooms.newId()
         File(dir(c), "$room.txt").writeText(text)
+        Rooms.put(c, room, name, hint ?: name)
         val media = mediaDir(c, room)
         if (photos > 0) { media.deleteRecursively(); incoming.renameTo(media) }
         else incoming.deleteRecursively()   // 글만 다시 내보낸 경우 전에 받은 사진은 그대로 둠
-        return Saved(room, photos)
+        return Saved(room, name, photos)
     }
 
     /** 내보낸 카톡 대화인지: 첫머리에 '카카오톡 대화' 표시가 있거나, 앞쪽에 '날짜, 이름 : 메시지' 줄이 있음 */
@@ -146,7 +154,7 @@ object ChatStore {
         val p = Prefs(c)
         val senders = MyStyle.senders(chat)
         p.kakaoMe(room)?.takeIf { it in senders }?.let { return it }
-        val others = AskActivity.savedRooms(c).filter { it != room }.take(5)
+        val others = Rooms.ids(c).filter { it != room }.take(5)
             .map { r -> MyStyle.senders(chatText(c, r).orEmpty()) }
         return MyStyle.guessMe(p.myName, listOf(senders) + others)?.also { p.setKakaoMe(room, it) }
     }
@@ -162,5 +170,6 @@ object ChatStore {
     fun delete(c: Context, room: String) {
         File(dir(c), "$room.txt").delete()
         mediaDir(c, room).deleteRecursively()
+        Rooms.remove(c, room)
     }
 }
