@@ -34,10 +34,10 @@ class MainActivity : Activity() {
         const val DISCLOSURE = """이 앱은 '접근성' 권한을 다음 용도로만 사용합니다.
 
 • 카카오톡 화면 위에 '도우미' 버튼을 띄웁니다.
-• 도우미 버튼을 누를 때, 그 순간 카카오톡 화면에 보이는 대화 글을 읽습니다. 무엇에 대한 답장인지 알기 위해서입니다.
+• 도우미 버튼을 누를 때(답장·찾기), 그 순간 카카오톡 화면에 보이는 대화 글을 읽습니다. 무엇에 대한 답장인지, 무엇을 찾는지 알기 위해서입니다.
 • 다듬은 답장을 카카오톡 입력창에 넣고 전송 버튼을 누릅니다. 보내기 전에 화면에 보여 드리고 취소할 수 있습니다.
 
-읽은 대화 글과 말씀하신 내용은 답장을 다듬기 위해 Anthropic(Claude AI)으로 전송되며, 이 앱의 서버나 휴대폰에 저장하지 않습니다.
+읽은 대화 글과 말씀하신 내용은 답장을 다듬거나 찾은 내용을 정리하기 위해 Anthropic(Claude AI, 미국)으로 전송됩니다. 이 앱은 따로 서버를 두지 않으며, 화면에서 읽은 글을 휴대폰에 저장하지 않습니다.
 카카오톡 이외의 앱 화면은 읽지 않으며, 버튼을 누르지 않았을 때는 아무것도 읽거나 보내지 않습니다."""
     }
 
@@ -289,7 +289,8 @@ class MainActivity : Activity() {
         // 보내는 방식
         body.add(Ui.text(this, "보내는 방식", 18f, bold = true), 24)
         val group = android.widget.RadioGroup(this)
-        SendMode.values().forEachIndexed { i, m ->
+        val modes = SendMode.available()
+        modes.forEachIndexed { i, m ->
             group.addView(android.widget.RadioButton(this).apply {
                 id = 3000 + i
                 text = "${m.label} 보내기"
@@ -299,7 +300,7 @@ class MainActivity : Activity() {
                 isChecked = m == p.sendMode
             })
         }
-        group.setOnCheckedChangeListener { _, id -> SendMode.values().getOrNull(id - 3000)?.let { p.sendMode = it } }
+        group.setOnCheckedChangeListener { _, id -> modes.getOrNull(id - 3000)?.let { p.sendMode = it } }
         body.add(group, 6)
 
         // 찾은 내용 읽어 주기 (기본: 안 읽음)

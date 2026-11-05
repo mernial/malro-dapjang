@@ -29,7 +29,7 @@ class QuickSettingsActivity : Activity() {
         card.add(Ui.text(this, "⚙️ 간단 설정", 22f, bold = true), 0)
 
         card.add(Ui.text(this, "다듬은 문장, 언제 보낼까요?", 17f, bold = true), 16)
-        sendButtons = SendMode.values().associateWith { m ->
+        sendButtons = SendMode.available().associateWith { m ->
             choice(card, "${m.label} 보내기", m.desc) { prefs.sendMode = m; paint(); saved() }
         }
 

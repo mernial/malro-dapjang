@@ -48,10 +48,13 @@ android {
         create("github") {
             dimension = "dist"
             buildConfigField("boolean", "SELF_UPDATE", "true")
+            buildConfigField("boolean", "STORE_SAFE", "false")
         }
         create("play") {
             dimension = "dist"
             buildConfigField("boolean", "SELF_UPDATE", "false")
+            // 스토어 정책·카카오 우려: 확인 없는 '바로 보내기'와 카톡 메뉴 자동 조작(대화 내보내기·위로 넘기며 모으기)을 끔
+            buildConfigField("boolean", "STORE_SAFE", "true")
         }
     }
 

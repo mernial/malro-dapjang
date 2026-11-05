@@ -218,7 +218,7 @@ class HelperActivity : Activity() {
         val sendModeRow = Ui.hbox(ctx)
         sendModeRow.add(Ui.text(ctx, "보내기", 14f, bold = true, color = Ui.MUTED), weight = 0.8f)
         val sendButtons = LinkedHashMap<SendMode, Button>()
-        for (m in SendMode.values()) sendButtons[m] = sendModeRow.add(small(m.label, sp = 14f) { selectSendMode(m) }) as Button
+        for (m in SendMode.available()) sendButtons[m] = sendModeRow.add(small(m.label, sp = 14f) { selectSendMode(m) }) as Button
         sendModeButtons = sendButtons
         sendModeRow.visibility = View.GONE   // 보내는 방식은 꾹 눌러 ⚙️ 설정에서
         card.add(sendModeRow, 6)
@@ -284,6 +284,7 @@ class HelperActivity : Activity() {
         againRow = Ui.hbox(ctx)
         againRow.add(small("🎤 다시 말하기", sp = 14f) { stopConfirm(); stopCountdown(); resultBox.visibility = View.GONE; toggleMic() })
         againRow.add(small("🔄 다시 다듬기", sp = 14f) { stopCountdown(); if (lastSpoken.isNotBlank()) rewrite(lastSpoken) })
+        againRow.add(small("🚩", sp = 14f) { stopConfirm(); stopCountdown(); reportAi(resultEdit.text.toString()) }, weight = 0.5f)
         resultBox.add(againRow, 6)
         card.add(resultBox, 8)
 
@@ -300,7 +301,8 @@ class HelperActivity : Activity() {
         answerPhotos = Ui.vbox(ctx).apply { visibility = View.GONE }
         answerBox.add(answerPhotos, 8)
         val answerRow = Ui.hbox(ctx)
-        answerRow.add(small("📍 해당 메시지로 이동", Ui.BROWN, Ui.YELLOW, sp = 15f) { goToMessage() }, weight = 1.6f)
+        answerRow.add(small(if (BuildConfig.STORE_SAFE) "📋 찾을 말 복사" else "📍 해당 메시지로 이동", Ui.BROWN, Ui.YELLOW, sp = 15f) { goToMessage() }, weight = 1.6f)
+        answerRow.add(small("🚩", sp = 15f) { tts?.stop(); reportAi(answerText.text.toString()) }, weight = 0.5f)
         answerRow.add(small("닫기", sp = 15f) { tts?.stop(); finish() })
         answerBox.add(answerRow, 8)
         card.add(answerBox, 8)
@@ -621,6 +623,7 @@ class HelperActivity : Activity() {
 
     /** 이 방 대화를 내보낼지 물어봄 */
     private fun askExport(question: String, chat: String, svc: KakaoAccessibilityService) {
+        if (BuildConfig.STORE_SAFE) return askManualExport(question, chat)
         run {
             AlertDialog.Builder(this)
                 .setTitle("이 카톡방의 대화 메시지를 내보낼까요?")
@@ -635,6 +638,33 @@ class HelperActivity : Activity() {
                 .setNeutralButton("취소", null)
                 .show()
         }
+    }
+
+    /**
+     * 플레이판: 카톡 메뉴를 앱이 대신 누르지 않음 (구글 접근성 정책·카카오 약관 우려).
+     * 사용자가 직접 '대화 내용 내보내기'를 하도록 순서만 알려 주고, 질문은 5분 동안 기억했다가 이어서 답함.
+     */
+    private fun askManualExport(question: String, chat: String) {
+        AlertDialog.Builder(this)
+            .setTitle("예전 대화까지 찾으려면 대화를 내보내 주세요")
+            .setMessage(
+                "카톡에서 직접 이렇게 눌러 주세요:\n" +
+                    "☰ → ⚙ 설정 → 대화 내용 내보내기\n→ 텍스트만 보내기 → '대화에서 찾기'\n\n" +
+                    "• 내보낸 대화는 이 휴대폰 안에만 보관돼요.\n" +
+                    "• 찾을 때만 질문과 관련된 부분을 AI(Claude)에 보내 답을 받아요.\n" +
+                    "• 물어보신 질문은 기억해 두었다가 내보내면 이어서 찾아 드려요."
+            )
+            .setPositiveButton("직접 내보낼게요") { _, _ ->
+                AskActivity.pendingQuestion = question to System.currentTimeMillis()
+                AskActivity.pendingTitle = roomTitle
+                finish()
+            }
+            .setNegativeButton("이번엔 화면에서만") { _, _ ->
+                if (chat.isBlank()) showStatus("화면에서 대화를 읽지 못했어요. 카톡 대화방에서 다시 눌러 주세요.", Ui.RED)
+                else answerFrom(question, chat, null, 0)
+            }
+            .setNeutralButton("취소", null)
+            .show()
     }
 
     /** 카톡 메뉴를 대신 눌러 이 방 대화를 이 앱으로 내보내고, 저장되면 '대화에서 찾기'가 이어서 답함 */
@@ -695,6 +725,28 @@ class HelperActivity : Activity() {
         }
     }
 
+    /**
+     * 이상한 AI 결과 알리기 (구글 플레이 'AI 생성 콘텐츠' 정책: 사용자가 부적절한 결과를 신고할 수 있어야 함).
+     * 사용자가 확인한 뒤 메일 앱으로 보냄. 앱이 몰래 보내지 않음.
+     */
+    private fun reportAi(aiText: String) {
+        AlertDialog.Builder(this)
+            .setTitle("🚩 이상한 답장 알리기")
+            .setMessage("AI가 만든 글이 이상하거나 불쾌했나요?\n\n메일 앱이 열리고, 말씀하신 내용과 AI가 만든 글이 함께 담겨요. 확인하고 직접 보내 주세요.")
+            .setPositiveButton("메일로 알리기") { _, _ ->
+                val body = "무엇이 이상했나요? (적어 주세요)\n\n\n---\n[말한 내용]\n${lastSpoken.take(1000)}\n\n[AI가 만든 글]\n${aiText.take(2000)}\n\n앱 버전 ${BuildConfig.VERSION_NAME}"
+                val i = android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:"))
+                    .putExtra(android.content.Intent.EXTRA_EMAIL, arrayOf(REPORT_EMAIL))
+                    .putExtra(android.content.Intent.EXTRA_SUBJECT, "[말로 답장] 이상한 AI 답장 알리기")
+                    .putExtra(android.content.Intent.EXTRA_TEXT, body)
+                runCatching { startActivity(i) }.onFailure {
+                    Toast.makeText(this, "메일 앱이 없어요. $REPORT_EMAIL 로 알려 주세요.", Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton("닫기", null)
+            .show()
+    }
+
     /** 카드를 닫고, 카톡 대화방 검색으로 그 말이 있는 곳으로 이동 */
     private fun goToMessage() {
         val word = answerKeyword
@@ -702,7 +754,13 @@ class HelperActivity : Activity() {
         val answerTextCopy = answerText.text.toString()
         tts?.stop()
         finish()
-        val svc = KakaoAccessibilityService.instance
+        val svc = KakaoAccessibilityService.instance.takeUnless { BuildConfig.STORE_SAFE }
+        if (!word.isNullOrBlank() && BuildConfig.STORE_SAFE) {
+            // 플레이판: 대화방을 앱이 대신 넘기지 않고, 찾을 말을 복사해 두고 직접 검색하도록 안내
+            (app.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("찾을말", word))
+            Toast.makeText(app, "'$word'를 복사해 두었어요. 대화방 위쪽 🔍를 누르고 붙여 넣어 찾아 주세요.", Toast.LENGTH_LONG).show()
+            return
+        }
         if (word.isNullOrBlank() || svc == null) {
             Toast.makeText(app, "카톡 대화방에서 직접 찾아 주세요.", Toast.LENGTH_LONG).show()
             return
