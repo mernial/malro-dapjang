@@ -58,4 +58,3 @@ object ClaudeProvider {
         override val lastUsage: Usage? get() = inner.lastUsage
     }
 }
-}
