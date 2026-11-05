@@ -79,7 +79,13 @@ class Prefs(ctx: Context) {
 
     /** 마지막 카톡 보내기 시도 기록 (문제 진단용) */
     /** 카톡 화면의 방 이름 → 내보내 저장한 방 (한 번 내보낸 방을 다음에 바로 알아보려고) */
-    fun roomAliases(): Map<String, String> =
+    fun roomAliases(): Map<String, String> {
+        // 1.106 이전에는 대화 내용으로 짐작한 짝도 기억해서, 다른 방을 계속 고르는 일이 있었음 → 한 번 비움
+        if (!sp.getBoolean("roomAliasesV2", false)) sp.edit().remove("roomAliases").putBoolean("roomAliasesV2", true).apply()
+        return roomAliasesRaw()
+    }
+
+    private fun roomAliasesRaw(): Map<String, String> =
         (sp.getString("roomAliases", "") ?: "").lines().mapNotNull { l ->
             l.split('\t').takeIf { it.size == 2 }?.let { it[0] to it[1] }
         }.toMap()

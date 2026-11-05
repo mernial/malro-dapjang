@@ -573,13 +573,13 @@ class HelperActivity : Activity() {
         val rooms = AskActivity.savedRooms(this)
         // 1) 방 이름으로 (내보낼 때 기억한 짝, 띄어쓰기·인원수 차이 무시)  2) 화면 윗줄 글자로
         val room = kr.yunho.talkhelper.core.RoomMatch.find(roomTitle, rooms, prefs.roomAliases())
-            ?: rooms.firstOrNull { name -> top.any { it == name || it.startsWith(name) } }
-            // 3) 이름으로 못 찾으면 대화 내용으로: 화면에 보이는 메시지가 들어 있는 저장된 대화
-            ?: kr.yunho.talkhelper.core.RoomMatch.byContent(screen.lines(), rooms.associateWith { ChatStore.chatText(this, it).orEmpty() })
-                ?.also { r ->
-                    roomTitle?.let { prefs.addRoomAlias(kr.yunho.talkhelper.core.RoomMatch.norm(it), r) }
-                    prefs.logExport("대화 내용으로 방 알아봄: '$r'")
-                }
+            ?: rooms.firstOrNull { name -> roomTitle.isNullOrBlank() && top.any { it == name || it.startsWith(name) } }
+            // 3) 방 이름을 아예 못 읽었을 때만 대화 내용으로 짐작 (이름을 읽었는데 짝이 없으면 다른 방에서 찾지 않음.
+            //    예전에는 1:1 방에서 그 사람이 든 단체방을 잘못 고르기도 했음). 짐작한 짝은 기억하지 않음
+            ?: (if (roomTitle.isNullOrBlank()) kr.yunho.talkhelper.core.RoomMatch.byContent(
+                    screen.lines(), rooms.associateWith { ChatStore.chatText(this, it).orEmpty() })
+                    ?.also { r -> prefs.logExport("방 이름 못 읽음 → 대화 내용으로 방 알아봄: '$r'") }
+                else null)
         val saved = room?.let { java.io.File(AskActivity.chatsDir(this), "$it.txt").readText() }.orEmpty()
         val chat = if (saved.isNotBlank()) "$saved\n\n[지금 카톡 화면]\n$screen" else screen
         return chat to room

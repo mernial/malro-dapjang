@@ -32,4 +32,16 @@ class RoomMatchTest {
         assertEquals("청년부", RoomMatch.byContent(screen, chats))
         assertNull(RoomMatch.byContent(listOf("전혀 다른 대화 내용이에요"), chats))
     }
+
+    @Test
+    fun doesNotGuessAnotherRoomFromNamesAndDates() {
+        // 1:1 방 '김은미 로사'를 보는데, 그 사람이 들어 있는 단체방 대화가 저장돼 있는 경우
+        val chats = mapOf(
+            "상임위원회" to "2026년 11월 5일 수요일\n2026. 11. 5. 오전 9:00, 김은미 로사 : 회의 자료 올렸어요\n2026. 11. 5. 오전 9:01, 윤호 : 확인했어요\n김은미 로사님이 들어왔습니다.",
+        )
+        val screen = listOf("김은미 로사", "2026년 11월 5일 수요일", "김은미 로사님이 들어왔습니다.", "로사님 안녕하세요 반가워요", "나: 네 신부님 잘 부탁드려요")
+        assertNull(RoomMatch.byContent(screen, chats, names = listOf("김은미 로사")))
+        // 이름을 넘기지 않아도 날짜·알림 줄과 '절반 이상' 기준 때문에 고르지 않음
+        assertNull(RoomMatch.byContent(screen, chats))
+    }
 }
