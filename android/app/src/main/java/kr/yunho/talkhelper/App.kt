@@ -20,8 +20,8 @@ const val REPORT_EMAIL = "mernial@naver.com"
  *  - REPORT_FORM_URL: https://docs.google.com/forms/d/e/<긴 ID>/formResponse
  *  - REPORT_FORM_FIELDS: 설문 항목 번호 (무엇이 이상했나, 말한 내용, AI 글, 앱 버전 순)
  */
-const val REPORT_FORM_URL = ""
-val REPORT_FORM_FIELDS = listOf("", "", "", "")
+const val REPORT_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSerUu112Bk8P8_o_QDLUWPRoxvM-Yz0XDcHAOF-zC3I7yIcBA/formResponse"
+val REPORT_FORM_FIELDS = listOf("entry.535092123", "entry.1325222288", "entry.812589239", "entry.986025835")
 
 const val PRIVACY_URL = "https://mernial.github.io/catholic-shorts/talk-helper-privacy.html"
 

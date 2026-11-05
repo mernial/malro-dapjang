@@ -64,7 +64,7 @@
 | 신고 영상: 안내 창 전체, **동의하는 흐름, 동의 안 하는 흐름과 다시 안내가 뜨는 흐름**, 핵심 기능 | 촬영 안내에 '동의 안 함' 흐름이 빠져 있었음 | ✅ `capture-guide.md` 고침 |
 | "The use of the Accessibility API must be **documented in the Google Play listing**" | 스토어 설명에 있음 | ✅ |
 | 기기·네트워크 남용: "Apps that access or use a service or API **in a manner that violates its terms of service**" | → 카카오 약관 위반이면 구글 정책 위반도 됨 | 아래 카카오 표에 달림 |
-| AI 생성 콘텐츠: "in-app user reporting or flagging features that allow users to report or flag offensive content **to developers without needing to exit the app**" | 1.117: 🚩 → 폰에만 기록(개발자에게 안 감), 메일은 앱을 나감 | ❌ **미충족.** 앱을 나가지 않고 개발자에게 도착해야 함 → 고쳐야 함 |
+| AI 생성 콘텐츠: "in-app user reporting or flagging features that allow users to report or flag offensive content **to developers without needing to exit the app**" | 1.117: 🚩 → 폰에만 기록(개발자에게 안 감), 메일은 앱을 나감 | ✅ 1.120: 🚩 → 앱 안에서 구글 설문지로 운영자에게 전송 (실패하면 폰에 기록) |
 
 ### 카카오 (원문)
 **바로잡음:** 앞서 "회사 동의 없이 자동화된 수단(에이전트·스크립트)으로 접속 금지" 조항이 있다고 했으나, **현재 통합서비스약관·운영정책에 그런 문구는 없음.** (기억이 틀렸음)
