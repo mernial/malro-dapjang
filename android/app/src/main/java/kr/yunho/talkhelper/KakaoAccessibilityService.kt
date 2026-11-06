@@ -989,13 +989,19 @@ class KakaoAccessibilityService : AccessibilityService() {
             item to act
         }
         // 사용법 한 줄
+        // 화면 아래 가운데 알약 모양 안내 (어두운 바탕 위에서도 잘 보이게 흰 바탕·굵은 글씨)
         root.addView(TextView(this).apply {
-            text = "동그라미를 꾹 누른 채 끌면 순서를 바꿀 수 있어요"
-            setTextColor(0xCCFFFFFF.toInt())
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            text = "👆 골라서 누르기   ·   ✋ 꾹 눌러 끌면 순서 바꾸기"
+            setTextColor(CHARCOAL_BOTTOM)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
-        }, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT,
-            Gravity.BOTTOM).apply { bottomMargin = Ui.dp(this@KakaoAccessibilityService, 48) })
+            val ph = Ui.dp(this@KakaoAccessibilityService, 18); val pv = Ui.dp(this@KakaoAccessibilityService, 10)
+            setPadding(ph, pv, ph, pv)
+            background = Ui.rounded(this@KakaoAccessibilityService, 0xF2FFFFFF.toInt(), 24, GOLD)
+            elevation = Ui.dp(this@KakaoAccessibilityService, 6).toFloat()
+        }, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = Ui.dp(this@KakaoAccessibilityService, 56) })
         runCatching { wm.addView(root, lp); menu = root; menuItems = items }
             .onFailure { diag("메뉴 그리기 실패: ${it.javaClass.simpleName} ${it.message}"); return }
         buzz()

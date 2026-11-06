@@ -58,6 +58,33 @@ object Ui {
         setOnClickListener(onClick)
     }
 
+    /** 크고 깔끔한 켜기/끄기 스위치 (켜짐: 갈색 바탕·노란 동그라미, 꺼짐: 회색 바탕·흰 동그라미) */
+    fun toggle(ctx: Context, on: Boolean, onChange: (Boolean) -> Unit): View {
+        val w = dp(ctx, 68); val h = dp(ctx, 38); val pad = dp(ctx, 4); val knob = h - pad * 2
+        var state = on
+        val track = android.widget.FrameLayout(ctx).apply {
+            background = rounded(ctx, if (on) BROWN else LINE, 19)
+            isClickable = true
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+        }
+        val dot = View(ctx).apply {
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (on) YELLOW else Color.WHITE) }
+            elevation = dp(ctx, 2).toFloat()
+            translationX = if (on) (w - knob - pad * 2).toFloat() else 0f
+        }
+        track.addView(dot, android.widget.FrameLayout.LayoutParams(knob, knob).apply { leftMargin = pad; topMargin = pad })
+        track.layoutParams = ViewGroup.LayoutParams(w, h)
+        track.minimumWidth = w; track.minimumHeight = h
+        track.setOnClickListener {
+            state = !state
+            (track.background as GradientDrawable).setColor(if (state) BROWN else LINE)
+            (dot.background as GradientDrawable).setColor(if (state) YELLOW else Color.WHITE)
+            dot.animate().translationX(if (state) (w - knob - pad * 2).toFloat() else 0f).setDuration(150)
+                .withEndAction { onChange(state) }.start()
+        }
+        return track
+    }
+
     fun input(ctx: Context, hint: String, password: Boolean = false, multiline: Boolean = false) = EditText(ctx).apply {
         this.hint = hint
         setTextColor(BROWN)
