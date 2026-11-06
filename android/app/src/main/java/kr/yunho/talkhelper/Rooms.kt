@@ -24,6 +24,7 @@ object Rooms {
     fun all(c: Context): List<RoomMatch.Entry> = synchronized(lock) {
         migrate(c)
         repair(c)
+        repairV5(c)
         read(c)
     }
 
@@ -105,5 +106,18 @@ object Rooms {
         if (sp.getBoolean("roomsV4", false)) return
         write(c, read(c).map { e -> e.copy(titles = setOf(RoomMatch.norm(e.name)).filter { it.isNotEmpty() }.toSet()) })
         sp.edit().putBoolean("roomsV4", true).apply()
+    }
+
+    /**
+     * 1.139 전에는 '찾기'를 누른 방 이름이 시간이 지나 내보낸 다른 방에 묶일 수 있었음.
+     * 저장된 대화 이름과 맞지 않는 화면 이름 짝은 지움. 한 번만 함.
+     */
+    private fun repairV5(c: Context) {
+        val sp = c.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        if (sp.getBoolean("roomsV5", false)) return
+        write(c, read(c).map { e ->
+            e.copy(titles = (e.titles.filter { RoomMatch.sameRoomName(it, e.name) } + RoomMatch.norm(e.name)).filter { it.isNotEmpty() }.toSet())
+        })
+        sp.edit().putBoolean("roomsV5", true).apply()
     }
 }

@@ -70,13 +70,24 @@ object RoomMatch {
     fun lookup(title: String?, entries: List<Entry>, screenLines: List<String>, text: (String) -> String): String? {
         val t = title?.let { norm(it) }?.takeIf { it.isNotEmpty() }
             ?: return byContent(screenLines, entries.associate { it.id to text(it.id) })
-        val same = entries.filter { t in it.titles }
+        // 내보낸 파일 속 방 이름도 같이 봄 (예전에 다른 방 이름이 잘못 묶였어도 자기 이름으로는 찾게)
+        val same = entries.filter { t in it.titles || norm(it.name) == t }
         return when (same.size) {
             0 -> null
             1 -> same[0].id
             // 이름이 같은 방끼리는 이미 후보가 좁혀졌으니 화면 메시지 한 줄만 맞아도 가림 (똑같이 맞으면 모름)
             else -> byContent(screenLines, same.associate { it.id to text(it.id) }, listOfNotNull(title), atLeast = 1)
         }
+    }
+
+    /**
+     * 카톡 화면 이름 [screen] 과 내보낸 파일 속 방 이름 [file] 이 같은 방으로 보이는지.
+     * 같거나 한쪽이 다른 쪽을 품으면(두 글자 이상) 같은 방. 내보내기를 시작한 방과 실제 내보낸 방이 다르면 묶지 않으려고 씀
+     */
+    fun sameRoomName(screen: String?, file: String): Boolean {
+        val a = screen?.let { norm(it) }.orEmpty(); val b = norm(file)
+        if (a.isEmpty() || b.isEmpty()) return false
+        return a == b || (minOf(a.length, b.length) >= 2 && (a.contains(b) || b.contains(a)))
     }
 
     /** 대화의 첫 메시지 줄 (같은 방을 다시 내보냈는지 알아볼 때 씀. 내보내기는 처음부터 다 들어 있음) */
