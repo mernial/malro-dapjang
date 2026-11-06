@@ -126,6 +126,18 @@ object ChatStore {
         File(dir(c), "$room.txt").writeText(text)
         Rooms.put(c, room, name, name)
         if (bind != null) Rooms.put(c, room, name, bind)
+        // 같은 방을 예전에 다른 번호로 저장해 둔 것(이름·첫 메시지가 같음)은 지워 하나로 합침
+        val first = kr.yunho.talkhelper.core.RoomMatch.firstMessage(text)
+        if (first != null) Rooms.all(c).filter { e ->
+            e.id != room && kr.yunho.talkhelper.core.RoomMatch.norm(e.name) == kr.yunho.talkhelper.core.RoomMatch.norm(name) &&
+                kr.yunho.talkhelper.core.RoomMatch.firstMessage(chatText(c, e.id).orEmpty()) == first
+        }.forEach { old ->
+            old.titles.forEach { t -> Rooms.put(c, room, name, t) }
+            // 사진은 새로 받은 게 없으면 예전 것을 옮겨 둠
+            val oldMedia = mediaDir(c, old.id); val newMedia = mediaDir(c, room)
+            if (oldMedia.exists() && !newMedia.exists()) oldMedia.renameTo(newMedia)
+            delete(c, old.id)
+        }
         val media = mediaDir(c, room)
         if (photos > 0) { media.deleteRecursively(); incoming.renameTo(media) }
         else incoming.deleteRecursively()   // 글만 다시 내보낸 경우 전에 받은 사진은 그대로 둠

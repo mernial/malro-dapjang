@@ -76,7 +76,12 @@ object RoomMatch {
             0 -> null
             1 -> same[0].id
             // 이름이 같은 방끼리는 이미 후보가 좁혀졌으니 화면 메시지 한 줄만 맞아도 가림 (똑같이 맞으면 모름)
-            else -> byContent(screenLines, same.associate { it.id to text(it.id) }, listOfNotNull(title), atLeast = 1)
+            else -> {
+                // 같은 방을 여러 번 내보내 번호가 둘 이상 생긴 경우(첫 메시지가 같음): 가장 긴(최근) 것
+                val firsts = same.map { firstMessage(text(it.id)) }
+                if (firsts.all { it != null && it == firsts[0] }) same.maxByOrNull { text(it.id).length }?.id
+                else byContent(screenLines, same.associate { it.id to text(it.id) }, listOfNotNull(title), atLeast = 1)
+            }
         }
     }
 
@@ -102,7 +107,7 @@ object RoomMatch {
     fun reuseTarget(bindTitle: String?, headerName: String, newText: String, entries: List<Entry>, text: (String) -> String): String? {
         fun sameHistory(e: Entry) = firstMessage(text(e.id))?.let { newText.contains(it) } ?: false
         val t = bindTitle?.let { norm(it) }?.takeIf { it.isNotEmpty() }
-        val cands = if (t != null) entries.filter { t in it.titles } else entries.filter { norm(it.name) == norm(headerName) }
+        val cands = if (t != null) entries.filter { t in it.titles || norm(it.name) == t } else entries.filter { norm(it.name) == norm(headerName) }
         return when {
             cands.isEmpty() -> null
             t != null && cands.size == 1 -> cands[0].id
