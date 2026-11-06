@@ -5,10 +5,10 @@ import kr.yunho.talkhelper.core.Mode
 
 /** 보내는 방식 */
 enum class SendMode(val label: String, val desc: String) {
-    INSTANT("바로", "다듬자마자 바로 보냅니다"),
-    COUNTDOWN("3초 뒤", "3초 동안 보여 주고 보냅니다 (그 사이 취소 가능)"),
-    CONFIRM("확인 후", "다듬은 문장을 보고 '보내기'를 눌러야 보냅니다"),
-    VOICE("듣고 확인", "다듬은 문장을 읽어 드리고, \"보내\"라고 하시면 보냅니다 (\"다시\"·\"취소\"도 돼요)"),
+    INSTANT("바로", "다듬자마자 바로 보내요"),
+    COUNTDOWN("3초 뒤", "3초 보여 주고 보내요 · 그 사이 ✋취소 가능"),
+    CONFIRM("확인 후", "다듬은 글을 보고 📤보내기를 눌러야 보내요"),
+    VOICE("듣고 확인", "읽어 드린 뒤 \"보내\"라고 하면 보내요"),
     ;
 
     companion object {
@@ -69,6 +69,10 @@ class Prefs(ctx: Context) {
         set(v) = sp.edit().putBoolean("readAnswers", v).apply()
 
     /** 카톡 위 🎤 버튼 켜기/끄기 (앱 첫 화면) */
+    /** 동그라미 메뉴 '끌어 옮기기' 시범을 보여 준 횟수 (3번까지) */
+    var menuDemoCount: Int
+        get() = sp.getInt("menuDemoCount", 0)
+        set(v) = sp.edit().putInt("menuDemoCount", v).apply()
     /** 내보내기 안내 띠를 옮겨 둔 높이 (-1 = 기본) */
     var guideY: Int
         get() = sp.getInt("guideY", -1)

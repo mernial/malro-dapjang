@@ -1057,7 +1057,7 @@ class KakaoAccessibilityService : AccessibilityService() {
         // 사용법 한 줄
         // 화면 아래 가운데 알약 모양 안내 (어두운 바탕 위에서도 잘 보이게 흰 바탕·굵은 글씨)
         root.addView(TextView(this).apply {
-            text = "👆 골라서 누르기   ·   ✋ 꾹 눌러 끌면 순서 바꾸기"
+            text = "👆 누르면 고르기   ·   ✋ 꾹 누른 채 끌면 자리 바꾸기"
             setTextColor(CHARCOAL_BOTTOM)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -1095,6 +1095,51 @@ class KakaoAccessibilityService : AccessibilityService() {
                 v.animate().translationX(x - sz / 2f).translationY(y - sz / 2f).alpha(1f).scaleX(1f).scaleY(1f)
                     .setStartDelay(i * 50L).setDuration(220).start()
             }
+            // 처음 몇 번은 손가락이 동그라미 하나를 꾹 눌러 끌어 보이는 시범을 보여 줌
+            val shown = prefs.menuDemoCount
+            if (shown < 3 && items.size >= 2) {
+                prefs.menuDemoCount = shown + 1
+                root.postDelayed({ if (menu === root) dragDemo(root, items.last().first, cx, cy) }, items.size * 50L + 450)
+            }
+        }
+    }
+
+    /**
+     * 시범: 손가락(👆)이 동그라미 [v] 위에 나타나 꾹 누르고(살짝 커짐) 버튼 쪽([cx],[cy])으로 끌었다가 제자리로.
+     * 실제로 순서를 바꾸지는 않음 (보여 주기만)
+     */
+    private fun dragDemo(root: FrameLayout, v: View, cx: Float, cy: Float) {
+        val ctx = this
+        val homeX = v.translationX; val homeY = v.translationY
+        val vx = homeX + v.width / 2f; val vy = homeY + v.height / 2f
+        // 버튼 쪽으로 동그라미 지름의 반만큼 끌어 보임
+        val len = Math.hypot((cx - vx).toDouble(), (cy - vy).toDouble()).toFloat().coerceAtLeast(1f)
+        val dx = (cx - vx) / len * v.width * 0.6f; val dy = (cy - vy) / len * v.height * 0.6f
+        val hand = TextView(ctx).apply {
+            text = "👆"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 40f)
+            alpha = 0f
+            elevation = Ui.dp(ctx, 12).toFloat()
+        }
+        root.addView(hand, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT))
+        hand.post {
+            val hx = vx - hand.width * 0.3f; val hy = vy - hand.height * 0.1f
+            hand.translationX = hx + Ui.dp(ctx, 30); hand.translationY = hy + Ui.dp(ctx, 30)
+            val lift = Ui.dp(ctx, 16).toFloat()
+            hand.animate().alpha(1f).translationX(hx).translationY(hy).setDuration(350).withEndAction {
+                // 꾹 누름: 동그라미가 살짝 커지고 떠오름
+                v.animate().scaleX(1.15f).scaleY(1.15f).translationZ(lift).setDuration(250).withEndAction {
+                    // 끌기
+                    v.animate().translationX(homeX + dx).translationY(homeY + dy).setDuration(500).start()
+                    hand.animate().translationX(hx + dx).translationY(hy + dy).setDuration(500).withEndAction {
+                        // 놓기: 제자리로 (시범이라 순서는 그대로)
+                        v.animate().translationX(homeX).translationY(homeY).scaleX(1f).scaleY(1f).translationZ(0f)
+                            .setStartDelay(250).setDuration(350).start()
+                        hand.animate().alpha(0f).setStartDelay(250).setDuration(350)
+                            .withEndAction { root.removeView(hand) }.start()
+                    }.start()
+                }.start()
+            }.start()
         }
     }
 

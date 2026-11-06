@@ -85,6 +85,43 @@ object Ui {
         return track
     }
 
+    /**
+     * 보내는 방식 고르기: 한 줄에 알약 버튼들(고른 것은 갈색), 그 아래 고른 방식 설명 한 줄.
+     * 누르면 바로 저장하고 [onPick] 을 부름
+     */
+    fun sendModePicker(ctx: Context, prefs: Prefs, onPick: (SendMode) -> Unit = {}): View {
+        val box = vbox(ctx)
+        val row = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            background = rounded(ctx, THEM, 18)
+            val p = dp(ctx, 4); setPadding(p, p, p, p)
+        }
+        val desc = text(ctx, "", 14f, color = MUTED).apply { setPadding(dp(ctx, 6), dp(ctx, 8), 0, 0) }
+        val pills = mutableListOf<Pair<SendMode, TextView>>()
+        fun paint() {
+            pills.forEach { (m, t) ->
+                val on = m == prefs.sendMode
+                t.background = if (on) rounded(ctx, BROWN, 14) else null
+                t.setTextColor(if (on) YELLOW else BROWN)
+            }
+            desc.text = prefs.sendMode.desc
+        }
+        SendMode.available().forEach { m ->
+            val t = text(ctx, m.label, 16f, bold = true).apply {
+                gravity = Gravity.CENTER
+                val pv = dp(ctx, 10); setPadding(dp(ctx, 4), pv, dp(ctx, 4), pv)
+                contentDescription = "${m.label} 보내기"
+                setOnClickListener { prefs.sendMode = m; paint(); onPick(m) }
+            }
+            pills += m to t
+            row.addView(t, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        }
+        box.addView(row)
+        box.addView(desc)
+        paint()
+        return box
+    }
+
     fun input(ctx: Context, hint: String, password: Boolean = false, multiline: Boolean = false) = EditText(ctx).apply {
         this.hint = hint
         setTextColor(BROWN)

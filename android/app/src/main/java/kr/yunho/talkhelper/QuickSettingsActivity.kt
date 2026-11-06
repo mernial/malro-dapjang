@@ -19,59 +19,38 @@ import kr.yunho.talkhelper.Ui.add
 class QuickSettingsActivity : Activity() {
 
     private lateinit var prefs: Prefs
-    private lateinit var sendButtons: Map<SendMode, Button>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
 
         val card = Ui.vbox(this, 18).apply { background = Ui.rounded(this@QuickSettingsActivity, Ui.BG, 22, Ui.BROWN) }
-        card.add(Ui.text(this, "⚙️ 간단 설정", 22f, bold = true), 0)
+        card.add(Ui.text(this, "⚙️ 간단 설정", 20f, bold = true), 0)
 
-        card.add(Ui.text(this, "다듬은 문장, 언제 보낼까요?", 17f, bold = true), 16)
-        sendButtons = SendMode.available().associateWith { m ->
-            choice(card, "${m.label} 보내기", m.desc) { prefs.sendMode = m; paint(); saved() }
-        }
+        card.add(Ui.text(this, "다듬은 문장, 언제 보낼까요?", 16f, bold = true), 14)
+        card.add(Ui.sendModePicker(this, prefs) { saved() }, 8)
 
-        card.add(android.widget.Switch(this).apply {
-            text = "찾은 내용 소리로 읽어 주기"
-            textSize = 17f
-            setTextColor(Ui.BROWN)
-            isChecked = prefs.readAnswers
-            setOnCheckedChangeListener { _, on -> prefs.readAnswers = on; saved() }
-        }, 18)
+        val readRow = Ui.hbox(this)
+        readRow.addView(Ui.text(this, "찾은 내용 소리로 읽어 주기", 16f),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        readRow.addView(Ui.toggle(this, prefs.readAnswers) { on -> prefs.readAnswers = on; saved() })
+        card.add(readRow, 16)
 
-        card.add(Ui.button(this, "닫기", sp = 19f) { finish() }, 18)
-
-        // 카톡 위 🎤 버튼 끄기 (다시 켜려면 앱에서)
-        card.add(Ui.button(this, "🎤 버튼 끄기", Ui.CARD, Ui.RED, sp = 16f) { confirmTurnOff() }, 10)
-        paint()
+        // 아래 버튼 둘을 한 줄로: 🎤 버튼 끄기(작게) · 닫기
+        val btns = Ui.hbox(this)
+        btns.add(Ui.button(this, "🎤 버튼 끄기", Ui.CARD, Ui.RED, sp = 15f) { confirmTurnOff() }.apply { minHeight = Ui.dp(this@QuickSettingsActivity, 52) })
+        btns.add(Ui.button(this, "닫기", sp = 17f) { finish() }.apply { minHeight = Ui.dp(this@QuickSettingsActivity, 52) })
+        card.add(btns, 18)
 
         val root = android.widget.FrameLayout(this).apply {
             val p = Ui.dp(this@QuickSettingsActivity, 16); setPadding(p, p, p, p)
             addView(ScrollView(this@QuickSettingsActivity).apply { addView(card) })
         }
         setContentView(root)
-        window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        window.setLayout(minOf(resources.displayMetrics.widthPixels, Ui.dp(this, 460)), ViewGroup.LayoutParams.WRAP_CONTENT)
         window.attributes = window.attributes.apply { gravity = Gravity.CENTER }
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         window.setDimAmount(0.4f)
-    }
-
-    /** 고를 수 있는 큰 버튼 (제목 + 짧은 설명) */
-    private fun choice(parent: LinearLayout, title: String, desc: String, onClick: () -> Unit): Button =
-        Ui.button(this, "$title\n$desc", Ui.CARD, sp = 16f) { onClick() }.apply {
-            isAllCaps = false
-            gravity = Gravity.START or Gravity.CENTER_VERTICAL
-            val p = Ui.dp(this@QuickSettingsActivity, 12); setPadding(p, p, p, p)
-        }.also { parent.add(it, 8) }
-
-    private fun paint() {
-        fun mark(b: Button, on: Boolean) {
-            b.background = Ui.rounded(this, if (on) Ui.YELLOW else Ui.CARD, 18, if (on) Ui.BROWN else Ui.LINE)
-            b.text = b.text.toString().removePrefix("✅ ").let { if (on) "✅ $it" else it }
-        }
-        sendButtons.forEach { (m, b) -> mark(b, m == prefs.sendMode) }
     }
 
     private fun confirmTurnOff() {

@@ -360,31 +360,9 @@ class MainActivity : Activity() {
         gesture("끌어 옮기기", "버튼 자리 바꾸기")
         body.add(how, 16)
 
-        // 보내는 방식: 고를 수 있는 카드 (고른 것은 노란 바탕·갈색 테두리·✓)
+        // 보내는 방식: 한 줄 알약 + 설명 한 줄
         body.add(Ui.text(ctx, "보내는 방식", 18f, bold = true), 24)
-        val modes = SendMode.available()
-        val modeCards = mutableListOf<Pair<SendMode, android.widget.LinearLayout>>()
-        fun paint() = modeCards.forEach { (m, card) ->
-            val on = m == p.sendMode
-            card.background = Ui.rounded(ctx, if (on) Ui.MINE else Ui.CARD, 16, if (on) Ui.BROWN else Ui.LINE)
-            (card.getChildAt(0) as android.widget.LinearLayout).getChildAt(1).visibility = if (on) View.VISIBLE else View.INVISIBLE
-        }
-        modes.forEach { m ->
-            val card = Ui.vbox(ctx, 14).apply {
-                isClickable = true
-                contentDescription = "${m.label} 보내기. ${m.desc}"
-            }
-            val top = Ui.hbox(ctx)
-            top.addView(Ui.text(ctx, "${m.label} 보내기", 18f, bold = true),
-                android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            top.addView(Ui.text(ctx, "✓", 20f, bold = true))
-            card.addView(top)
-            card.add(Ui.text(ctx, m.desc, 14f, color = Ui.MUTED), 2)
-            card.setOnClickListener { p.sendMode = m; paint() }
-            modeCards += m to card
-            body.add(card, 8)
-        }
-        paint()
+        body.add(Ui.sendModePicker(ctx, p), 8)
 
         // 찾은 내용 읽어 주기 (기본: 안 읽음) — 위와 같은 모양의 스위치
         val readRow = Ui.hbox(ctx).apply { setPadding(0, Ui.dp(ctx, 4), 0, Ui.dp(ctx, 4)) }
