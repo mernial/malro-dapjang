@@ -336,7 +336,7 @@ class HelperActivity : Activity() {
         answerPhotos = Ui.vbox(ctx).apply { visibility = View.GONE }
         answerBox.add(answerPhotos, 8)
         val answerRow = Ui.hbox(ctx)
-        answerRow.add(small(if (BuildConfig.STORE_SAFE) "📋 찾을 말 복사" else "📍 해당 메시지로 이동", Ui.BROWN, Ui.YELLOW, sp = 15f) { goToMessage() }, weight = 1.6f)
+        answerRow.add(small(if (BuildConfig.STORE_SAFE) "🔍 이 대화 찾아가기" else "📍 해당 메시지로 이동", Ui.BROWN, Ui.YELLOW, sp = 15f) { goToMessage() }, weight = 1.6f)
         answerRow.add(small("🚩", sp = 15f) { tts?.stop(); reportAi(answerText.text.toString()) }, weight = 0.5f)
         answerRow.add(small("닫기", sp = 15f) { tts?.stop(); finish() })
         answerBox.add(answerRow, 8)
@@ -808,8 +808,11 @@ class HelperActivity : Activity() {
         val svc = KakaoAccessibilityService.instance.takeUnless { BuildConfig.STORE_SAFE }
         if (!word.isNullOrBlank() && BuildConfig.STORE_SAFE) {
             // 플레이판: 대화방을 앱이 대신 넘기지 않고, 찾을 말을 복사해 두고 직접 검색하도록 안내
+            // 대화방을 대신 넘기지 않음: 사용자가 🔍를 누르면 검색 칸에 찾을 말만 넣어 줌. 검색은 사용자가 누름
             (app.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("찾을말", word))
-            Toast.makeText(app, "'$word'를 복사해 두었어요. 대화방 위쪽 🔍를 누르고 붙여 넣어 찾아 주세요.", Toast.LENGTH_LONG).show()
+            val helper = KakaoAccessibilityService.instance
+            if (helper != null) helper.waitForSearchBox(word)
+            else Toast.makeText(app, "'$word'를 복사해 두었어요. 대화방 위쪽 🔍를 누르고 붙여 넣어 찾아 주세요.", Toast.LENGTH_LONG).show()
             return
         }
         if (word.isNullOrBlank() || svc == null) {

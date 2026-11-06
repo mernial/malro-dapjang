@@ -89,7 +89,13 @@ class KakaoAccessibilityService : AccessibilityService() {
         }
         handler.removeCallbacks(refresh)
         handler.postDelayed(refresh, 250)
+        if (pendingSearch != null && event?.packageName == KAKAO) {
+            handler.removeCallbacks(fillSearch)
+            handler.postDelayed(fillSearch, 300)
+        }
     }
+
+    private val fillSearch = Runnable { fillSearchBox() }
 
     override fun onInterrupt() {}
 
@@ -256,7 +262,12 @@ class KakaoAccessibilityService : AccessibilityService() {
     private val guideTimeout = Runnable { hideExportGuide() }
 
     /** 카드를 닫은 뒤에도 내보내는 순서를 위쪽에 작게 띄워 둠. 뒤의 카톡은 그대로 누를 수 있음 */
-    fun showExportGuide() {
+    fun showExportGuide() = showGuide(
+        "📤 대화 내보내는 순서",
+        "① 오른쪽 위 ☰  ② 아래 ⚙ 설정\n③ 대화 내용 내보내기  ④ 텍스트만 보내기\n⑤ 나오는 앱 중 '대화에서 찾기' (말로 답장)",
+    )
+
+    private fun showGuide(title: String, body: String) {
         hideExportGuide()
         val ctx = this
         val box = android.widget.LinearLayout(ctx).apply {
@@ -270,7 +281,7 @@ class KakaoAccessibilityService : AccessibilityService() {
             gravity = Gravity.CENTER_VERTICAL
         }
         head.addView(TextView(ctx).apply {
-            text = "📤 대화 내보내는 순서"
+            text = title
             setTextColor(Ui.BROWN)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -285,7 +296,7 @@ class KakaoAccessibilityService : AccessibilityService() {
         })
         box.addView(head)
         box.addView(TextView(ctx).apply {
-            text = "① 오른쪽 위 ☰  ② 아래 ⚙ 설정\n③ 대화 내용 내보내기  ④ 텍스트만 보내기\n⑤ 나오는 앱 중 '대화에서 찾기' (말로 답장)"
+            text = body
             setTextColor(Ui.BROWN)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
             setLineSpacing(0f, 1.25f)
@@ -305,6 +316,35 @@ class KakaoAccessibilityService : AccessibilityService() {
         runCatching { wm.addView(box, lp); guide = box }
         handler.removeCallbacks(guideTimeout)
         handler.postDelayed(guideTimeout, 15 * 60_000L)
+    }
+
+    // ───────── 찾을 말 넣기: 사용자가 카톡 🔍를 누르면, 열린 검색 칸에 찾을 말을 넣어 줌 (검색은 사용자가 누름) ─────────
+    private var pendingSearch: String? = null
+    private var pendingSearchAt = 0L
+
+    fun waitForSearchBox(word: String) {
+        pendingSearch = word
+        pendingSearchAt = System.currentTimeMillis()
+        showGuide("🔍 대화방 오른쪽 위 돋보기를 누르세요", "검색 칸이 열리면 '$word'를 넣어 드려요.\n그다음 키보드의 검색(🔍)을 눌러 주세요.")
+    }
+
+    /** 카톡 화면이 바뀔 때마다: 위쪽에 새로 열린 빈 글 칸(대화방 검색 칸)이 있으면 찾을 말을 넣음 */
+    private fun fillSearchBox() {
+        val word = pendingSearch ?: return
+        if (System.currentTimeMillis() - pendingSearchAt > 3 * 60_000) { pendingSearch = null; hideExportGuide(); return }
+        val root = kakaoRoot() ?: return
+        val win = bounds(root)
+        val box = walk(root) {
+            it.isEditable && it.isVisibleToUser && bounds(it).top - win.top < win.height() * 0.3
+        } ?: return
+        pendingSearch = null
+        hideExportGuide()
+        val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, word) }
+        if (box.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
+            android.widget.Toast.makeText(this, "'$word'를 넣었어요. 키보드의 검색(🔍)을 눌러 주세요.", android.widget.Toast.LENGTH_LONG).show()
+        } else {
+            android.widget.Toast.makeText(this, "'$word'는 복사돼 있어요. 검색 칸을 꾹 눌러 붙여 넣어 주세요.", android.widget.Toast.LENGTH_LONG).show()
+        }
     }
 
     fun hideExportGuide() {
