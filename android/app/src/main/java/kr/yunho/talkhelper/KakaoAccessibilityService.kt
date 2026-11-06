@@ -139,11 +139,18 @@ class KakaoAccessibilityService : AccessibilityService() {
      * 대화 내보내기를 마친 뒤 카톡 설정 화면들을 뒤로 닫아 대화방으로 돌아감
      * (입력창이 보이면 대화방에 온 것). 많아야 네 번 뒤로.
      */
-    fun backToChat(done: () -> Unit, left: Int = 4) {
-        val inChat = findEditable(kakaoRoot()) != null && chatList(kakaoRoot()) != null
-        if (inChat || left <= 0) { handler.postDelayed({ done() }, 250); return }
+    fun backToChat(done: () -> Unit, left: Int = 4, waits: Int = 8) {
+        val root = kakaoRoot()
+        // 카톡 화면이 아직 앞에 안 왔으면(이 앱 화면이 닫히는 중) 조금 기다림. 끝내 안 오면 뒤로는 누르지 않음
+        if (root == null) {
+            if (waits > 0) handler.postDelayed({ backToChat(done, left, waits - 1) }, 250)
+            else handler.post { done() }
+            return
+        }
+        // 대화방(아래쪽 입력 칸)이 보이면 도착. 카톡 설정 화면에서만, 많아야 네 번 '뒤로' (휴대폰 기본 뒤로 키)
+        if (inChatRoom() || left <= 0) { handler.postDelayed({ done() }, 250); return }
         performGlobalAction(GLOBAL_ACTION_BACK)
-        handler.postDelayed({ backToChat(done, left - 1) }, 550)
+        handler.postDelayed({ backToChat(done, left - 1, 4) }, 550)
     }
 
     /**
