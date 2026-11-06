@@ -163,32 +163,46 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
                         .putExtra(HelperActivity.EXTRA_ROOM, room))
                 }
                 val svc = KakaoAccessibilityService.instance
-                // 플레이판은 카톡 '뒤로'를 대신 누르지 않음: 카드를 바로 띄움 (뒤로 여러 번 눌려 카톡을 벗어나던 위험도 없앰)
-                if (svc != null && !BuildConfig.STORE_SAFE) Bg.main.postDelayed({ svc.backToChat({ open() }) }, 500)
+                // 카톡 설정 화면들을 '뒤로'로 닫아 원래 대화방으로 돌아간 뒤 그 위에 카드를 띄움
+                if (svc != null) Bg.main.postDelayed({ svc.backToChat({ open() }) }, 500)
                 else Bg.main.postDelayed({ open() }, 300)
                 return@run
             }
-            askWhoIsMe(saved.room)
+            // 물어본 것이 없으면: (필요하면 '나'가 누구인지 한 번 묻고) 원래 대화방으로 돌아감
+            askWhoIsMe(saved.room) { backToRoom() }
         }
     }
 
     /** '내 말투'를 배우려면 이 대화에서 누가 '나'인지 알아야 함. 짐작이 안 되면 한 번 물어봄 */
-    private fun askWhoIsMe(room: String, force: Boolean = false) {
+    private fun askWhoIsMe(room: String, force: Boolean = false, then: (() -> Unit)? = null) {
         Bg.run({
             val chat = ChatStore.chatText(this, room).orEmpty()
             (if (force) null else ChatStore.meFor(this, room, chat)) to kr.yunho.talkhelper.core.MyStyle.senders(chat).take(8)
         }) { r ->
-            val (me, senders) = r.getOrNull() ?: return@run
-            if (isFinishing || me != null || senders.isEmpty()) return@run
+            val got = r.getOrNull()
+            if (got == null) { then?.invoke(); return@run }
+            val (me, senders) = got
+            if (isFinishing) return@run
+            if (me != null || senders.isEmpty()) { then?.invoke(); return@run }
             AlertDialog.Builder(this)
                 .setTitle("이 대화에서 '나'는 누구예요?")
                 .setItems(senders.toTypedArray()) { _, i ->
                     Prefs(this).setKakaoMe(room, senders[i])
-                    Toast.makeText(this, "이 방에서의 내 말투를 배웠어요. 🪞 내 말투로 다듬을 수 있어요.", Toast.LENGTH_LONG).show()
-                    render()
+                    Toast.makeText(this, "이 방에서의 내 말투를 배웠어요. '내 말투'로 다듬을 수 있어요.", Toast.LENGTH_LONG).show()
+                    if (then == null) render()
                 }
-                .setNegativeButton("나중에", null).show()
+                .setNegativeButton("나중에", null)
+                .setOnDismissListener { then?.invoke() }
+                .show()
         }
+    }
+
+    /** 내보내기로 들어온 경우: 이 화면을 닫고 카톡 설정 화면들을 '뒤로'로 닫아 원래 대화방으로 */
+    private fun backToRoom() {
+        if (isFinishing) return
+        val svc = KakaoAccessibilityService.instance
+        finish()
+        svc?.let { s -> Bg.main.postDelayed({ s.backToChat({}) }, 500) }
     }
 
     private fun chatOf(name: String?): String? = when (name) {
