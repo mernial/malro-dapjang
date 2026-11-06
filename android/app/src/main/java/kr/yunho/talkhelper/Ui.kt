@@ -36,12 +36,67 @@ object Ui {
         if (stroke != null) setStroke(dp(ctx, 2), stroke)
     }
 
+    /** 글 속 이모티콘을 같은 모양의 단순한 선 아이콘으로 바꿈 (앱 전체 아이콘을 하나로 맞춤) */
+    private val ICONS: List<Pair<String, Int>> = listOf(
+        "🎤" to R.drawable.ic_mic, "🎙" to R.drawable.ic_mic,
+        "🔎" to R.drawable.ic_search, "🔍" to R.drawable.ic_search,
+        "⚙" to R.drawable.ic_settings, "🚩" to R.drawable.ic_flag, "📤" to R.drawable.ic_upload,
+        "✅" to R.drawable.ic_check, "❌" to R.drawable.ic_x, "✕" to R.drawable.ic_x, "💬" to R.drawable.ic_message,
+        "🔔" to R.drawable.ic_bell, "👉" to R.drawable.ic_arrow, "📷" to R.drawable.ic_camera,
+        "📁" to R.drawable.ic_folder, "⚠" to R.drawable.ic_alert, "✋" to R.drawable.ic_move, "👆" to R.drawable.ic_tap,
+        "📍" to R.drawable.ic_pin, "📜" to R.drawable.ic_history, "✨" to R.drawable.ic_sparkle, "🎉" to R.drawable.ic_sparkle,
+        "🗑" to R.drawable.ic_trash, "📱" to R.drawable.ic_phone, "🔄" to R.drawable.ic_refresh, "👀" to R.drawable.ic_eye,
+        "🔊" to R.drawable.ic_volume, "☰" to R.drawable.ic_menu,
+        // 말투
+        "🙏" to R.drawable.ic_star, "😊" to R.drawable.ic_smile, "💼" to R.drawable.ic_briefcase,
+        "🤗" to R.drawable.ic_heart, "🪞" to R.drawable.ic_user,
+    )
+
+    fun iconize(ctx: Context, s: CharSequence, color: Int, sizePx: Int): CharSequence {
+        val plain = s.toString()
+        if (ICONS.none { plain.contains(it.first) }) return s
+        val sb = android.text.SpannableStringBuilder(s)
+        for ((emo, res) in ICONS) {
+            var i = sb.indexOf(emo)
+            while (i >= 0) {
+                var end = i + emo.length
+                if (end < sb.length && sb[end] == '\uFE0F') end++
+                val d = (if (res == R.drawable.ic_mic) micBadge(ctx, sizePx) else ctx.getDrawable(res)?.mutate()?.apply { setTint(color) }) ?: break
+                d.setBounds(0, 0, sizePx, sizePx)
+                sb.replace(i, end, "\uFFFC")
+                val align = if (android.os.Build.VERSION.SDK_INT >= 29) android.text.style.DynamicDrawableSpan.ALIGN_CENTER
+                    else android.text.style.DynamicDrawableSpan.ALIGN_BOTTOM
+                sb.setSpan(android.text.style.ImageSpan(d, align), i, i + 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                i = sb.indexOf(emo, i + 1)
+            }
+        }
+        return sb
+    }
+
+    /** 카톡 위 떠 있는 🎤 버튼과 똑같은 모양의 작은 그림: 짙은 동그라미 + 금색 테두리 + 흰 마이크 */
+    fun micBadge(ctx: Context, sizePx: Int): android.graphics.drawable.Drawable {
+        val circle = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(Color.parseColor("#3A3A40"), Color.parseColor("#17171A"))).apply {
+            shape = GradientDrawable.OVAL
+            setStroke(maxOf(1, sizePx / 18), Color.parseColor("#C9A96E"))
+        }
+        val mic = ctx.getDrawable(R.drawable.ic_bubble_mic)!!.mutate()
+        return android.graphics.drawable.LayerDrawable(arrayOf(circle, mic)).apply {
+            val inset = (sizePx * 0.22f).toInt()
+            setLayerInset(1, inset, inset, inset, inset)
+        }
+    }
+
+    /** 이 글자 칸의 글자 크기에 맞춰 이모티콘을 아이콘으로 */
+    fun iconize(v: TextView) { v.text = iconize(v.context, v.text, v.currentTextColor, (v.textSize * 1.15f).toInt()) }
+
     fun text(ctx: Context, s: CharSequence, sp: Float = 18f, bold: Boolean = false, color: Int = BROWN) = TextView(ctx).apply {
         text = s
         setTextColor(color)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, sp * scale(ctx))
         if (bold) typeface = Typeface.DEFAULT_BOLD
         setLineSpacing(0f, 1.2f)
+        iconize(this)
     }
 
     fun button(ctx: Context, s: CharSequence, bg: Int = YELLOW, fg: Int = BROWN, sp: Float = 20f, onClick: (View) -> Unit) = Button(ctx).apply {
@@ -56,6 +111,7 @@ object Ui {
         setPadding(p, p, p, p)
         stateListAnimator = null
         setOnClickListener(onClick)
+        iconize(this)
     }
 
     /** 크고 깔끔한 켜기/끄기 스위치 (켜짐: 갈색 바탕·노란 동그라미, 꺼짐: 회색 바탕·흰 동그라미) */
