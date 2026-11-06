@@ -100,6 +100,7 @@ class KakaoAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        hideExportGuide()
         removeCover()
         removeBubble()
         instance = null
@@ -248,6 +249,68 @@ class KakaoAccessibilityService : AccessibilityService() {
             PixelFormat.TRANSLUCENT,
         ).apply { gravity = Gravity.TOP or Gravity.START }
         runCatching { wm.addView(box, lp); cover = box }
+    }
+
+    // ───────── 플레이판: 직접 내보낼 때 화면 위에 남는 순서 안내 (카톡을 대신 누르지 않음) ─────────
+    private var guide: View? = null
+    private val guideTimeout = Runnable { hideExportGuide() }
+
+    /** 카드를 닫은 뒤에도 내보내는 순서를 위쪽에 작게 띄워 둠. 뒤의 카톡은 그대로 누를 수 있음 */
+    fun showExportGuide() {
+        hideExportGuide()
+        val ctx = this
+        val box = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            background = Ui.rounded(ctx, Ui.MINE, 16, Ui.BROWN)
+            val p = Ui.dp(ctx, 12); setPadding(p, p, p, p)
+            elevation = Ui.dp(ctx, 6).toFloat()
+        }
+        val head = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        head.addView(TextView(ctx).apply {
+            text = "📤 대화 내보내는 순서"
+            setTextColor(Ui.BROWN)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }, android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        head.addView(TextView(ctx).apply {
+            text = "✕ 닫기"
+            setTextColor(Ui.BROWN)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            val p = Ui.dp(ctx, 8); setPadding(p * 2, p, p * 2, p)
+            background = Ui.rounded(ctx, android.graphics.Color.WHITE, 14, Ui.LINE)
+            setOnClickListener { hideExportGuide() }
+        })
+        box.addView(head)
+        box.addView(TextView(ctx).apply {
+            text = "① 오른쪽 위 ☰  ② 아래 ⚙ 설정\n③ 대화 내용 내보내기  ④ 텍스트만 보내기\n⑤ 나오는 앱 중 '대화에서 찾기' (말로 답장)"
+            setTextColor(Ui.BROWN)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            setLineSpacing(0f, 1.25f)
+            setPadding(0, Ui.dp(ctx, 8), 0, 0)
+        })
+        val m = Ui.dp(ctx, 10)
+        val lp = WindowManager.LayoutParams(
+            resources.displayMetrics.widthPixels - m * 2, WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            // 카톡 맨 위 제목줄(☰)은 가리지 않게 그 아래에
+            y = Ui.dp(ctx, 120)
+        }
+        runCatching { wm.addView(box, lp); guide = box }
+        handler.removeCallbacks(guideTimeout)
+        handler.postDelayed(guideTimeout, 15 * 60_000L)
+    }
+
+    fun hideExportGuide() {
+        handler.removeCallbacks(guideTimeout)
+        guide?.let { runCatching { wm.removeView(it) } }
+        guide = null
     }
 
     private fun removeCover() {

@@ -652,7 +652,7 @@ class HelperActivity : Activity() {
 
     /**
      * 플레이판: 카톡 메뉴를 앱이 대신 누르지 않음 (구글 접근성 정책·카카오 약관 우려).
-     * 사용자가 직접 '대화 내용 내보내기'를 하도록 순서만 알려 주고, 질문은 5분 동안 기억했다가 이어서 답함.
+     * 사용자가 직접 '대화 내용 내보내기'를 하도록 순서만 알려 주고, 질문은 15분 동안 기억했다가 이어서 답함.
      */
     private fun askManualExport(question: String, chat: String) {
         val ctx = this
@@ -678,6 +678,8 @@ class HelperActivity : Activity() {
             AskActivity.pendingTitle = roomTitle
             dialog.dismiss()
             finish()
+            // 카드가 닫혀도 따라 할 순서가 화면 위에 남게 (카톡은 직접 누름)
+            KakaoAccessibilityService.instance?.showExportGuide()
         }, 0)
         exportBox.add(Ui.text(ctx,
             "카톡에서 이렇게 눌러 주세요\n☰ → ⚙ 설정 → 대화 내용 내보내기\n→ 텍스트만 보내기 → '대화에서 찾기'", 15f), 10)
@@ -707,7 +709,7 @@ class HelperActivity : Activity() {
         AskActivity.pendingTitle = roomTitle
         finish()   // 카드를 닫아야 카톡 메뉴를 누를 수 있음
         Bg.main.postDelayed({
-            // 막히면 덮개에 직접 누를 순서가 크게 남음 (질문은 5분 동안 기억)
+            // 막히면 덮개에 직접 누를 순서가 크게 남음 (질문은 15분 동안 기억)
             svc.exportChat { _, _ -> }
         }, 400)
     }

@@ -37,7 +37,7 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
         @Volatile var pendingTitle: String? = null
             set(v) { field = v; pendingTitleAt = System.currentTimeMillis() }
         @Volatile private var pendingTitleAt = 0L
-        private fun freshTitle() = pendingTitle?.takeIf { System.currentTimeMillis() - pendingTitleAt < 10 * 60_000 }
+        private fun freshTitle() = pendingTitle?.takeIf { System.currentTimeMillis() - pendingTitleAt < 15 * 60_000 }
         private const val REQ_SPEECH = 11
         private const val REQ_FOLDER = 12
         private const val SCREEN = "\u0000screen"   // '지금 화면' 을 나타내는 내부 이름
@@ -140,6 +140,7 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
                     .setPositiveButton("확인", null).show()
                 return@run
             }
+            KakaoAccessibilityService.instance?.hideExportGuide()
             Prefs(this).logExport("저장: '${saved.name}' (${saved.room}) 사진 ${saved.photos}장 · 카톡 방 '${ChatStore.nameHint ?: "모름"}'")
             ChatStore.nameHint = null
             pendingTitle = null
@@ -147,8 +148,8 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
             val photos = if (saved.photos > 0) " 사진 ${saved.photos}장도 함께 저장했어요." else ""
             Toast.makeText(this, "'${saved.name}' 대화를 저장했어요.$photos 이제 물어보세요.", Toast.LENGTH_LONG).show()
             render()
-            // 카드에서 물어본 질문이 기다리고 있으면 바로 찾아서 정리해 드림 (5분 안)
-            pendingQuestion?.takeIf { System.currentTimeMillis() - it.second < 5 * 60_000 }?.let { (q, _) ->
+            // 카드에서 물어본 질문이 기다리고 있으면 바로 찾아서 정리해 드림 (15분 안)
+            pendingQuestion?.takeIf { System.currentTimeMillis() - it.second < 15 * 60_000 }?.let { (q, _) ->
                 pendingQuestion = null
                 Prefs(this).logExport("기다리던 질문으로 찾기 시작 (카톡 위 카드)")
                 // 이 화면은 닫고, 카톡 대화방으로 돌아가 그 위에 작은 카드로 정리된 내용을 띄움
@@ -162,7 +163,9 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
                         .putExtra(HelperActivity.EXTRA_ROOM, room))
                 }
                 val svc = KakaoAccessibilityService.instance
-                if (svc != null) Bg.main.postDelayed({ svc.backToChat({ open() }) }, 500) else open()
+                // 플레이판은 카톡 '뒤로'를 대신 누르지 않음: 카드를 바로 띄움 (뒤로 여러 번 눌려 카톡을 벗어나던 위험도 없앰)
+                if (svc != null && !BuildConfig.STORE_SAFE) Bg.main.postDelayed({ svc.backToChat({ open() }) }, 500)
+                else Bg.main.postDelayed({ open() }, 300)
                 return@run
             }
             askWhoIsMe(saved.room)
