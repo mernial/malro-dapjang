@@ -700,7 +700,7 @@ class HelperActivity : Activity() {
             KakaoAccessibilityService.instance?.showExportGuide()
         }, 0)
         exportBox.add(Ui.text(ctx,
-            "카톡에서 이렇게 눌러 주세요\n☰ → ⚙ 설정 → 대화 내용 내보내기\n→ 텍스트만 보내기 → '대화에서 찾기'", 15f), 10)
+            "카톡에서 이렇게 눌러 주세요\n☰ → ⚙ 설정 → 대화 내용 내보내기\n→ 텍스트 메시지만 저장 → 앱 목록에서 '${getString(R.string.app_name)}'", 15f), 10)
         exportBox.add(Ui.text(ctx,
             "• 내보낸 대화는 이 휴대폰 안에만 보관돼요.\n• 찾을 때만 관련된 부분을 AI(Claude)에 보내요.\n• 물어본 것은 기억했다가 내보내면 이어서 찾아요.",
             13f, color = Ui.MUTED), 8)
