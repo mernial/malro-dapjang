@@ -136,7 +136,7 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
             val saved = r.getOrNull()
             if (saved == null) {
                 Prefs(this).logExport("저장 실패: ${r.exceptionOrNull()?.let { it.javaClass.simpleName + " " + it.message } ?: "대화 글이 비어 있음"}")
-                AlertDialog.Builder(this).setMessage("카톡 대화 파일만 받을 수 있어요.\n카톡 대화방 ☰ → ⚙ → '대화 내용 내보내기' → '텍스트 메시지만'으로 보내 주세요.")
+                AlertDialog.Builder(this).setMessage("카톡 대화 파일만 받을 수 있어요.\n카톡 대화방 ☰ → ⚙ → '대화 내용 내보내기' → '텍스트 메시지만 저장' → 앱 목록에서 '${getString(R.string.app_name)}'을 골라 주세요.")
                     .setPositiveButton("확인", null).show()
                 return@run
             }
@@ -212,7 +212,7 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
         }
         if (sources.isEmpty()) {
             body.add(Ui.text(this,
-                "아직 저장된 대화가 없어요.\n\n카톡 대화방 → 오른쪽 위 ☰ → ⚙ 설정 → '대화 내용 내보내기' → '텍스트만 보내기' → 앱 목록에서 '${getString(R.string.app_name)}'을 고르세요.",
+                "아직 저장된 대화가 없어요.\n\n카톡 대화방 → 오른쪽 위 ☰ → ⚙ 설정 → '대화 내용 내보내기' → '텍스트 메시지만 저장' → 앱 목록에서 '${getString(R.string.app_name)}'을 고르세요.",
                 17f), 8)
         }
         for (s in sources) {

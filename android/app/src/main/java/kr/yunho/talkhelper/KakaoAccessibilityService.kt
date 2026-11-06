@@ -264,17 +264,22 @@ class KakaoAccessibilityService : AccessibilityService() {
     /** 카드를 닫은 뒤에도 내보내는 순서를 위쪽에 작게 띄워 둠. 뒤의 카톡은 그대로 누를 수 있음 */
     fun showExportGuide() {
         pendingSearch = null   // '찾을 말 넣기'를 기다리던 것은 그만 (설정 화면 글 칸에 잘못 넣지 않게)
-        showGuide(
-            "📤 대화 내보내기",
-            "① 오른쪽 위 ☰ → ② ⚙ 설정 → ③ 대화 내용 내보내기\n→ ④ 텍스트만 보내기 → ⑤ '대화에서 찾기'",
-        )
+        val app = getString(R.string.app_name)
+        val body = android.text.SpannableStringBuilder(
+            "① 오른쪽 위 ☰\n② 아래쪽 ⚙ 설정\n③ 대화 내용 내보내기\n④ 텍스트 메시지만 저장\n")
+        val start = body.length
+        body.append("⑤ 앱 목록에서 '$app' 누르기\n    (아래에 '대화에서 찾기'라고 써 있어요)")
+        // 마지막 단계(우리 앱 고르기)는 노랗고 굵게
+        body.setSpan(android.text.style.ForegroundColorSpan(Ui.YELLOW), start, body.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        body.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), start, body.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        showGuide("📤 대화 내보내기 순서", body)
     }
 
     /**
      * 반투명한 작은 안내 띠. 손가락으로 위아래로 끌어 옮길 수 있고, '접기'로 작은 단추만 남길 수 있음.
      * 카톡을 대신 누르지 않음 (안내만)
      */
-    private fun showGuide(title: String, body: String) {
+    private fun showGuide(title: String, body: CharSequence) {
         hideExportGuide()
         val ctx = this
         val dark = android.graphics.Color.argb(225, 0x2A, 0x16, 0x16)   // 진한 갈색, 살짝 비침
@@ -601,7 +606,7 @@ class KakaoAccessibilityService : AccessibilityService() {
                 }.distinct().take(25)
                 log.logExport("내보내기 막힘: $step · 보이던 것: ${seen.joinToString(", ")}")
                 // 덮개를 남겨 직접 할 순서를 크게 보여 줌 (닫기를 눌러야 사라짐)
-                coverText?.text = "$step 단계를 자동으로 못 눌렀어요.\n\n직접 이렇게 눌러 주세요:\n☰ → ⚙ 설정 → 대화 내용 내보내기\n→ 텍스트만 보내기 → '대화에서 찾기'\n\n물어보신 질문은 기억해 두었다가 이어서 찾아 드려요."
+                coverText?.text = "$step 단계를 자동으로 못 눌렀어요.\n\n직접 이렇게 눌러 주세요:\n☰ → ⚙ 설정 → 대화 내용 내보내기\n→ 텍스트 메시지만 저장 → '${getString(R.string.app_name)}'\n\n물어보신 질문은 기억해 두었다가 이어서 찾아 드려요."
                 coverStop?.text = "닫고 직접 하기"
                 coverStop?.setOnClickListener { removeCover() }
             }
