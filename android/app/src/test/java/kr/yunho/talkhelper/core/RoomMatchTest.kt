@@ -77,6 +77,16 @@ class RoomMatchTest {
     }
 
     @Test
+    fun sameRoomExportedTwiceUsesNewest() {
+        val first = "2026. 11. 1. 오전 9:00, 윤호 : 안녕하세요"
+        val old = "교사회 님과 카카오톡 대화\n$first"
+        val new = old + "\n2026. 11. 6. 오후 2:00, 윤호 : 내일 봬요"
+        val e = listOf(RoomMatch.Entry("r_1", "교사회", setOf("교사회")), RoomMatch.Entry("r_2", "교사회", setOf("교사회")))
+        val texts = mapOf("r_1" to old, "r_2" to new)
+        assertEquals("r_2", RoomMatch.lookup("교사회 11", e, emptyList(), texts::getValue))
+    }
+
+    @Test
     fun sameRoomNameChecksScreenAgainstFile() {
         assertTrue(RoomMatch.sameRoomName("봉담성당 주일학교 교사회 11", "봉담성당 주일학교 교사회"))
         assertTrue(RoomMatch.sameRoomName("김은미 로사", "김은미 로사 님과 카카오톡 대화"))

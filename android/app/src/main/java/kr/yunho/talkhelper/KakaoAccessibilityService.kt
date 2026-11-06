@@ -146,17 +146,34 @@ class KakaoAccessibilityService : AccessibilityService() {
         handler.postDelayed({ backToChat(done, left - 1) }, 550)
     }
 
-    /** 지금 카톡 대화방 이름 (화면 맨 위 왼쪽에 있는 제목 글자) */
+    /**
+     * 화면에서 대화방이 차지한 부분. 폴드·태블릿처럼 큰 화면에서는 카톡이 왼쪽 채팅 목록과 오른쪽 대화방을
+     * 함께 보여 주므로, 아래쪽 메시지 입력 칸이 있는 쪽만 대화방으로 봄. 보통 휴대폰이면 카톡 창 전체
+     */
+    private fun roomPane(root: AccessibilityNodeInfo): Rect {
+        val win = bounds(root)
+        val input = walk(root) { it.isEditable && it.isVisibleToUser && bounds(it).centerY() > win.top + win.height() / 2 }
+            ?: return win
+        val ib = bounds(input)
+        // 입력 칸 왼쪽 '+' 버튼과 오른쪽 이모티콘·# 버튼까지 대화방으로 침
+        val l = maxOf(win.left, ib.left - Ui.dp(this, 90))
+        val r = minOf(win.right, ib.right + Ui.dp(this, 140))
+        return if (r - l > win.width() * 0.85) win else Rect(l, win.top, r, win.bottom)
+    }
+
+    /** 지금 카톡 대화방 이름 (대화방 부분 맨 위 왼쪽에 있는 제목 글자) */
     fun chatTitle(): String? {
         val root = kakaoRoot() ?: return null
         val win = bounds(root)
+        val pane = roomPane(root)
         var best: AccessibilityNodeInfo? = null
         walk(root) { n ->
             val t = n.text?.toString()?.trim()
             if (!t.isNullOrEmpty() && !n.isEditable && n.isVisibleToUser) {
                 val b = bounds(n)
-                val top = b.top - win.top < win.height() * 0.15 && b.left - win.left < win.width() * 0.6
-                if (top && !Regex("^\\d{1,2}:\\d{2}$").matches(t) && (best == null || b.top < bounds(best!!).top)) best = n
+                val inPane = b.centerX() in pane.left..pane.right
+                val top = b.top - win.top < win.height() * 0.15 && b.left - pane.left < pane.width() * 0.6
+                if (inPane && top && !Regex("^\\d{1,2}:\\d{2}$").matches(t) && (best == null || b.top < bounds(best!!).top)) best = n
             }
             false
         }
@@ -165,7 +182,7 @@ class KakaoAccessibilityService : AccessibilityService() {
 
     fun screenTexts(): List<String> {
         val root = kakaoRoot() ?: return emptyList()
-        return textsIn(root, bounds(root))
+        return textsIn(root, roomPane(root))
     }
 
     /** [node] 안의 글자들. 창 [win] 오른쪽에 붙은 말풍선은 "나: " 표시 */
@@ -175,8 +192,9 @@ class KakaoAccessibilityService : AccessibilityService() {
         walk(node) { n ->
             if (!n.isEditable) {
                 val t = n.text?.toString()?.trim()
-                if (!t.isNullOrEmpty()) {
-                    val b = bounds(n)
+                val b = bounds(n)
+                // 대화방 부분 밖(큰 화면의 왼쪽 채팅 목록 등) 글은 뺌
+                if (!t.isNullOrEmpty() && b.centerX() in win.left..win.right) {
                     val mine = b.left - win.left > w * 0.3 && win.right - b.right < w * 0.12 && b.width() < w * 0.8
                     val line = if (mine) "나: $t" else t
                     if (out.lastOrNull() != line) out += line
@@ -440,7 +458,7 @@ class KakaoAccessibilityService : AccessibilityService() {
             val root = kakaoRoot()
             val list = chatList(root)
             if (root == null || list == null) { finish(); return }
-            val page = textsIn(list, bounds(root))
+            val page = textsIn(list, roomPane(root))
             val top = acc.isNotEmpty() && kr.yunho.talkhelper.core.History.reachedTop(acc, page)
             acc = kr.yunho.talkhelper.core.History.prepend(acc, page)
             pages++
@@ -477,7 +495,7 @@ class KakaoAccessibilityService : AccessibilityService() {
                 handler.postDelayed({ end(true) }, 300)
                 return
             }
-            val page = textsIn(list, bounds(root))
+            val page = textsIn(list, roomPane(root))
             if (page == last || pages >= maxPages) { end(false); return }   // 맨 처음에 닿았거나 너무 오래
             last = page
             pages++
