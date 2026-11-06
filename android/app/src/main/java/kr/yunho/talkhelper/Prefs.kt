@@ -6,8 +6,8 @@ import kr.yunho.talkhelper.core.Mode
 /** 보내는 방식 */
 enum class SendMode(val label: String, val desc: String) {
     INSTANT("바로", "다듬자마자 바로 보내요"),
-    COUNTDOWN("3초 뒤", "3초 보여 주고 보내요 · 그 사이 ✋취소 가능"),
-    CONFIRM("확인 후", "다듬은 글을 보고 📤보내기를 눌러야 보내요"),
+    COUNTDOWN("3초 뒤", "3초 보여 주고 보내요 · 그 사이 취소할 수 있어요"),
+    CONFIRM("확인 후", "다듬은 글을 보고 '보내기'를 눌러야 보내요"),
     VOICE("듣고 확인", "읽어 드린 뒤 \"보내\"라고 하면 보내요"),
     ;
 
