@@ -342,17 +342,31 @@ class HelperActivity : Activity() {
         answerBox.add(answerRow, 8)
         card.add(answerBox, 8)
 
-        // 새 버전 알림 (누르면 앱에서 업데이트)
-        val updateLine = Ui.text(ctx, "🔔 새 버전이 있어요. 눌러서 업데이트", 14f, bold = true, color = Ui.RED).apply {
+        // 새 버전 알림: 카드 맨 위에 눈에 띄는 노란 띠 (누르면 업데이트하러 감)
+        val updateLine = Ui.hbox(ctx).apply {
             visibility = View.GONE
-            setPadding(0, Ui.dp(ctx, 6), 0, 0)
+            background = Ui.rounded(ctx, Ui.YELLOW, 16, Ui.BROWN)
+            val ph = Ui.dp(ctx, 14); val pv = Ui.dp(ctx, 10); setPadding(ph, pv, Ui.dp(ctx, 8), pv)
+            elevation = Ui.dp(ctx, 3).toFloat()
+            contentDescription = "새 버전이 나왔어요. 눌러서 업데이트"
             setOnClickListener {
                 if (Updater.STORE) Updater.openStore(ctx)
                 else startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 finish()
             }
         }
-        card.add(updateLine, 4)
+        val updateTexts = Ui.vbox(ctx)
+        updateTexts.add(Ui.text(ctx, "🔔 새 버전이 나왔어요", 18f, bold = true), 0)
+        updateTexts.add(Ui.text(ctx, "더 좋아진 기능을 받아 보세요", 14f, color = Ui.BROWN), 0)
+        updateLine.addView(updateTexts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        updateLine.addView(Ui.text(ctx, "업데이트 ›", 16f, bold = true, color = Ui.YELLOW).apply {
+            background = Ui.rounded(ctx, Ui.BROWN, 14)
+            val ph = Ui.dp(ctx, 14); val pv = Ui.dp(ctx, 8); setPadding(ph, pv, ph, pv)
+            isClickable = false
+        })
+        // 맨 위(첫 줄 위)에 넣음
+        card.addView(updateLine, 0, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            .apply { bottomMargin = Ui.dp(ctx, 10) })
         Bg.run({ Updater.check(ctx) }) { r -> if (r.getOrNull() != null && !isFinishing) updateLine.visibility = View.VISIBLE }
 
         val root = FrameLayout(ctx).apply {

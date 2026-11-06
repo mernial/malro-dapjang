@@ -66,8 +66,12 @@ class MainActivity : Activity() {
     /** 새 버전이 있으면 맨 위에 크게 알림 */
     private fun updateBanner() {
         val info = update ?: return
-        val box = Ui.vbox(this, 16, Ui.MINE)
-        box.add(Ui.text(this, "🔔 새 버전이 나왔어요 (${info.versionName})", 22f, bold = true), 0)
+        val box = Ui.vbox(this, 18).apply {
+            background = Ui.rounded(this@MainActivity, Ui.YELLOW, 22, Ui.BROWN)
+            elevation = Ui.dp(this@MainActivity, 4).toFloat()
+        }
+        box.add(Ui.text(this, "🔔 새 버전이 나왔어요", 24f, bold = true), 0)
+        box.add(Ui.text(this, "버전 ${info.versionName} · 더 좋아진 기능을 받아 보세요", 15f), 4)
         if (info.notes.isNotBlank()) box.add(Ui.text(this, info.notes, 14f, color = Ui.MUTED), 4)
         // 플레이 스토어판: 누르면 스토어의 이 앱 화면이 열리고, 거기서 '업데이트'를 누름
         if (Updater.STORE) {
