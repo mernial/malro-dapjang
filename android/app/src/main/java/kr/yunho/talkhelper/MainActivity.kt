@@ -346,37 +346,45 @@ class MainActivity : Activity() {
         val how = Ui.vbox(ctx, 16, Ui.THEM)
         how.add(Ui.text(ctx, "카톡 🎤 버튼 쓰는 법", 17f, bold = true), 0)
         fun gesture(chip: String, what: String) {
-            val row = Ui.hbox(ctx)
-            row.addView(Ui.text(ctx, chip, 15f, bold = true, color = Ui.YELLOW).apply {
-                gravity = android.view.Gravity.CENTER
+            // 칩은 글자 크기만큼, 설명은 그 아래 줄에 (큰 글씨 설정에서도 줄이 꼬이지 않게)
+            val item = Ui.vbox(ctx)
+            item.addView(Ui.text(ctx, chip, 15f, bold = true, color = Ui.YELLOW).apply {
                 background = Ui.rounded(ctx, Ui.BROWN, 14)
-                val ph = Ui.dp(ctx, 10); val pv = Ui.dp(ctx, 6); setPadding(ph, pv, ph, pv)
-            }, android.widget.LinearLayout.LayoutParams(Ui.dp(ctx, 132), android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
-            row.addView(Ui.text(ctx, what, 17f).apply { setPadding(Ui.dp(ctx, 12), 0, 0, 0) },
-                android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            how.add(row, 12)
+                val ph = Ui.dp(ctx, 12); val pv = Ui.dp(ctx, 5); setPadding(ph, pv, ph, pv)
+            }, android.widget.LinearLayout.LayoutParams(android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
+            item.add(Ui.text(ctx, what, 17f).apply { setPadding(Ui.dp(ctx, 4), 0, 0, 0) }, 6)
+            how.add(item, 14)
         }
         gesture("누르기", "말하고 끝에 \"…라고 보내 줘\"")
         gesture("꾹 누르기", "말투 고르기 · 🔎 찾기")
         gesture("끌어 옮기기", "버튼 자리 바꾸기")
         body.add(how, 16)
 
-        // 보내는 방식
-        body.add(Ui.text(this, "보내는 방식", 18f, bold = true), 24)
-        val group = android.widget.RadioGroup(this)
+        // 보내는 방식: 고를 수 있는 카드 (고른 것은 노란 바탕·갈색 테두리·✓)
+        body.add(Ui.text(ctx, "보내는 방식", 18f, bold = true), 24)
         val modes = SendMode.available()
-        modes.forEachIndexed { i, m ->
-            group.addView(android.widget.RadioButton(this).apply {
-                id = 3000 + i
-                text = "${m.label} 보내기"
-                textSize = 18f * p.textScale
-                setTextColor(Ui.BROWN)
-                setPadding(0, Ui.dp(this@MainActivity, 6), 0, Ui.dp(this@MainActivity, 6))
-                isChecked = m == p.sendMode
-            })
+        val modeCards = mutableListOf<Pair<SendMode, android.widget.LinearLayout>>()
+        fun paint() = modeCards.forEach { (m, card) ->
+            val on = m == p.sendMode
+            card.background = Ui.rounded(ctx, if (on) Ui.MINE else Ui.CARD, 16, if (on) Ui.BROWN else Ui.LINE)
+            (card.getChildAt(0) as android.widget.LinearLayout).getChildAt(1).visibility = if (on) View.VISIBLE else View.INVISIBLE
         }
-        group.setOnCheckedChangeListener { _, id -> modes.getOrNull(id - 3000)?.let { p.sendMode = it } }
-        body.add(group, 6)
+        modes.forEach { m ->
+            val card = Ui.vbox(ctx, 14).apply {
+                isClickable = true
+                contentDescription = "${m.label} 보내기. ${m.desc}"
+            }
+            val top = Ui.hbox(ctx)
+            top.addView(Ui.text(ctx, "${m.label} 보내기", 18f, bold = true),
+                android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            top.addView(Ui.text(ctx, "✓", 20f, bold = true))
+            card.addView(top)
+            card.add(Ui.text(ctx, m.desc, 14f, color = Ui.MUTED), 2)
+            card.setOnClickListener { p.sendMode = m; paint() }
+            modeCards += m to card
+            body.add(card, 8)
+        }
+        paint()
 
         // 찾은 내용 읽어 주기 (기본: 안 읽음) — 위와 같은 모양의 스위치
         val readRow = Ui.hbox(ctx).apply { setPadding(0, Ui.dp(ctx, 4), 0, Ui.dp(ctx, 4)) }
