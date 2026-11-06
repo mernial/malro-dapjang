@@ -262,19 +262,27 @@ class KakaoAccessibilityService : AccessibilityService() {
     private val guideTimeout = Runnable { hideExportGuide() }
 
     /** 카드를 닫은 뒤에도 내보내는 순서를 위쪽에 작게 띄워 둠. 뒤의 카톡은 그대로 누를 수 있음 */
-    fun showExportGuide() = showGuide(
-        "📤 대화 내보내는 순서",
-        "① 오른쪽 위 ☰  ② 아래 ⚙ 설정\n③ 대화 내용 내보내기  ④ 텍스트만 보내기\n⑤ 나오는 앱 중 '대화에서 찾기' (말로 답장)",
-    )
+    fun showExportGuide() {
+        pendingSearch = null   // '찾을 말 넣기'를 기다리던 것은 그만 (설정 화면 글 칸에 잘못 넣지 않게)
+        showGuide(
+            "📤 대화 내보내기",
+            "① 오른쪽 위 ☰ → ② ⚙ 설정 → ③ 대화 내용 내보내기\n→ ④ 텍스트만 보내기 → ⑤ '대화에서 찾기'",
+        )
+    }
 
+    /**
+     * 반투명한 작은 안내 띠. 손가락으로 위아래로 끌어 옮길 수 있고, '접기'로 작은 단추만 남길 수 있음.
+     * 카톡을 대신 누르지 않음 (안내만)
+     */
     private fun showGuide(title: String, body: String) {
         hideExportGuide()
         val ctx = this
+        val dark = android.graphics.Color.argb(225, 0x2A, 0x16, 0x16)   // 진한 갈색, 살짝 비침
         val box = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.VERTICAL
-            background = Ui.rounded(ctx, Ui.MINE, 16, Ui.BROWN)
-            val p = Ui.dp(ctx, 12); setPadding(p, p, p, p)
-            elevation = Ui.dp(ctx, 6).toFloat()
+            background = Ui.rounded(ctx, dark, 18, GOLD)
+            val ph = Ui.dp(ctx, 14); val pv = Ui.dp(ctx, 10); setPadding(ph, pv, Ui.dp(ctx, 8), pv)
+            elevation = Ui.dp(ctx, 8).toFloat()
         }
         val head = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.HORIZONTAL
@@ -282,38 +290,71 @@ class KakaoAccessibilityService : AccessibilityService() {
         }
         head.addView(TextView(ctx).apply {
             text = title
-            setTextColor(Ui.BROWN)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+            setTextColor(Ui.YELLOW)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
         }, android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        head.addView(TextView(ctx).apply {
-            text = "✕ 닫기"
-            setTextColor(Ui.BROWN)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-            val p = Ui.dp(ctx, 8); setPadding(p * 2, p, p * 2, p)
-            background = Ui.rounded(ctx, android.graphics.Color.WHITE, 14, Ui.LINE)
-            setOnClickListener { hideExportGuide() }
-        })
-        box.addView(head)
-        box.addView(TextView(ctx).apply {
+        fun chip(label: String, onClick: () -> Unit) = TextView(ctx).apply {
+            text = label
+            setTextColor(android.graphics.Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            val p = Ui.dp(ctx, 6); setPadding(p * 2, p, p * 2, p)
+            background = Ui.rounded(ctx, android.graphics.Color.argb(60, 255, 255, 255), 12)
+            setOnClickListener { onClick() }
+        }
+        val bodyView = TextView(ctx).apply {
             text = body
-            setTextColor(Ui.BROWN)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            setTextColor(android.graphics.Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
             setLineSpacing(0f, 1.25f)
-            setPadding(0, Ui.dp(ctx, 8), 0, 0)
+            setPadding(0, Ui.dp(ctx, 6), Ui.dp(ctx, 6), 0)
+        }
+        val fold = chip("접기") {}
+        fold.setOnClickListener {
+            val show = bodyView.visibility != View.VISIBLE
+            bodyView.visibility = if (show) View.VISIBLE else View.GONE
+            fold.text = if (show) "접기" else "펴기"
+        }
+        head.addView(fold)
+        head.addView(chip("✕") { hideExportGuide() }, android.widget.LinearLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginStart = Ui.dp(ctx, 6) })
+        box.addView(head)
+        box.addView(bodyView)
+        box.addView(TextView(ctx).apply {
+            text = "끌어서 옮길 수 있어요"
+            setTextColor(android.graphics.Color.argb(150, 255, 255, 255))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            setPadding(0, Ui.dp(ctx, 4), 0, 0)
         })
         val m = Ui.dp(ctx, 10)
         val lp = WindowManager.LayoutParams(
             resources.displayMetrics.widthPixels - m * 2, WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            // 카톡 맨 위 제목줄(☰)은 가리지 않게 그 아래에
-            y = Ui.dp(ctx, 120)
+            // 카톡 맨 위 제목줄(☰)은 가리지 않게 그 아래에. 지난번에 옮겨 둔 자리가 있으면 거기
+            y = Prefs(ctx).guideY.takeIf { it >= 0 } ?: Ui.dp(ctx, 110)
+        }
+        // 띠를 끌면 위아래로 옮김 (자리 기억)
+        var downY = 0f; var startY = 0
+        box.setOnTouchListener { _, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { downY = e.rawY; startY = lp.y; true }
+                MotionEvent.ACTION_MOVE -> {
+                    val maxY = resources.displayMetrics.heightPixels - box.height
+                    lp.y = (startY + (e.rawY - downY).toInt()).coerceIn(0, maxOf(0, maxY))
+                    runCatching { wm.updateViewLayout(box, lp) }
+                    true
+                }
+                MotionEvent.ACTION_UP -> { Prefs(ctx).guideY = lp.y; true }
+                else -> false
+            }
         }
         runCatching { wm.addView(box, lp); guide = box }
+            .onFailure { diag("안내 띠 그리기 실패: ${it.javaClass.simpleName} ${it.message}") }
         handler.removeCallbacks(guideTimeout)
         handler.postDelayed(guideTimeout, 15 * 60_000L)
     }

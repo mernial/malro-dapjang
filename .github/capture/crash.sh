@@ -25,6 +25,10 @@ adb shell input keyevent KEYCODE_HOME; sleep 2
 timeout 30 adb shell am start -n $PKG/.MainActivity; sleep 5
 timeout 30 adb exec-out screencap -p > shots/main.png
 adb shell input keyevent KEYCODE_BACK; sleep 1
+# 내보내기 안내 띠 (디버그판 확인용 신호)
+adb shell input keyevent KEYCODE_HOME; sleep 2
+timeout 30 adb shell am start -n $PKG/.HelperActivity --ez debugGuide true; sleep 4
+timeout 30 adb exec-out screencap -p > shots/guide.png
 echo "== 죽은 기록"
 timeout 30 adb logcat -d -b crash
 echo "== 앱 기록"
