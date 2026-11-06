@@ -777,6 +777,11 @@ class KakaoAccessibilityService : AccessibilityService() {
 
     // ───────── 떠 있는 버튼 ─────────
 
+    private val leftRoomCheck = Runnable {
+        val a = HelperActivity.openInRoom ?: return@Runnable
+        if (kakaoRoot() != null && !inChatRoom()) a.closeBecauseLeftRoom()
+    }
+
     /** 지금 카톡 화면이 대화방인지: 화면 아래 절반에 보이는 글 입력 칸이 있으면 대화방 (위쪽 검색 칸은 치지 않음) */
     private fun inChatRoom(): Boolean {
         val root = kakaoRoot() ?: return false
@@ -797,6 +802,12 @@ class KakaoAccessibilityService : AccessibilityService() {
         }
         // 카톡 안에서도 대화방에서만 (쇼핑·설정·친구 목록 등에서는 숨김): 화면 아래쪽에 메시지 입력 칸이 있으면 대화방
         val room = kakao && inChatRoom()
+        // 🎤 카드를 연 채 뒤로가기 등으로 대화방을 나가면 카드(마이크)도 닫음
+        //   (화면이 잠깐 바뀌는 중일 수 있어 0.7초 뒤 한 번 더 보고 그래도 대화방이 아니면 닫음)
+        if (kakao && !room && HelperActivity.openInRoom != null) {
+            handler.removeCallbacks(leftRoomCheck)
+            handler.postDelayed(leftRoomCheck, 700)
+        }
         val show = room && packageName !in apps && Prefs(this).enabled
         if (show) showBubble() else removeBubble()
         // 플레이판: 카톡을 떠날 때(홈·다른 앱) 그쪽 이벤트는 받지 않으므로, 버튼이 떠 있는 동안 1초마다 다시 확인
