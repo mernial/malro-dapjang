@@ -69,6 +69,10 @@ class Prefs(ctx: Context) {
         set(v) = sp.edit().putBoolean("readAnswers", v).apply()
 
     /** 카톡 위 🎤 버튼 켜기/끄기 (앱 첫 화면) */
+    /** 내보내기 안내 띠를 옮겨 둔 높이 (-1 = 기본) */
+    var guideY: Int
+        get() = sp.getInt("guideY", -1)
+        set(v) = sp.edit().putInt("guideY", v).apply()
     var enabled: Boolean
         get() = sp.getBoolean("enabled", true)
         set(v) = sp.edit().putBoolean("enabled", v).apply()
