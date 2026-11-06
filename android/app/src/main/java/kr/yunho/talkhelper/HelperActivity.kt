@@ -655,26 +655,50 @@ class HelperActivity : Activity() {
      * 사용자가 직접 '대화 내용 내보내기'를 하도록 순서만 알려 주고, 질문은 5분 동안 기억했다가 이어서 답함.
      */
     private fun askManualExport(question: String, chat: String) {
-        AlertDialog.Builder(this)
-            .setTitle("예전 대화까지 찾으려면 대화를 내보내 주세요")
-            .setMessage(
-                "카톡에서 직접 이렇게 눌러 주세요:\n" +
-                    "☰ → ⚙ 설정 → 대화 내용 내보내기\n→ 텍스트만 보내기 → '대화에서 찾기'\n\n" +
-                    "• 내보낸 대화는 이 휴대폰 안에만 보관돼요.\n" +
-                    "• 찾을 때만 질문과 관련된 부분을 AI(Claude)에 보내 답을 받아요.\n" +
-                    "• 물어보신 질문은 기억해 두었다가 내보내면 이어서 찾아 드려요."
-            )
-            .setPositiveButton("직접 내보낼게요") { _, _ ->
-                AskActivity.pendingQuestion = question to System.currentTimeMillis()
-                AskActivity.pendingTitle = roomTitle
-                finish()
-            }
-            .setNegativeButton("이번엔 화면에서만") { _, _ ->
-                if (chat.isBlank()) showStatus("화면에서 대화를 읽지 못했어요. 카톡 대화방에서 다시 눌러 주세요.", Ui.RED)
-                else answerFrom(question, chat, null, 0)
-            }
-            .setNeutralButton("취소", null)
-            .show()
+        val ctx = this
+        // 버튼 글: 굵은 제목 한 줄 + 작은 설명 한 줄
+        fun label(title: String, sub: String): CharSequence {
+            val sb = android.text.SpannableStringBuilder(title).append('\n')
+            val start = sb.length
+            sb.append(sub)
+            sb.setSpan(android.text.style.RelativeSizeSpan(0.72f), start, sb.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            sb.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.NORMAL), start, sb.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            return sb
+        }
+        val box = Ui.vbox(ctx, 20)
+        box.add(Ui.text(ctx, "어디에서 찾을까요?", 20f, bold = true), 0)
+        box.add(Ui.text(ctx, "🔎 물어본 것: $question", 15f, color = Ui.MUTED), 4)
+
+        val dialog = AlertDialog.Builder(this).setView(android.widget.ScrollView(ctx).apply { addView(box) }).create()
+
+        // ① 내보내기 (노란 칸): 방법 안내를 칸 안에 함께
+        val exportBox = Ui.vbox(ctx, 14, Ui.MINE)
+        exportBox.add(Ui.button(ctx, label("📤 직접 내보낼게요", "예전 대화까지 모두 찾아요"), Ui.BROWN, Ui.YELLOW, 18f) {
+            AskActivity.pendingQuestion = question to System.currentTimeMillis()
+            AskActivity.pendingTitle = roomTitle
+            dialog.dismiss()
+            finish()
+        }, 0)
+        exportBox.add(Ui.text(ctx,
+            "카톡에서 이렇게 눌러 주세요\n☰ → ⚙ 설정 → 대화 내용 내보내기\n→ 텍스트만 보내기 → '대화에서 찾기'", 15f), 10)
+        exportBox.add(Ui.text(ctx,
+            "• 내보낸 대화는 이 휴대폰 안에만 보관돼요.\n• 찾을 때만 관련된 부분을 AI(Claude)에 보내요.\n• 물어본 것은 기억했다가 내보내면 이어서 찾아요.",
+            13f, color = Ui.MUTED), 8)
+        box.add(exportBox, 16)
+
+        // ② 화면에서만 (회색 칸)
+        val screenBox = Ui.vbox(ctx, 14, Ui.THEM)
+        screenBox.add(Ui.button(ctx, label("👀 이번엔 화면에서만", "지금 보이는 대화에서만 찾아요"), Ui.CARD, Ui.BROWN, 18f) {
+            dialog.dismiss()
+            if (chat.isBlank()) showStatus("화면에서 대화를 읽지 못했어요. 카톡 대화방에서 다시 눌러 주세요.", Ui.RED)
+            else answerFrom(question, chat, null, 0)
+        }, 0)
+        box.add(screenBox, 12)
+
+        box.add(Ui.button(ctx, "취소", Ui.CARD, Ui.MUTED, 16f) { dialog.dismiss() }.apply {
+            background = null; minHeight = Ui.dp(ctx, 48)
+        }, 8)
+        dialog.show()
     }
 
     /** 카톡 메뉴를 대신 눌러 이 방 대화를 이 앱으로 내보내고, 저장되면 '대화에서 찾기'가 이어서 답함 */

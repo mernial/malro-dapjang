@@ -2,7 +2,8 @@ name: 앱 죽음 확인 (에뮬레이터)
 
 on:
   push:
-    branches: [claude/crash-check]
+    branches: ['claude/**']
+    paths: ['android/**', '.github/capture/crash.sh', '.github/workflows/crash-check.yml']
   workflow_dispatch:
 
 jobs:
