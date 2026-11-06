@@ -298,6 +298,7 @@ class KakaoAccessibilityService : AccessibilityService() {
             setTextColor(Ui.YELLOW)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
+            Ui.iconize(this)
         }, android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         fun chip(label: String, onClick: () -> Unit) = TextView(ctx).apply {
             text = label
@@ -311,6 +312,7 @@ class KakaoAccessibilityService : AccessibilityService() {
             text = body
             setTextColor(android.graphics.Color.WHITE)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            Ui.iconize(this)
             setLineSpacing(0f, 1.25f)
             setPadding(0, Ui.dp(ctx, 6), Ui.dp(ctx, 6), 0)
         }
@@ -321,7 +323,7 @@ class KakaoAccessibilityService : AccessibilityService() {
             fold.text = if (show) "접기" else "펴기"
         }
         head.addView(fold)
-        head.addView(chip("✕") { hideExportGuide() }, android.widget.LinearLayout.LayoutParams(
+        head.addView(chip("✕") { hideExportGuide() }.also { Ui.iconize(it) }, android.widget.LinearLayout.LayoutParams(
             android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginStart = Ui.dp(ctx, 6) })
         box.addView(head)
         box.addView(bodyView)
@@ -606,7 +608,7 @@ class KakaoAccessibilityService : AccessibilityService() {
                 }.distinct().take(25)
                 log.logExport("내보내기 막힘: $step · 보이던 것: ${seen.joinToString(", ")}")
                 // 덮개를 남겨 직접 할 순서를 크게 보여 줌 (닫기를 눌러야 사라짐)
-                coverText?.text = "$step 단계를 자동으로 못 눌렀어요.\n\n직접 이렇게 눌러 주세요:\n☰ → ⚙ 설정 → 대화 내용 내보내기\n→ 텍스트 메시지만 저장 → '${getString(R.string.app_name)}'\n\n물어보신 질문은 기억해 두었다가 이어서 찾아 드려요."
+                coverText?.text = "$step 단계를 자동으로 못 눌렀어요.\n\n직접 이렇게 눌러 주세요:\n☰ → ⚙ 설정 → 대화 내용 내보내기\n→ 텍스트 메시지만 저장 → '${getString(R.string.app_name)}'\n\n물어보신 질문은 기억해 두었다가 이어서 찾아 드려요."; coverText?.let { Ui.iconize(it) }
                 coverStop?.text = "닫고 직접 하기"
                 coverStop?.setOnClickListener { removeCover() }
             }
@@ -1045,8 +1047,11 @@ class KakaoAccessibilityService : AccessibilityService() {
                 setLineSpacing(0f, 0.95f)
                 if (on) { setTextColor(0xFFFFFFFF.toInt()); background = oval(CHARCOAL_BOTTOM, GOLD) }
                 else { setTextColor(CHARCOAL_BOTTOM); background = oval(0xFFFFFFFF.toInt(), 0xFFE4DED3.toInt()) }
+                // 이모티콘 대신 앱과 같은 선 아이콘 (글자보다 조금 크게)
+                text = Ui.iconize(this@KakaoAccessibilityService, label, currentTextColor, Ui.dp(this@KakaoAccessibilityService, 24))
+                setLineSpacing(Ui.dp(this@KakaoAccessibilityService, 2).toFloat(), 1f)
                 elevation = Ui.dp(this@KakaoAccessibilityService, 8).toFloat()
-                contentDescription = label.replace("\n", " ")
+                contentDescription = label.substringAfter("\n")
                 alpha = 0f; scaleX = 0.3f; scaleY = 0.3f
             }
             attachReorder(item, entry)
@@ -1060,6 +1065,7 @@ class KakaoAccessibilityService : AccessibilityService() {
             text = "👆 누르면 고르기   ·   ✋ 꾹 누른 채 끌면 자리 바꾸기"
             setTextColor(CHARCOAL_BOTTOM)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            Ui.iconize(this)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
             val ph = Ui.dp(this@KakaoAccessibilityService, 18); val pv = Ui.dp(this@KakaoAccessibilityService, 10)
@@ -1115,15 +1121,20 @@ class KakaoAccessibilityService : AccessibilityService() {
         // 버튼 쪽으로 동그라미 지름의 반만큼 끌어 보임
         val len = Math.hypot((cx - vx).toDouble(), (cy - vy).toDouble()).toFloat().coerceAtLeast(1f)
         val dx = (cx - vx) / len * v.width * 0.6f; val dy = (cy - vy) / len * v.height * 0.6f
-        val hand = TextView(ctx).apply {
-            text = "👆"
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 40f)
+        // 손가락 자리: 반투명 흰 동그라미 + 금색 테두리 (화면 녹화의 '터치 표시' 같은 모양)
+        val ring = Ui.dp(ctx, 44)
+        val hand = View(ctx).apply {
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(android.graphics.Color.argb(170, 255, 255, 255))
+                setStroke(Ui.dp(ctx, 3), GOLD)
+            }
             alpha = 0f
             elevation = Ui.dp(ctx, 12).toFloat()
         }
-        root.addView(hand, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT))
+        root.addView(hand, FrameLayout.LayoutParams(ring, ring))
         hand.post {
-            val hx = vx - hand.width * 0.3f; val hy = vy - hand.height * 0.1f
+            val hx = vx - ring / 2f; val hy = vy - ring / 2f
             hand.translationX = hx + Ui.dp(ctx, 30); hand.translationY = hy + Ui.dp(ctx, 30)
             val lift = Ui.dp(ctx, 16).toFloat()
             hand.animate().alpha(1f).translationX(hx).translationY(hy).setDuration(350).withEndAction {

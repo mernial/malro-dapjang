@@ -18,6 +18,8 @@ for i in 1 2 3; do
   echo "== 카드 열기 $i"
   timeout 30 adb shell am start -n $PKG/.HelperActivity
   sleep 6
+  mkdir -p shots
+  [ "$i" = 1 ] && timeout 30 adb exec-out screencap -p > shots/card.png
   adb shell input keyevent KEYCODE_BACK; sleep 2
 done
 mkdir -p shots

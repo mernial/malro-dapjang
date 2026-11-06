@@ -82,7 +82,7 @@ class HelperActivity : Activity() {
         override fun run() {
             if (countdown <= 0) { send(); return }
             resultTitle.text = "${countdown}초 뒤에 보냅니다…"
-            sendButton.text = "📤 지금 보내기"
+            sendButton.text = "📤 지금 보내기"; Ui.iconize(sendButton)
             countdown--
             Bg.main.postDelayed(this, 1000)
         }
@@ -158,7 +158,7 @@ class HelperActivity : Activity() {
         else {
             askMode = ask
             toggleMic() // 마이크 권한이 없으면 여기서 허용을 물음
-            if (ask && listening) heardView.text = "🔎 무엇을 찾을까요? 말씀하세요 (예: 연습이 언제였지?)"
+            if (ask && listening) heardView.text = "🔎 무엇을 찾을까요? 말씀하세요 (예: 연습이 언제였지?)"; Ui.iconize(heardView)
         }
     }
 
@@ -418,6 +418,7 @@ class HelperActivity : Activity() {
     private fun showStatus(s: String?, color: Int = Ui.MUTED) {
         status.text = s ?: ""
         status.setTextColor(color)
+        Ui.iconize(status)
         status.visibility = if (s.isNullOrBlank()) View.GONE else View.VISIBLE
     }
 
@@ -439,7 +440,7 @@ class HelperActivity : Activity() {
         if (::answerBox.isInitialized) answerBox.visibility = View.GONE
         resultBox.visibility = View.GONE
         listening = true; finishing = false
-        micButton.text = "🎙️ 듣는 중 (누르면 끝)"
+        micButton.text = "🎙️ 듣는 중 (누르면 끝)"; Ui.iconize(micButton)
         micButton.background = Ui.rounded(this, Ui.GREEN, 18)
         micButton.setTextColor(Ui.CARD)
         heardView.text = if (heard.isNotBlank()) heard.toString().trim() else "듣고 있어요… 다 말하면 끝에 \"…라고 보내 줘\"라고 하세요"
@@ -518,7 +519,7 @@ class HelperActivity : Activity() {
     private fun resetMic() {
         listening = false
         micButton.isEnabled = true
-        micButton.text = "🎤 눌러서 말하기"
+        micButton.text = "🎤 눌러서 말하기"; Ui.iconize(micButton)
         micButton.background = Ui.rounded(this, Ui.BROWN, 18)
         micButton.setTextColor(Ui.YELLOW)
     }
@@ -605,8 +606,8 @@ class HelperActivity : Activity() {
         runCatching { recognizer?.cancel() }
         resetMic()
         paused = true
-        micButton.text = "🎤 이어서 말하기"
-        heardView.text = heard.toString().trim() + "\n\n(잠시 멈췄어요. 🎤를 누르고 이어서 말한 뒤 \"…라고 보내 줘\"라고 하세요)"
+        micButton.text = "🎤 이어서 말하기"; Ui.iconize(micButton)
+        heardView.text = heard.toString().trim() + "\n\n(잠시 멈췄어요. 🎤를 누르고 이어서 말한 뒤 \"…라고 보내 줘\"라고 하세요)"; Ui.iconize(heardView)
     }
 
     // ───────── 다듬기 ─────────
@@ -885,7 +886,7 @@ class HelperActivity : Activity() {
 
     private fun readAndConfirm(text: String) {
         stopCountdown()
-        resultTitle.text = "🔊 읽어 드릴게요. 듣고 \"보내\" 또는 \"다시\"라고 말씀하세요"
+        resultTitle.text = "🔊 읽어 드릴게요. 듣고 \"보내\" 또는 \"다시\"라고 말씀하세요"; Ui.iconize(resultTitle)
         val id = ++confirmId
         speak("이렇게 보낼까요? $text") {
             if (id == confirmId && !isFinishing && resultBox.visibility == View.VISIBLE) listenConfirm(0)
@@ -895,7 +896,7 @@ class HelperActivity : Activity() {
     private fun listenConfirm(attempt: Int) {
         if (!hasMic() || !SpeechRecognizer.isRecognitionAvailable(this)) return
         stopConfirm()
-        resultTitle.text = "🎤 듣고 있어요…  \"보내\" · \"다시\" · \"취소\""
+        resultTitle.text = "🎤 듣고 있어요…  \"보내\" · \"다시\" · \"취소\""; Ui.iconize(resultTitle)
         val rec = newRecognizer()
         confirmRec = rec
         rec.setRecognitionListener(object : android.speech.RecognitionListener {
@@ -984,7 +985,7 @@ class HelperActivity : Activity() {
         countdown = 0
         if (!::resultTitle.isInitialized) return
         resultTitle.text = "이렇게 보낼까요? (눌러서 고칠 수 있어요)"
-        sendButton.text = "📤 보내기"
+        sendButton.text = "📤 보내기"; Ui.iconize(sendButton)
         cancelButton.visibility = View.GONE
         againRow.visibility = View.VISIBLE
     }
