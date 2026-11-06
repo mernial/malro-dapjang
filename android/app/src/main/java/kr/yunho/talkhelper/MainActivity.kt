@@ -66,8 +66,12 @@ class MainActivity : Activity() {
     /** 새 버전이 있으면 맨 위에 크게 알림 */
     private fun updateBanner() {
         val info = update ?: return
-        val box = Ui.vbox(this, 16, Ui.MINE)
-        box.add(Ui.text(this, "🔔 새 버전이 나왔어요 (${info.versionName})", 22f, bold = true), 0)
+        val box = Ui.vbox(this, 18).apply {
+            background = Ui.rounded(this@MainActivity, Ui.YELLOW, 22, Ui.BROWN)
+            elevation = Ui.dp(this@MainActivity, 4).toFloat()
+        }
+        box.add(Ui.text(this, "🔔 새 버전이 나왔어요", 24f, bold = true), 0)
+        box.add(Ui.text(this, "버전 ${info.versionName} · 더 좋아진 기능을 받아 보세요", 15f), 4)
         if (info.notes.isNotBlank()) box.add(Ui.text(this, info.notes, 14f, color = Ui.MUTED), 4)
         // 플레이 스토어판: 누르면 스토어의 이 앱 화면이 열리고, 거기서 '업데이트'를 누름
         if (Updater.STORE) {
@@ -315,29 +319,47 @@ class MainActivity : Activity() {
     private fun done() {
         val p = Prefs(this)
 
-        // 켜기 / 끄기
-        val onRow = Ui.hbox(this).apply {
-            background = Ui.rounded(this@MainActivity, if (p.enabled) Ui.YELLOW else Ui.CARD, 22, Ui.BROWN)
-            val pad = Ui.dp(this@MainActivity, 18); setPadding(pad, pad, pad, pad)
+        // 켜기 / 끄기: 흰 카드 + 직접 그린 큰 스위치 (기본 스위치를 키우면 잘려 보여서)
+        val ctx = this
+        val onRow = Ui.hbox(ctx).apply {
+            background = Ui.rounded(ctx, Ui.CARD, 22, if (p.enabled) Ui.BROWN else Ui.LINE)
+            val pad = Ui.dp(ctx, 18); setPadding(pad, pad, pad, pad)
             gravity = android.view.Gravity.CENTER_VERTICAL
+            elevation = Ui.dp(ctx, 2).toFloat()
         }
-        onRow.add(Ui.text(this, if (p.enabled) "켜짐" else "꺼짐", 26f, bold = true), weight = 2f)
-        onRow.add(android.widget.Switch(this).apply {
-            isChecked = p.enabled
-            scaleX = 1.5f; scaleY = 1.5f
-            contentDescription = "말로 답장 켜기 끄기"
-            setOnCheckedChangeListener { _, on ->
-                p.enabled = on
-                KakaoAccessibilityService.instance?.redrawBubble()
-                render()
-            }
-        }, weight = 1f)
+        val label = Ui.vbox(ctx)
+        label.add(Ui.text(ctx, if (p.enabled) "켜져 있어요" else "꺼져 있어요", 24f, bold = true,
+            color = if (p.enabled) Ui.BROWN else Ui.MUTED), 0)
+        label.add(Ui.text(ctx, if (p.enabled) "카톡 대화방에 🎤 버튼이 떠요" else "카톡에 버튼이 나오지 않아요", 15f, color = Ui.MUTED), 2)
+        onRow.addView(label, android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val toggle = Ui.toggle(ctx, p.enabled) { on ->
+            p.enabled = on
+            KakaoAccessibilityService.instance?.redrawBubble()
+            render()
+        }
+        toggle.contentDescription = "말로 답장 켜기 끄기"
+        onRow.addView(toggle)
+        onRow.setOnClickListener { toggle.performClick() }
         body.add(onRow, 16)
 
-        // 아주 짧은 사용법
-        body.add(Ui.text(this,
-            "카톡 대화방의 🎤 버튼을 누르고 말한 뒤\n끝에 \"…라고 보내 줘\"라고 하세요.\n꾹 누르면 말투를 고를 수 있어요.",
-            18f), 16)
+        // 사용법: 세 가지 손동작을 칩으로 한눈에
+        val how = Ui.vbox(ctx, 16, Ui.THEM)
+        how.add(Ui.text(ctx, "카톡 🎤 버튼 쓰는 법", 17f, bold = true), 0)
+        fun gesture(chip: String, what: String) {
+            val row = Ui.hbox(ctx)
+            row.addView(Ui.text(ctx, chip, 15f, bold = true, color = Ui.YELLOW).apply {
+                gravity = android.view.Gravity.CENTER
+                background = Ui.rounded(ctx, Ui.BROWN, 14)
+                val ph = Ui.dp(ctx, 10); val pv = Ui.dp(ctx, 6); setPadding(ph, pv, ph, pv)
+            }, android.widget.LinearLayout.LayoutParams(Ui.dp(ctx, 132), android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
+            row.addView(Ui.text(ctx, what, 17f).apply { setPadding(Ui.dp(ctx, 12), 0, 0, 0) },
+                android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            how.add(row, 12)
+        }
+        gesture("누르기", "말하고 끝에 \"…라고 보내 줘\"")
+        gesture("꾹 누르기", "말투 고르기 · 🔎 찾기")
+        gesture("끌어 옮기기", "버튼 자리 바꾸기")
+        body.add(how, 16)
 
         // 보내는 방식
         body.add(Ui.text(this, "보내는 방식", 18f, bold = true), 24)
@@ -356,14 +378,12 @@ class MainActivity : Activity() {
         group.setOnCheckedChangeListener { _, id -> modes.getOrNull(id - 3000)?.let { p.sendMode = it } }
         body.add(group, 6)
 
-        // 찾은 내용 읽어 주기 (기본: 안 읽음)
-        body.add(android.widget.Switch(this).apply {
-            text = "찾은 내용 소리로 읽어 주기"
-            textSize = 18f * p.textScale
-            setTextColor(Ui.BROWN)
-            isChecked = p.readAnswers
-            setOnCheckedChangeListener { _, on -> p.readAnswers = on }
-        }, 24)
+        // 찾은 내용 읽어 주기 (기본: 안 읽음) — 위와 같은 모양의 스위치
+        val readRow = Ui.hbox(ctx).apply { setPadding(0, Ui.dp(ctx, 4), 0, Ui.dp(ctx, 4)) }
+        readRow.addView(Ui.text(ctx, "찾은 내용 소리로 읽어 주기", 18f),
+            android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        readRow.addView(Ui.toggle(ctx, p.readAnswers) { on -> p.readAnswers = on }.apply { contentDescription = "찾은 내용 소리로 읽어 주기" })
+        body.add(readRow, 24)
 
         body.add(View(this), 40)
     }

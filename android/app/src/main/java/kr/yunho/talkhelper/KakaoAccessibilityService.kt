@@ -731,6 +731,13 @@ class KakaoAccessibilityService : AccessibilityService() {
 
     // ───────── 떠 있는 버튼 ─────────
 
+    /** 지금 카톡 화면이 대화방인지: 화면 아래 절반에 보이는 글 입력 칸이 있으면 대화방 (위쪽 검색 칸은 치지 않음) */
+    private fun inChatRoom(): Boolean {
+        val root = kakaoRoot() ?: return false
+        val win = bounds(root)
+        return walk(root) { it.isEditable && it.isVisibleToUser && bounds(it).centerY() > win.top + win.height() / 2 } != null
+    }
+
     private fun updateBubble() {
         val wins = appWindows()
         val apps = wins.mapNotNull { it.root?.packageName?.toString() }
@@ -742,14 +749,16 @@ class KakaoAccessibilityService : AccessibilityService() {
             // 창 목록을 못 받는 기기에서는 마지막으로 앞에 나온 앱으로 판단
             KAKAO in apps || (apps.isEmpty() && lastPkg == KAKAO)
         }
-        val show = kakao && packageName !in apps && Prefs(this).enabled
+        // 카톡 안에서도 대화방에서만 (쇼핑·설정·친구 목록 등에서는 숨김): 화면 아래쪽에 메시지 입력 칸이 있으면 대화방
+        val room = kakao && inChatRoom()
+        val show = room && packageName !in apps && Prefs(this).enabled
         if (show) showBubble() else removeBubble()
         // 플레이판: 카톡을 떠날 때(홈·다른 앱) 그쪽 이벤트는 받지 않으므로, 버튼이 떠 있는 동안 1초마다 다시 확인
         if (BuildConfig.STORE_SAFE && bubble != null) {
             handler.removeCallbacks(refresh)
             handler.postDelayed(refresh, 1000)
         }
-        diag("앱 창 ${wins.size}개 [${apps.joinToString().ifBlank { "없음" }}] · 최근 앱 ${lastPkg.ifBlank { "-" }} · 카톡 ${if (kakao) "인식" else "못 찾음"} · 버튼 ${if (bubble != null) "표시 중" else "숨김"}")
+        diag("앱 창 ${wins.size}개 [${apps.joinToString().ifBlank { "없음" }}] · 최근 앱 ${lastPkg.ifBlank { "-" }} · 카톡 ${if (kakao) "인식" else "못 찾음"} · 대화방 ${if (room) "예" else "아니오"} · 버튼 ${if (bubble != null) "표시 중" else "숨김"}")
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -989,13 +998,19 @@ class KakaoAccessibilityService : AccessibilityService() {
             item to act
         }
         // 사용법 한 줄
+        // 화면 아래 가운데 알약 모양 안내 (어두운 바탕 위에서도 잘 보이게 흰 바탕·굵은 글씨)
         root.addView(TextView(this).apply {
-            text = "동그라미를 꾹 누른 채 끌면 순서를 바꿀 수 있어요"
-            setTextColor(0xCCFFFFFF.toInt())
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            text = "👆 골라서 누르기   ·   ✋ 꾹 눌러 끌면 순서 바꾸기"
+            setTextColor(CHARCOAL_BOTTOM)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
-        }, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT,
-            Gravity.BOTTOM).apply { bottomMargin = Ui.dp(this@KakaoAccessibilityService, 48) })
+            val ph = Ui.dp(this@KakaoAccessibilityService, 18); val pv = Ui.dp(this@KakaoAccessibilityService, 10)
+            setPadding(ph, pv, ph, pv)
+            background = Ui.rounded(this@KakaoAccessibilityService, 0xF2FFFFFF.toInt(), 24, GOLD)
+            elevation = Ui.dp(this@KakaoAccessibilityService, 6).toFloat()
+        }, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = Ui.dp(this@KakaoAccessibilityService, 56) })
         runCatching { wm.addView(root, lp); menu = root; menuItems = items }
             .onFailure { diag("메뉴 그리기 실패: ${it.javaClass.simpleName} ${it.message}"); return }
         buzz()
