@@ -180,7 +180,6 @@ class HelperActivity : Activity() {
     }
 
     private fun scrollInside(v: TextView) {
-        v.isScrollbarFadingEnabled = false
         v.setOnTouchListener { view, e -> keepScrollInside(view, e); false }
     }
 
@@ -303,7 +302,6 @@ class HelperActivity : Activity() {
             textSize = 18f * prefs.textScale
             maxLines = 6
             isVerticalScrollBarEnabled = true
-            isScrollbarFadingEnabled = false
             // 고치려고 누르면 자동 전송을 멈춤 + 긴 글은 안에서 위아래로 넘겨 봄
             setOnTouchListener { v, e ->
                 if (e.action == MotionEvent.ACTION_DOWN) { stopConfirm(); stopCountdown() }
