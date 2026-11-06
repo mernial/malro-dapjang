@@ -398,10 +398,21 @@ class KakaoAccessibilityService : AccessibilityService() {
     fun waitForSearchBox(word: String) {
         pendingSearch = word
         pendingSearchAt = System.currentTimeMillis()
+        // 카톡 🔍를 눌러 검색 칸이 열려도 화면 전환 알림이 오지 않을 수 있어, 기다리는 동안 0.5초마다 살펴봄
+        handler.removeCallbacks(searchPoll)
+        handler.postDelayed(searchPoll, 500)
         showGuide("🔍 대화방 오른쪽 위 돋보기를 누르세요", "검색 칸이 열리면 '$word'를 넣어 드려요.\n그다음 키보드의 검색(🔍)을 눌러 주세요.")
     }
 
     /** 카톡 화면이 바뀔 때마다: 위쪽에 새로 열린 빈 글 칸(대화방 검색 칸)이 있으면 찾을 말을 넣음 */
+    private val searchPoll: Runnable = object : Runnable {
+        override fun run() {
+            if (pendingSearch == null) return
+            fillSearchBox()
+            if (pendingSearch != null) handler.postDelayed(this, 500)
+        }
+    }
+
     private fun fillSearchBox() {
         val word = pendingSearch ?: return
         if (System.currentTimeMillis() - pendingSearchAt > 3 * 60_000) { pendingSearch = null; hideExportGuide(); return }
