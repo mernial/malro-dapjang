@@ -351,8 +351,7 @@ class MainActivity : Activity() {
                 gravity = android.view.Gravity.CENTER
                 background = Ui.rounded(ctx, Ui.BROWN, 14)
                 val ph = Ui.dp(ctx, 10); val pv = Ui.dp(ctx, 6); setPadding(ph, pv, ph, pv)
-                minWidth = Ui.dp(ctx, 96)
-            })
+            }, android.widget.LinearLayout.LayoutParams(Ui.dp(ctx, 132), android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
             row.addView(Ui.text(ctx, what, 17f).apply { setPadding(Ui.dp(ctx, 12), 0, 0, 0) },
                 android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             how.add(row, 12)
@@ -379,14 +378,12 @@ class MainActivity : Activity() {
         group.setOnCheckedChangeListener { _, id -> modes.getOrNull(id - 3000)?.let { p.sendMode = it } }
         body.add(group, 6)
 
-        // 찾은 내용 읽어 주기 (기본: 안 읽음)
-        body.add(android.widget.Switch(this).apply {
-            text = "찾은 내용 소리로 읽어 주기"
-            textSize = 18f * p.textScale
-            setTextColor(Ui.BROWN)
-            isChecked = p.readAnswers
-            setOnCheckedChangeListener { _, on -> p.readAnswers = on }
-        }, 24)
+        // 찾은 내용 읽어 주기 (기본: 안 읽음) — 위와 같은 모양의 스위치
+        val readRow = Ui.hbox(ctx).apply { setPadding(0, Ui.dp(ctx, 4), 0, Ui.dp(ctx, 4)) }
+        readRow.addView(Ui.text(ctx, "찾은 내용 소리로 읽어 주기", 18f),
+            android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        readRow.addView(Ui.toggle(ctx, p.readAnswers) { on -> p.readAnswers = on }.apply { contentDescription = "찾은 내용 소리로 읽어 주기" })
+        body.add(readRow, 24)
 
         body.add(View(this), 40)
     }
