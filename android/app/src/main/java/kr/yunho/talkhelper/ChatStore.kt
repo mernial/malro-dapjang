@@ -116,12 +116,16 @@ object ChatStore {
         // 카톡 대화가 아니면(다른 앱에서 사진·문서를 잘못 보낸 경우) 저장하지 않음
         if (text.isNullOrBlank() || !looksLikeKakaoChat(text)) { incoming.deleteRecursively(); return null }
         val hint = nameHint?.takeIf { it.isNotBlank() }
-        val name = safe(ChatSearch.roomName(text) ?: hint ?: "내보낸 대화")
+        val fileName = ChatSearch.roomName(text)
+        val name = safe(fileName ?: hint ?: "내보낸 대화")
+        // 앱에서 '찾기'를 누른 방과 실제로 내보낸 방이 다르면(찾기 뒤 시간이 지나 다른 방을 내보낸 경우) 그 방 이름에 묶지 않음
+        val bind = hint?.takeIf { fileName == null || kr.yunho.talkhelper.core.RoomMatch.sameRoomName(it, fileName) }
         // 같은 방을 다시 내보낸 것이면 그 번호에 덮어쓰고, 아니면 새 번호 (이름만 같은 다른 방은 섞지 않음)
-        val room = kr.yunho.talkhelper.core.RoomMatch.reuseTarget(hint, name, text, Rooms.all(c)) { chatText(c, it).orEmpty() }
+        val room = kr.yunho.talkhelper.core.RoomMatch.reuseTarget(bind, name, text, Rooms.all(c)) { chatText(c, it).orEmpty() }
             ?: Rooms.newId()
         File(dir(c), "$room.txt").writeText(text)
-        Rooms.put(c, room, name, hint ?: name)
+        Rooms.put(c, room, name, name)
+        if (bind != null) Rooms.put(c, room, name, bind)
         val media = mediaDir(c, room)
         if (photos > 0) { media.deleteRecursively(); incoming.renameTo(media) }
         else incoming.deleteRecursively()   // 글만 다시 내보낸 경우 전에 받은 사진은 그대로 둠

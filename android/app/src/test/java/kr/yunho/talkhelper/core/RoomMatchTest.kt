@@ -1,6 +1,8 @@
 package kr.yunho.talkhelper.core
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -65,6 +67,21 @@ class RoomMatchTest {
         // 저장 안 한 방: 비슷한 이름이 있어도 고르지 않음
         assertNull(RoomMatch.lookup("로사", entries, emptyList(), chats::getValue))
         assertNull(RoomMatch.lookup("상임위원회 임원", entries, emptyList(), chats::getValue))
+    }
+
+    @Test
+    fun findsByExportedFileNameEvenIfScreenTitleWasNotBound() {
+        // 찾기는 다른 방에서 눌렀고, 시간이 지나 이 방을 내보내 화면 이름이 엉뚱하게 묶였던 경우
+        val e = listOf(RoomMatch.Entry("r_t", "봉담성당 주일학교 교사회", setOf(RoomMatch.norm("김은미 로사"))))
+        assertEquals("r_t", RoomMatch.lookup("봉담성당 주일학교 교사회 11", e, emptyList()) { "" })
+    }
+
+    @Test
+    fun sameRoomNameChecksScreenAgainstFile() {
+        assertTrue(RoomMatch.sameRoomName("봉담성당 주일학교 교사회 11", "봉담성당 주일학교 교사회"))
+        assertTrue(RoomMatch.sameRoomName("김은미 로사", "김은미 로사 님과 카카오톡 대화"))
+        assertFalse(RoomMatch.sameRoomName("김은미 로사", "2023 상임위원회"))
+        assertFalse(RoomMatch.sameRoomName(null, "가족"))
     }
 
     @Test
