@@ -42,6 +42,8 @@ class HelperActivity : Activity() {
         @Volatile var pendingScreenText: String? = null
         /** 버튼을 누른 순간의 카톡 방 이름 */
         @Volatile var pendingTitle: String? = null
+        /** 카톡 대화방에서 🎤로 연 카드 (그 방을 나가면 접근성 서비스가 닫음) */
+        @Volatile var openInRoom: HelperActivity? = null
         /** 내보낸 대화가 저장된 뒤, 기다리던 질문을 이 카드에서 바로 찾아 보여 줄 때 */
         const val EXTRA_QUESTION = "question"
         const val EXTRA_ROOM = "room"
@@ -141,6 +143,8 @@ class HelperActivity : Activity() {
         val readyQuestion = intent?.getStringExtra(EXTRA_QUESTION)
         val readyRoom = intent?.getStringExtra(EXTRA_ROOM)
         build()
+        // 대화방에서 연 보통 카드만: 뒤로가기 등으로 그 방을 나가면 저절로 닫힘 (찾은 결과·알림 답장 카드는 그대로)
+        openInRoom = if (readyQuestion == null && notifyTarget == null && roomTitle != null) this else null
         // 내보내기가 끝나 저장된 대화에서 바로 찾기 (듣기 없이)
         if (readyQuestion != null && readyRoom != null) {
             heardView.text = "물어본 것: $readyQuestion"
@@ -1018,7 +1022,15 @@ class HelperActivity : Activity() {
 
     private fun toast(ctx: Context, s: String) = Toast.makeText(ctx, s, Toast.LENGTH_LONG).show()
 
+    /** 사용자가 카톡 대화방을 나갔을 때: 듣기·자동 보내기를 멈추고 카드를 닫음 */
+    fun closeBecauseLeftRoom() {
+        if (isFinishing) return
+        stopCountdown(); stopConfirm(); stopRecognizer()
+        finish()
+    }
+
     override fun onDestroy() {
+        if (openInRoom === this) openInRoom = null
         Bg.main.removeCallbacks(tick)
         stopConfirm()
         tts?.shutdown(); tts = null
