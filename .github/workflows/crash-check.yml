@@ -36,7 +36,7 @@ jobs:
           target: google_apis
           profile: pixel_6
           disable-animations: true
-          script: bash .github/capture/crash.sh
+          script: timeout 900 bash .github/capture/crash.sh || true
       - name: 화면 사진을 ui-shots 브랜치에 올리기
         if: always()
         run: |

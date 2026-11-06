@@ -731,6 +731,13 @@ class KakaoAccessibilityService : AccessibilityService() {
 
     // ───────── 떠 있는 버튼 ─────────
 
+    /** 지금 카톡 화면이 대화방인지: 화면 아래 절반에 보이는 글 입력 칸이 있으면 대화방 (위쪽 검색 칸은 치지 않음) */
+    private fun inChatRoom(): Boolean {
+        val root = kakaoRoot() ?: return false
+        val win = bounds(root)
+        return walk(root) { it.isEditable && it.isVisibleToUser && bounds(it).centerY() > win.top + win.height() / 2 } != null
+    }
+
     private fun updateBubble() {
         val wins = appWindows()
         val apps = wins.mapNotNull { it.root?.packageName?.toString() }
@@ -742,14 +749,16 @@ class KakaoAccessibilityService : AccessibilityService() {
             // 창 목록을 못 받는 기기에서는 마지막으로 앞에 나온 앱으로 판단
             KAKAO in apps || (apps.isEmpty() && lastPkg == KAKAO)
         }
-        val show = kakao && packageName !in apps && Prefs(this).enabled
+        // 카톡 안에서도 대화방에서만 (쇼핑·설정·친구 목록 등에서는 숨김): 화면 아래쪽에 메시지 입력 칸이 있으면 대화방
+        val room = kakao && inChatRoom()
+        val show = room && packageName !in apps && Prefs(this).enabled
         if (show) showBubble() else removeBubble()
         // 플레이판: 카톡을 떠날 때(홈·다른 앱) 그쪽 이벤트는 받지 않으므로, 버튼이 떠 있는 동안 1초마다 다시 확인
         if (BuildConfig.STORE_SAFE && bubble != null) {
             handler.removeCallbacks(refresh)
             handler.postDelayed(refresh, 1000)
         }
-        diag("앱 창 ${wins.size}개 [${apps.joinToString().ifBlank { "없음" }}] · 최근 앱 ${lastPkg.ifBlank { "-" }} · 카톡 ${if (kakao) "인식" else "못 찾음"} · 버튼 ${if (bubble != null) "표시 중" else "숨김"}")
+        diag("앱 창 ${wins.size}개 [${apps.joinToString().ifBlank { "없음" }}] · 최근 앱 ${lastPkg.ifBlank { "-" }} · 카톡 ${if (kakao) "인식" else "못 찾음"} · 대화방 ${if (room) "예" else "아니오"} · 버튼 ${if (bubble != null) "표시 중" else "숨김"}")
     }
 
     @SuppressLint("ClickableViewAccessibility")

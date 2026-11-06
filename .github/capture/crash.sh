@@ -13,19 +13,19 @@ adb shell "mkdir -p /data/data/$PKG/shared_prefs && echo \"<?xml version='1.0' e
 adb shell settings put secure enabled_accessibility_services $PKG/$PKG.KakaoAccessibilityService
 adb shell settings put secure accessibility_enabled 1
 sleep 5
-adb logcat -c
+timeout 20 adb logcat -c
 for i in 1 2 3; do
   echo "== 카드 열기 $i"
-  adb shell am start -W -n $PKG/.HelperActivity
+  timeout 30 adb shell am start -n $PKG/.HelperActivity
   sleep 6
   adb shell input keyevent KEYCODE_BACK; sleep 2
 done
 mkdir -p shots
-adb shell am force-stop com.google.android.apps.nexuslauncher || true
-adb shell am start -W -n $PKG/.MainActivity; sleep 5
-adb exec-out screencap -p > shots/main.png
+adb shell input keyevent KEYCODE_HOME; sleep 2
+timeout 30 adb shell am start -n $PKG/.MainActivity; sleep 5
+timeout 30 adb exec-out screencap -p > shots/main.png
 adb shell input keyevent KEYCODE_BACK; sleep 1
 echo "== 죽은 기록"
-adb logcat -d -b crash
+timeout 30 adb logcat -d -b crash
 echo "== 앱 기록"
-adb logcat -d | grep -iE "AndroidRuntime|talkhelper|FATAL" | head -150
+timeout 30 adb logcat -d | grep -iE "AndroidRuntime|talkhelper|FATAL" | head -150
