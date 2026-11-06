@@ -168,6 +168,22 @@ class HelperActivity : Activity() {
             background = Ui.rounded(this@HelperActivity, bg, 14, if (bg == Ui.CARD) Ui.LINE else null)
         }
 
+    /** 글 칸 안에서 손가락을 위아래로 움직이면 바깥 카드가 아니라 글 칸이 넘어가게 */
+    private fun keepScrollInside(v: View, e: MotionEvent) {
+        val canScroll = v.canScrollVertically(1) || v.canScrollVertically(-1)
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE ->
+                v.parent?.requestDisallowInterceptTouchEvent(canScroll)
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                v.parent?.requestDisallowInterceptTouchEvent(false)
+        }
+    }
+
+    private fun scrollInside(v: TextView) {
+        v.isScrollbarFadingEnabled = false
+        v.setOnTouchListener { view, e -> keepScrollInside(view, e); false }
+    }
+
     /** 카톡 위에 떠 있는 작은 카드 창. 뒤의 카톡 대화가 보이고 스크롤도 됨 */
     private fun setupWindow() {
         window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
@@ -263,6 +279,7 @@ class HelperActivity : Activity() {
             maxLines = 10
             isVerticalScrollBarEnabled = true
             movementMethod = android.text.method.ScrollingMovementMethod()
+            scrollInside(this)
         }
         card.add(heardView, 6)
 
@@ -284,9 +301,15 @@ class HelperActivity : Activity() {
         resultBox.add(resultTitle, 0)
         resultEdit = Ui.input(ctx, "", multiline = true).apply {
             textSize = 18f * prefs.textScale
-            maxLines = 4
-            // 고치려고 누르면 자동 전송을 멈춤
-            setOnTouchListener { _, e -> if (e.action == MotionEvent.ACTION_DOWN) { stopConfirm(); stopCountdown() }; false }
+            maxLines = 6
+            isVerticalScrollBarEnabled = true
+            isScrollbarFadingEnabled = false
+            // 고치려고 누르면 자동 전송을 멈춤 + 긴 글은 안에서 위아래로 넘겨 봄
+            setOnTouchListener { v, e ->
+                if (e.action == MotionEvent.ACTION_DOWN) { stopConfirm(); stopCountdown() }
+                keepScrollInside(v, e)
+                false
+            }
         }
         resultBox.add(resultEdit, 4)
         val sendRow = Ui.hbox(ctx)
