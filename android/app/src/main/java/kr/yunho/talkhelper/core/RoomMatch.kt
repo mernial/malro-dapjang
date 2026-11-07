@@ -5,6 +5,9 @@ package kr.yunho.talkhelper.core
  * 카톡 화면 이름과 내보낸 파일 속 이름은 띄어쓰기·인원수 표시 등이 조금씩 다를 수 있음.
  */
 object RoomMatch {
+    /** 화면에서 끝이 잘린 제목인지 ("봉담성당 주일학교 교…") */
+    fun isTruncated(title: String?): Boolean = title != null && (title.contains('…') || title.trimEnd().endsWith("..."))
+
     /** 비교용 이름: 띄어쓰기·끝의 인원수·'님과 카카오톡 대화' 등을 뺌 */
     fun norm(name: String): String = name
         .replace(Regex("[…]|\\.\\.\\.$"), "")            // 화면에서 잘린 제목의 "…"
@@ -82,9 +85,9 @@ object RoomMatch {
         fun keys(e: Entry) = e.titles + norm(e.name)
         // 1) 이름이 그대로 같은 방
         var cands = entries.filter { t in keys(it) }
-        // 2) 화면에서 잘렸거나 인원수 표시가 붙어 앞부분만 같은 방 (네 글자 이상)
-        if (cands.isEmpty() && t.length >= 4) {
-            cands = entries.filter { e -> keys(e).any { k -> k.length >= 4 && (k.startsWith(t) || t.startsWith(k)) } }
+        // 2) 화면에서 제목이 "…"로 잘린 경우만: 앞부분이 같은 방 (네 글자 이상). 잘리지 않은 비슷한 이름은 다른 방으로 봄
+        if (cands.isEmpty() && isTruncated(title) && t.length >= 4) {
+            cands = entries.filter { e -> keys(e).any { k -> k.startsWith(t) } }
         }
         // 3) 이름으로 못 찾으면 화면 메시지가 들어 있는 방 (절반 이상, 두 줄 이상)
         if (cands.isEmpty()) return byContent(screenLines, entries.associate { it.id to text(it.id) }, listOfNotNull(title))
