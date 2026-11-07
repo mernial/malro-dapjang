@@ -188,7 +188,7 @@ export default {
     // (1-3) 보낼 요청 만들기. v2 는 앱이 재료만 보내고 지시문은 서버가 붙임 (앱을 뜯어도 지시문이 안 보이게)
     let body;
     if (route === "/v1/messages") {
-      // 예전 앱(1.169 이하): 앱이 만든 요청을 그대로. 모두 새 앱으로 바뀌면 V1_ALLOWED=false 로 막음
+      // 예전 앱(1.170 이하): 앱이 만든 요청을 그대로. 모두 새 앱으로 바뀌면 V1_ALLOWED=false 로 막음
       if (env.V1_ALLOWED === "false") return err(403, "permission_error", "앱을 최신 버전으로 업데이트해 주세요.");
       body = input;
       if (body.model !== env.ALLOWED_MODEL) return err(400, "invalid_request_error", "허용되지 않은 모델입니다.");

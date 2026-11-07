@@ -23,8 +23,8 @@
 - 대화 내용은 저장·기록하지 않음. Cloudflare **Logs는 꺼 둠**(켜지 말 것)
 
 ## 주소 두 가지
-- `/v2/rewrite`, `/v2/answer` (1.172~): 앱은 재료(말한 것·화면 글·질문·대화 일부)만 보내고 **AI 지시문은 서버 `server/src/prompts.js`** 가 붙임. 지시문을 고치면 `android/.../core/Prompts.kt`(직접 설치판)와 함께 고칠 것
-- `/v1/messages`: 예전 앱(~1.171)용 그대로 넘기기. 모두 새 앱이 되면 `wrangler.toml`에 `V1_ALLOWED = "false"` 넣고 배포
+- `/v2/rewrite`, `/v2/answer` (1.171~): 앱은 재료(말한 것·화면 글·질문·대화 일부)만 보내고 **AI 지시문은 서버 `server/src/prompts.js`** 가 붙임. 지시문을 고치면 `android/.../core/Prompts.kt`(직접 설치판)와 함께 고칠 것
+- `/v1/messages`: 예전 앱(~1.170)용 그대로 넘기기. 모두 새 앱이 되면 `wrangler.toml`에 `V1_ALLOWED = "false"` 넣고 배포
 - 하루 전체 횟수는 `usage` 표의 `device='*'` 한 줄에 셈
 
 ## 앱 쪽
