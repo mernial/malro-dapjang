@@ -88,6 +88,7 @@ object ClaudeProvider {
                     "x-malro-device" to p.deviceId,
                     "x-malro-app" to "malro-dapjang/${BuildConfig.VERSION_NAME}",
                 ),
+                perRequestHeaders = { Integrity.headers(ctx.applicationContext) },
                 relay = true,
             )
             client = Counting(c, ctx.applicationContext)

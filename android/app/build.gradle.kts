@@ -15,6 +15,8 @@ android {
         versionCode = run
         versionName = "1.$run"
         // 중계 서버 (키 없이 설치만 하면 쓰게). Claude 키는 서버의 Cloudflare 비밀에만 있음. 비우면 예전처럼 폰의 키만 씀
+        // Play Integrity 용 Google Cloud 프로젝트 번호 (Play Console 에 연결한 프로젝트). 0 이면 쓰지 않음
+        buildConfigField("long", "CLOUD_PROJECT_NUMBER", "0L")
         buildConfigField("String", "RELAY_URL", "\"https://malro-dapjang-relay.mernial.workers.dev\"")
     }
 
@@ -87,6 +89,8 @@ android {
 
 dependencies {
     implementation("com.anthropic:anthropic-java:3.2.0")
+    // 중계 서버에 '플레이에서 받은 진짜 앱'임을 알리는 구글 Play Integrity
+    implementation("com.google.android.play:integrity:1.4.0")
     // 플레이 스토어판: 새 버전이 있는지 플레이 스토어에 물어봄
     "playImplementation"("com.google.android.play:app-update:2.1.0")
     testImplementation("junit:junit:4.13.2")

@@ -28,6 +28,8 @@ class Claude(
     apiKey: String,
     baseUrl: String? = null,
     headers: Map<String, String> = emptyMap(),
+    /** 요청마다 새로 붙일 머리글 (중계 서버의 진짜 앱 확인용) */
+    private val perRequestHeaders: (() -> Map<String, String>)? = null,
     /** 중계 서버를 거치는지 (오류 안내 문구가 달라짐) */
     private val relay: Boolean = false,
 ) : Assistant {
@@ -65,6 +67,7 @@ class Claude(
         val out = BetaOutputConfig.builder().effort(effort)
         if (json) out.format(MESSAGE_FORMAT)
         val builder = MessageCreateParams.builder()
+            .apply { perRequestHeaders?.invoke()?.forEach { (k, v) -> putAdditionalHeader(k, v) } }
             .model(model)
             .maxTokens(4000)
             .outputConfig(out.build())
