@@ -20,6 +20,90 @@ function kstDay() {
   return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
+
+// ───────── Play Integrity (구글이 '플레이에서 받은 진짜 앱'인지 확인) ─────────
+// 모드: off(안 봄) · log(확인해서 기록만, 막지 않음) · enforce(진짜 앱이 아니면 막음)
+
+async function sha256hex(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function b64url(bytes) {
+  let s = typeof bytes === "string" ? btoa(bytes) : btoa(String.fromCharCode(...new Uint8Array(bytes)));
+  return s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+let googleToken = null; // { value, exp }
+
+/** 서비스 계정으로 구글 API 접근 토큰 받기 (1시간짜리, 메모리에 잠깐 보관) */
+async function googleAccessToken(env) {
+  const now = Math.floor(Date.now() / 1000);
+  if (googleToken && googleToken.exp - 60 > now) return googleToken.value;
+  const sa = JSON.parse(env.GOOGLE_SA_JSON);
+  const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const claim = b64url(JSON.stringify({
+    iss: sa.client_email,
+    scope: "https://www.googleapis.com/auth/playintegrity",
+    aud: "https://oauth2.googleapis.com/token",
+    iat: now,
+    exp: now + 3600,
+  }));
+  const pem = sa.private_key.replace(/-----[^-]+-----/g, "").replace(/\s+/g, "");
+  const der = Uint8Array.from(atob(pem), (c) => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey("pkcs8", der, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(`${header}.${claim}`));
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${header}.${claim}.${b64url(sig)}`,
+  });
+  const j = await res.json();
+  if (!j.access_token) throw new Error("google token: " + (j.error || res.status));
+  googleToken = { value: j.access_token, exp: now + (j.expires_in || 3600) };
+  return googleToken.value;
+}
+
+/** 토큰을 구글에 물어 판정. 결과 글자: ok / no-token / bad-app / bad-hash / old / error:… */
+async function checkIntegrity(env, token, nonce) {
+  if (!token || !nonce) return "no-token";
+  try {
+    const access = await googleAccessToken(env);
+    const res = await fetch(`https://playintegrity.googleapis.com/v1/${env.PACKAGE_NAME}:decodeIntegrityToken`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${access}`, "content-type": "application/json" },
+      body: JSON.stringify({ integrity_token: token }),
+    });
+    const j = await res.json();
+    const p = j.tokenPayloadExternal;
+    if (!p) return "error:" + (j.error?.status || res.status);
+    const req = p.requestDetails || {};
+    if (req.requestPackageName !== env.PACKAGE_NAME) return "bad-app";
+    if (req.requestHash !== (await sha256hex(nonce))) return "bad-hash";
+    if (Math.abs(Date.now() - Number(req.timestampMillis || 0)) > 10 * 60 * 1000) return "old";
+    if (p.appIntegrity?.appRecognitionVerdict !== "PLAY_RECOGNIZED") return "bad-app:" + (p.appIntegrity?.appRecognitionVerdict || "none");
+    return "ok";
+  } catch (e) {
+    return "error:" + String(e.message || e).slice(0, 60);
+  }
+}
+
+/** 폰별로 6시간에 한 번만 구글에 물음 (판정은 D1에 보관) */
+async function integrityGate(env, request, device) {
+  const mode = env.INTEGRITY_MODE || "off";
+  if (mode === "off" || !env.GOOGLE_SA_JSON) return { ok: true };
+  const now = Date.now();
+  const prev = await env.DB.prepare("SELECT verdict, checked_at FROM device_check WHERE device = ?").bind(device).first();
+  if (prev && prev.verdict === "ok" && now - prev.checked_at < 6 * 3600 * 1000) return { ok: true };
+  const verdict = await checkIntegrity(env, request.headers.get("x-malro-integrity"), request.headers.get("x-malro-nonce"));
+  await env.DB.prepare(
+    "INSERT INTO device_check (device, verdict, checked_at) VALUES (?, ?, ?) " +
+    "ON CONFLICT(device) DO UPDATE SET verdict = excluded.verdict, checked_at = excluded.checked_at"
+  ).bind(device, verdict, now).run();
+  if (verdict === "ok" || mode !== "enforce") return { ok: true };
+  return { ok: false, verdict };
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -52,6 +136,12 @@ export default {
     }
     body.max_tokens = Math.min(Number(body.max_tokens) || 1000, Number(env.MAX_TOKENS));
     if (body.stream) body.stream = false;
+
+    // (1-2) 플레이에서 받은 진짜 앱인지 (모드에 따라 기록만 하거나 막음)
+    const gate = await integrityGate(env, request, device);
+    if (!gate.ok) {
+      return err(403, "permission_error", "플레이 스토어에서 받은 최신 앱에서만 쓸 수 있어요. 앱을 업데이트해 주세요.");
+    }
 
     // (2) 하루 한도: 전체 → 폰별
     const day = kstDay();
@@ -91,5 +181,6 @@ export default {
   async scheduled(_event, env) {
     const cutoff = new Date(Date.now() + 9 * 3600 * 1000 - 30 * 86400 * 1000).toISOString().slice(0, 10);
     await env.DB.prepare("DELETE FROM usage WHERE day < ?").bind(cutoff).run();
+    await env.DB.prepare("DELETE FROM device_check WHERE checked_at < ?").bind(Date.now() - 30 * 86400 * 1000).run();
   },
 };
