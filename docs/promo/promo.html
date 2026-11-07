@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<style>
+@font-face{font-family:N;font-weight:400;src:url(noto-sans-kr-korean-400-normal.woff2)}
+@font-face{font-family:N;font-weight:700;src:url(noto-sans-kr-korean-700-normal.woff2)}
+@font-face{font-family:N;font-weight:900;src:url(noto-sans-kr-korean-900-normal.woff2)}
+@font-face{font-family:NL;font-weight:400;src:url(noto-sans-kr-latin-400-normal.woff2)}
+@font-face{font-family:NL;font-weight:700;src:url(noto-sans-kr-latin-700-normal.woff2)}
+@font-face{font-family:NL;font-weight:900;src:url(noto-sans-kr-latin-900-normal.woff2)}
+:root{--g:#2E7D6B;--gd:#1F4A40;--r:#E2433A;--bg:#F3F6F4;--ink:#1D2B27;--mut:#5E6B66;--me:#FDE68A;--them:#FFFFFF}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1080px;height:1920px;overflow:hidden;background:var(--bg);font-family:NL,N,sans-serif;color:var(--ink);word-break:keep-all}
+.scene{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:260px 80px 380px;opacity:0;
+  animation:scene var(--len) linear var(--at) both}
+@keyframes scene{0%{opacity:0;transform:translateY(30px)}5%{opacity:1;transform:none}93%{opacity:1;transform:none}100%{opacity:0;transform:translateY(-30px)}}
+.in{opacity:0;animation:in .6s cubic-bezier(.2,.8,.2,1) var(--d) both}
+@keyframes in{from{opacity:0;transform:translateY(40px) scale(.97)}to{opacity:1;transform:none}}
+.pop{opacity:0;animation:pop .7s cubic-bezier(.3,1.6,.5,1) var(--d) both}
+@keyframes pop{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:scale(1)}}
+.out{animation:outk .4s ease var(--d) both}
+@keyframes fo{from{opacity:1}to{opacity:0}}
+@keyframes outk{from{opacity:1}to{opacity:0;height:0;margin:0;padding:0}}
+h1{font-size:96px;font-weight:900;line-height:1.25;text-align:center;letter-spacing:-2px}
+h2{font-size:72px;font-weight:900;line-height:1.3;text-align:center;letter-spacing:-1.5px}
+.sub{font-size:46px;color:var(--mut);font-weight:700;text-align:center;line-height:1.45;margin-top:28px}
+.g{color:var(--g)} .r{color:var(--r)}
+.tag{display:inline-block;background:var(--g);color:#fff;font-weight:900;font-size:44px;padding:14px 40px;border-radius:60px;margin-bottom:40px}
+.icon{width:300px;height:300px;border-radius:72px;background:var(--g);position:relative;box-shadow:0 30px 60px rgba(31,74,64,.25)}
+.icon .b{position:absolute;left:52px;top:74px;width:180px;height:130px;background:#fff;border-radius:70px}
+.icon .b:before,.icon .b:after{content:"";position:absolute;left:46px;height:18px;border-radius:9px;background:var(--g)}
+.icon .b:before{top:40px;width:88px}.icon .b:after{top:72px;width:62px}
+.icon .t{position:absolute;left:66px;top:190px;width:0;height:0;border-left:16px solid transparent;border-right:30px solid transparent;border-top:44px solid #fff;transform:rotate(18deg)}
+.mic{position:absolute;right:-6px;bottom:-6px;width:130px;height:130px;border-radius:50%;background:var(--r);border:10px solid var(--g);display:flex;align-items:center;justify-content:center}
+.mic svg{width:64px;height:64px}
+.card{background:#fff;border-radius:40px;padding:40px 46px;box-shadow:0 14px 40px rgba(29,43,39,.10);width:100%;margin-top:32px;display:flex;align-items:center;gap:34px;font-size:50px;font-weight:700;line-height:1.35}
+.num{flex:none;width:96px;height:96px;border-radius:50%;background:#E3F0EC;color:var(--g);font-weight:900;font-size:52px;display:flex;align-items:center;justify-content:center}
+.phone{width:820px;height:1080px;background:#DCE6E2;border-radius:60px;border:16px solid #1D2B27;position:relative;overflow:hidden;margin-top:40px;padding:50px 34px}
+.top{position:absolute;left:0;right:0;top:0;height:110px;background:#C9D7D2;font-size:38px;font-weight:700;display:flex;align-items:center;padding-left:40px;color:var(--gd)}
+.bub{max-width:80%;font-size:44px;line-height:1.4;padding:24px 32px;border-radius:34px;margin-top:26px;font-weight:700}
+.them{background:var(--them);border-top-left-radius:8px}
+.mine{background:var(--me);margin-left:auto;border-top-right-radius:8px}
+.fab{position:absolute;right:40px;bottom:200px;width:150px;height:150px;border-radius:50%;background:#2B2B30;border:6px solid #C9A96E;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+.fab svg{width:76px;height:76px}
+.ring{position:absolute;inset:-6px;border-radius:50%;border:8px solid var(--r);opacity:0;animation:ring 1s ease-out var(--d) 3 both}
+@keyframes ring{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(1.7)}}
+.panel{position:absolute;left:24px;right:24px;bottom:24px;background:#fff;border-radius:40px;padding:36px 40px;box-shadow:0 -10px 40px rgba(0,0,0,.15)}
+.lbl{font-size:34px;color:var(--mut);font-weight:700;margin-bottom:12px}
+.big{font-size:48px;font-weight:900;line-height:1.4}
+.type{display:inline-block;overflow:hidden;white-space:nowrap;vertical-align:bottom;width:0;animation:type var(--dur) steps(var(--n)) var(--d) both}
+@keyframes type{to{width:var(--w)}}
+.cnt{display:flex;gap:20px;margin-top:22px;align-items:center;font-size:38px;font-weight:700;color:var(--mut)}
+.cnt b{background:var(--g);color:#fff;border-radius:50%;width:70px;height:70px;display:flex;align-items:center;justify-content:center;font-size:40px}
+.chip{display:inline-block;padding:16px 34px;border-radius:50px;background:#fff;border:4px solid #CFE3DC;font-size:42px;font-weight:900;color:var(--gd);margin:8px}
+.row{display:flex;align-items:center;gap:28px;width:100%;margin-top:30px}
+.row .chip{flex:none;width:300px;text-align:center;margin:0}
+.row .out2{font-size:46px;font-weight:700;background:var(--me);border-radius:30px;padding:22px 30px;flex:1}
+.check{width:80px;height:80px;flex:none;border-radius:50%;background:var(--g);display:flex;align-items:center;justify-content:center}
+.check svg{width:46px;height:46px}
+.small{font-size:32px;color:var(--mut);margin-top:40px;text-align:center}
+.arrow{font-size:60px;color:var(--g);font-weight:900;text-align:center;margin:18px 0}
+.say{font-size:50px;font-weight:700;background:#fff;border-radius:34px;padding:30px 40px;width:100%;text-align:center;box-shadow:0 10px 30px rgba(29,43,39,.08)}
+.res{font-size:52px;font-weight:900;background:var(--me);border-radius:34px;padding:30px 40px;width:100%;text-align:center}
+.x{text-decoration:line-through;color:#B0B8B5}
+</style></head><body>
+
+<!-- 1. 첫 인사 0~6초 -->
+<section class="scene" style="--at:0s;--len:6s">
+  <div class="icon pop" style="--d:.2s"><div class="b"></div><div class="t"></div>
+    <div class="mic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></svg></div></div>
+  <h1 class="in" style="--d:1.0s;margin-top:80px">자판이<br>어려우세요?</h1>
+  <div class="sub in" style="--d:2.4s;font-size:60px;color:var(--g);font-weight:900">이제 <span class="r">말로</span> 답장하세요</div>
+  <div class="sub in" style="--d:3.4s">카카오톡 답장 도우미 「말로 답장」</div>
+</section>
+
+<!-- 2. 이런 분께 6~13초 -->
+<section class="scene" style="--at:6s;--len:7s">
+  <div class="tag in" style="--d:6.2s">이런 분께 좋아요</div>
+  <div class="card in" style="--d:6.8s"><div class="num">1</div><div>글씨가 작고 자판이 불편한 <span class="g">어르신·부모님</span></div></div>
+  <div class="card in" style="--d:7.8s"><div class="num">2</div><div>존댓말·업무 말투가 <span class="g">늘 고민</span>인 분</div></div>
+  <div class="card in" style="--d:8.8s"><div class="num">3</div><div>바쁠 때 <span class="g">말로 빠르게</span> 답장하고 싶은 분</div></div>
+</section>
+
+<!-- 3. 쓰는 모습 13~27초 -->
+<section class="scene" style="--at:13s;--len:14s;padding-top:200px">
+  <h2 class="in" style="--d:13.2s;font-size:64px">버튼 누르고 말하면<br><span class="g">다듬어서 보내요</span></h2>
+  <div class="phone in" style="--d:13.6s">
+    <div class="top">우리 성당 모임</div>
+    <div style="height:90px"></div>
+    <div class="bub them">내일 저녁 모임 오세요?</div>
+    <div class="bub mine pop" style="--d:24.6s">내일은 못 가요. 다음에 봐요.</div>
+    <div class="fab out" style="--d:15.8s"><div class="ring" style="--d:14.6s"></div>
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></svg></div>
+    <div class="panel" style="animation:in .6s cubic-bezier(.2,.8,.2,1) 15.9s both, fo .4s ease 24.2s forwards">
+      <div>
+      <div class="lbl">말한 것</div>
+      <div class="big" style="font-weight:700"><span class="type" style="--d:16.4s;--dur:2.2s;--n:14;--w:600px">"내일 못 간다고 해 줘"</span></div>
+      <div class="in" style="--d:19.2s">
+        <div class="lbl" style="margin-top:26px">다듬은 글</div>
+        <div class="big g">내일은 못 가요. 다음에 봐요.</div>
+        <div class="cnt"><b class="pop" style="--d:20.4s">3</b><span>초 뒤 보내요 · 그 사이 취소할 수 있어요</span></div>
+      </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4. 말투 다섯 가지 27~35초 -->
+<section class="scene" style="--at:27s;--len:8s">
+  <div class="tag in" style="--d:27.2s">말투 다섯 가지</div>
+  <div class="say in" style="--d:27.6s">"알았어 고마워"</div>
+  <div class="row in" style="--d:28.6s"><div class="chip">정중하게</div><div class="out2">네, 알겠어요. 고마워요.</div></div>
+  <div class="row in" style="--d:29.6s"><div class="chip">친구처럼</div><div class="out2">알았어, 고마워!</div></div>
+  <div class="row in" style="--d:30.6s"><div class="chip">업무 연락</div><div class="out2">네, 확인했습니다. 감사합니다.</div></div>
+  <div class="sub in" style="--d:31.8s">+ 자녀에게 · <b class="g">내 말투</b>(그 방에서 내가 쓰던 말투)</div>
+</section>
+
+<!-- 5. 지어내지 않아요 35~42초 -->
+<section class="scene" style="--at:35s;--len:7s">
+  <h2 class="in" style="--d:35.2s">답장을 지어내지 않아요<br><span class="g">내 말을 다듬어요</span></h2>
+  <div class="say in" style="--d:36.2s;margin-top:60px">"자매님한테 토요일에 뵙자고 해"</div>
+  <div class="arrow in" style="--d:37.0s">↓</div>
+  <div class="res in" style="--d:37.4s">자매님, 토요일에 뵈어요.</div>
+  <div class="sub in" style="--d:38.6s">호칭은 말한 그대로<br>말하지 않은 약속·날짜는 붙이지 않아요</div>
+</section>
+
+<!-- 6. 지난 대화 찾기 42~50초 -->
+<section class="scene" style="--at:42s;--len:8s">
+  <div class="tag in" style="--d:42.2s">지난 대화에서 찾기</div>
+  <h2 class="in" style="--d:42.6s;font-size:64px">말로 물으면<br><span class="g">찾아서 정리해 드려요</span></h2>
+  <div class="say in" style="--d:43.8s;margin-top:60px">"지난번 모임 날짜<br>언제로 정했지?"</div>
+  <div class="arrow in" style="--d:44.8s">↓</div>
+  <div class="res in" style="--d:45.2s">11월 15일 토요일 오후 2시</div>
+  <div class="small in" style="--d:46.4s">카카오톡 '대화 내보내기'로 보내 둔 대화에서 찾아요<br>대화는 휴대폰 안에만 보관돼요</div>
+</section>
+
+<!-- 7. 편한 점 50~55.5초 -->
+<section class="scene" style="--at:50s;--len:5.5s">
+  <div class="tag in" style="--d:50.2s">이래서 편해요</div>
+  <div class="card in" style="--d:50.6s"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></div><div>복사·붙여넣기 없이<br><span class="g">카톡 입력칸에 바로</span></div></div>
+  <div class="card in" style="--d:51.4s"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></div><div>보내기 전에 <span class="g">확인·취소</span> 가능</div></div>
+  <div class="card in" style="--d:52.2s"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></div><div>설치하고 두 가지만 켜면 끝<br><span class="g">가입 필요 없음</span></div></div>
+</section>
+
+<!-- 8. 마무리 55.5~60초 -->
+<section class="scene" style="--at:55.5s;--len:4.6s">
+  <div class="icon pop" style="--d:55.6s"><div class="b"></div><div class="t"></div>
+    <div class="mic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></svg></div></div>
+  <h1 class="in" style="--d:56.0s;margin-top:60px">말로 답장</h1>
+  <div class="sub in" style="--d:56.4s;color:var(--ink)">하고 싶은 말을, 손 대신 말로</div>
+  <div class="tag in" style="--d:57.0s;margin-top:50px;background:var(--r)">지금 테스터 모집 중 · 무료</div>
+  <div class="sub in" style="--d:57.4s;margin-top:0">안드로이드 · 참여는 댓글이나 DM으로</div>
+  <div class="small in" style="--d:57.8s">카카오와 관련 없는 독립 앱입니다</div>
+</section>
+
+<script>
+window.seek = (t) => { for (const a of document.getAnimations()) { a.pause(); a.currentTime = t * 1000; } };
+</script>
+</body></html>
