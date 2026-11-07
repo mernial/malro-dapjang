@@ -22,8 +22,14 @@
 - Claude Console **월 한도**가 최후의 안전장치
 - 대화 내용은 저장·기록하지 않음. Cloudflare **Logs는 꺼 둠**(켜지 말 것)
 
+## 주소 두 가지
+- `/v2/rewrite`, `/v2/answer` (1.172~): 앱은 재료(말한 것·화면 글·질문·대화 일부)만 보내고 **AI 지시문은 서버 `server/src/prompts.js`** 가 붙임. 지시문을 고치면 `android/.../core/Prompts.kt`(직접 설치판)와 함께 고칠 것
+- `/v1/messages`: 예전 앱(~1.171)용 그대로 넘기기. 모두 새 앱이 되면 `wrangler.toml`에 `V1_ALLOWED = "false"` 넣고 배포
+- 하루 전체 횟수는 `usage` 표의 `device='*'` 한 줄에 셈
+
 ## 앱 쪽
-- 폰에 API 키가 **없으면** 서버로, **있으면**(가족·예전 방식) 그 키로 바로
+- **플레이판은 언제나 서버로** (`RelayAssistant`). 앱 안에 지시문·Claude SDK 코드가 없고(R8로 빠짐) 코드 이름도 숨김
+- 직접 설치판(github)은 폰에 API 키가 **있으면** 그 키로 바로, 없으면 서버로
 - 준비 단계: 접근성 → 마이크 (2단계, 설정 코드 없음)
 - `BuildConfig.RELAY_URL`, `BuildConfig.CLOUD_PROJECT_NUMBER`(Play Integrity, Cloud 프로젝트 `talkhelper` 865614768936, 0이면 끔) — `android/app/build.gradle.kts`
 
