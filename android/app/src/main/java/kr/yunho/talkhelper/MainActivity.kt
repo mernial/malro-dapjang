@@ -37,7 +37,7 @@ class MainActivity : Activity() {
 • 도우미 버튼을 누를 때(답장·찾기), 그 순간 카카오톡 화면에 보이는 대화 글을 읽습니다. 무엇에 대한 답장인지, 무엇을 찾는지 알기 위해서입니다.
 • 다듬은 답장을 카카오톡 입력창에 넣고 전송 버튼을 누릅니다. 보내기 전에 화면에 보여 드리고 취소할 수 있습니다.
 
-읽은 대화 글과 말씀하신 내용은 답장을 다듬거나 찾은 내용을 정리하기 위해 Anthropic(Claude AI, 미국)으로 전송됩니다. 이 앱은 따로 서버를 두지 않으며, 화면에서 읽은 글을 휴대폰에 저장하지 않습니다.
+읽은 대화 글과 말씀하신 내용은 답장을 다듬거나 찾은 내용을 정리하기 위해 Anthropic(Claude AI, 미국)으로 전송됩니다. 이때 운영자의 중계 서버를 거치지만 중계 서버는 내용을 저장하지 않고 넘기기만 하며, 이 앱은 화면에서 읽은 글을 휴대폰에 저장하지 않습니다.
 카카오톡 이외의 앱 화면은 읽지 않으며, 버튼을 누르지 않았을 때는 아무것도 읽거나 보내지 않습니다."""
     }
 
@@ -125,10 +125,11 @@ class MainActivity : Activity() {
         }, 0)
         updateBanner()
 
-        val steps = listOf(accessibilityOn(), micOn(), p.apiKey.isNotBlank())
+        // 중계 서버가 있으면 설정 코드 단계 없이 두 단계로 끝남
+        val steps = listOfNotNull(accessibilityOn(), micOn(), if (ClaudeProvider.relayAvailable) null else p.apiKey.isNotBlank())
         val current = steps.indexOfFirst { !it }
         if (current >= 0 && !showAdvanced) {
-            body.add(Ui.text(this, "준비 ${current + 1} / 3", 18f, bold = true, color = Ui.MUTED), 8)
+            body.add(Ui.text(this, "준비 ${current + 1} / ${steps.size}", 18f, bold = true, color = Ui.MUTED), 8)
             when (current) {
                 0 -> stepAccessibility()
                 1 -> stepMic()
@@ -395,7 +396,7 @@ class MainActivity : Activity() {
 
         body.add(Ui.text(this, "현재 상태", 16f, bold = true, color = Ui.MUTED), 14)
         body.add(Ui.text(this,
-            "${if (accessibilityOn()) "✅" else "❌"} 카톡 위 버튼   ${if (micOn()) "✅" else "❌"} 마이크   ${if (p.apiKey.isNotBlank()) "✅" else "❌"} API 키",
+            "${if (accessibilityOn()) "✅" else "❌"} 카톡 위 버튼   ${if (micOn()) "✅" else "❌"} 마이크   ${if (p.apiKey.isNotBlank()) "✅ API 키" else if (ClaudeProvider.relayAvailable) "✅ AI 서버" else "❌ API 키"}",
             16f), 4)
         val row = Ui.hbox(this)
         row.add(Ui.button(this, "접근성 설정", Ui.CARD, sp = 15f) { openAccessibilitySettings() })

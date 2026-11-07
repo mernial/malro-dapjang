@@ -14,6 +14,8 @@ android {
         val run = System.getenv("APP_VERSION")?.toIntOrNull() ?: 1
         versionCode = run
         versionName = "1.$run"
+        // 중계 서버 (키 없이 설치만 하면 쓰게). Claude 키는 서버의 Cloudflare 비밀에만 있음. 비우면 예전처럼 폰의 키만 씀
+        buildConfigField("String", "RELAY_URL", "\"https://malro-dapjang-relay.mernial.workers.dev\"")
     }
 
     // 업데이트가 기존 앱 위에 덮어 설치되려면 항상 같은 키로 서명해야 함.

@@ -24,12 +24,19 @@ class HelperException(message: String) : Exception(message)
 /**
  * Claude 호출. 블로킹 함수이므로 반드시 백그라운드 스레드에서 부를 것.
  */
-class Claude(apiKey: String, baseUrl: String? = null) : Assistant {
+class Claude(
+    apiKey: String,
+    baseUrl: String? = null,
+    headers: Map<String, String> = emptyMap(),
+    /** 중계 서버를 거치는지 (오류 안내 문구가 달라짐) */
+    private val relay: Boolean = false,
+) : Assistant {
 
     private val client: AnthropicClient = AnthropicOkHttpClient.builder()
         .apiKey(apiKey)
         .timeout(Duration.ofSeconds(90))
         .apply { if (baseUrl != null) baseUrl(baseUrl) }
+        .apply { headers.forEach { (k, v) -> putHeader(k, v) } }
         .build()
 
     /**
@@ -76,11 +83,11 @@ class Claude(apiKey: String, baseUrl: String? = null) : Assistant {
         val msg = try {
             client.beta().messages().create(params)
         } catch (e: UnauthorizedException) {
-            throw HelperException("API 키가 올바르지 않습니다. 설정에서 키를 확인해 주세요.")
+            throw HelperException(if (relay) "AI 서버 연결에 문제가 있어요. 잠시 뒤에 다시 해 주세요." else "API 키가 올바르지 않습니다. 설정에서 키를 확인해 주세요.")
         } catch (e: PermissionDeniedException) {
-            throw HelperException("이 API 키로는 사용할 수 없습니다. 키 권한을 확인해 주세요.")
+            throw HelperException(if (relay) "AI 서버가 이 요청을 받지 않았어요. 앱을 최신으로 업데이트해 주세요." else "이 API 키로는 사용할 수 없습니다. 키 권한을 확인해 주세요.")
         } catch (e: RateLimitException) {
-            throw HelperException("요청이 많아 잠시 쉬어야 합니다. 조금 뒤에 다시 해 주세요.")
+            throw HelperException(if (relay) "오늘 쓸 수 있는 횟수를 다 썼거나 요청이 많아요. 잠시 뒤나 내일 다시 해 주세요." else "요청이 많아 잠시 쉬어야 합니다. 조금 뒤에 다시 해 주세요.")
         } catch (e: BadRequestException) {
             throw HelperException("요청이 거부되었습니다: ${e.message}")
         } catch (e: InternalServerException) {

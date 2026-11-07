@@ -1,0 +1,24 @@
+# 「말로 답장」 중계 서버 (Cloudflare Workers, 무료 요금제)
+# 앱 → 이 서버 → Claude API. Claude 키는 Cloudflare 비밀(ANTHROPIC_API_KEY)에만 있음 (저장소·앱에 없음)
+name = "malro-dapjang-relay"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+account_id = "527283f13d7cc3f2e809b0e14403db7e"
+workers_dev = true
+
+[vars]
+# 폰 한 대가 하루에 보낼 수 있는 요청 수 (답장 다듬기 + 찾기)
+DEVICE_DAILY_LIMIT = "150"
+# 모든 폰을 합친 하루 요청 수 (요금 폭탄 방지용 최후의 한도)
+GLOBAL_DAILY_LIMIT = "5000"
+# 허용하는 모델
+ALLOWED_MODEL = "claude-haiku-5-5"
+MAX_TOKENS = "4000"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "malro-dapjang-usage"
+database_id = "269d7ebe-efdf-4b7d-9afb-ec057c34025f"
+
+[triggers]
+crons = ["17 18 * * *"]   # 매일 한국 새벽 3시 17분: 오래된 사용 기록 정리

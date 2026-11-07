@@ -23,6 +23,10 @@ class Prefs(ctx: Context) {
     var apiKey: String
         get() = sp.getString("apiKey", "") ?: ""
         set(v) = sp.edit().putString("apiKey", v).apply()
+    /** 중계 서버의 하루 한도를 셀 때 쓰는 이 설치의 무작위 번호 (개인을 알 수 없음). 처음 부를 때 만듦 */
+    val deviceId: String
+        get() = sp.getString("deviceId", null) ?: java.util.UUID.randomUUID().toString().replace("-", "")
+            .also { sp.edit().putString("deviceId", it).apply() }
     var myName: String
         get() = sp.getString("myName", "") ?: ""
         set(v) = sp.edit().putString("myName", v).apply()
