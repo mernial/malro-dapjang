@@ -87,6 +87,23 @@ class RoomMatchTest {
     }
 
     @Test
+    fun truncatedScreenTitleStillFindsRoom() {
+        val e = listOf(RoomMatch.Entry("r_t", "봉담성당 주일학교 교사회", setOf(RoomMatch.norm("봉담성당 주일학교 교사회"))))
+        assertEquals("r_t", RoomMatch.lookup("봉담성당 주일학교 교…", e, emptyList()) { "" })
+        assertEquals("r_t", RoomMatch.lookup("봉담성당 주일학교 교사회 11", e, emptyList()) { "" })
+        assertNull(RoomMatch.lookup("봉담", e, emptyList()) { "" })   // 너무 짧으면 짐작하지 않음
+    }
+
+    @Test
+    fun titleMismatchFallsBackToScreenMessages() {
+        val chat = "교사회 님과 카카오톡 대화\n2026. 11. 6. 오후 2:32, 권예하 : 혹시 시온이 본인 연락처 아시는 분 계신가요\n2026. 11. 6. 오후 2:35, 최미진 : 네 시준이 지금 단톡에 있어요"
+        val e = listOf(RoomMatch.Entry("r_t", "교사회", setOf("교사회")))
+        val screen = listOf("주일학교 선생님들", "혹시 시온이 본인 연락처 아시는 분 계신가요", "네 시준이 지금 단톡에 있어요")
+        assertEquals("r_t", RoomMatch.lookup("주일학교 선생님들", e, screen) { chat })
+        assertEquals(2, RoomMatch.matches(screen, chat))
+    }
+
+    @Test
     fun sameRoomNameChecksScreenAgainstFile() {
         assertTrue(RoomMatch.sameRoomName("봉담성당 주일학교 교사회 11", "봉담성당 주일학교 교사회"))
         assertTrue(RoomMatch.sameRoomName("김은미 로사", "김은미 로사 님과 카카오톡 대화"))

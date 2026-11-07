@@ -49,6 +49,13 @@ object Rooms {
         write(c, list)
     }
 
+    /** 이 방을 화면 이름 [title] 로도 알아보게 기억 (다음부터는 이름만으로 바로 찾음) */
+    fun learn(c: Context, id: String, title: String?) {
+        val t = title?.let { RoomMatch.norm(it) }?.takeIf { it.isNotEmpty() } ?: return
+        val e = all(c).firstOrNull { it.id == id } ?: return
+        if (t !in e.titles) put(c, id, e.name, title)
+    }
+
     fun remove(c: Context, id: String) = synchronized(lock) { write(c, read(c).filterNot { it.id == id }) }
 
     private fun read(c: Context): List<RoomMatch.Entry> {

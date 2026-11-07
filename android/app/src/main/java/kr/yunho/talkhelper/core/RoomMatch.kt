@@ -7,6 +7,7 @@ package kr.yunho.talkhelper.core
 object RoomMatch {
     /** 비교용 이름: 띄어쓰기·끝의 인원수·'님과 카카오톡 대화' 등을 뺌 */
     fun norm(name: String): String = name
+        .replace(Regex("[…]|\\.\\.\\.$"), "")            // 화면에서 잘린 제목의 "…"
         .replace(Regex("님과\\s*카카오톡\\s*대화.*$"), "")
         .replace(Regex("카카오톡\\s*대화.*$"), "")
         .replace(Regex("\\s+\\d+$"), "")      // "청년부 12" → "청년부"
@@ -38,11 +39,19 @@ object RoomMatch {
      * 방 이름을 못 읽었을 때만 씀. 날짜·알림 줄, 방 이름·사람 이름 줄([names])은 어느 방에나 있을 수 있어 빼고,
      * 화면 메시지의 절반 이상이 들어 있는 방만 (두 줄 이상) 고름. 애매하면 null → 사용자에게 물어봄
      */
-    fun byContent(screenLines: List<String>, chats: Map<String, String>, names: List<String> = emptyList(), atLeast: Int? = null): String? {
+    /** 화면 줄 가운데 어느 방에나 있을 법한 줄을 뺀, 비교에 쓸 만한 줄들 */
+    fun probes(screenLines: List<String>, names: List<String> = emptyList()): List<String> {
         val skip = names.map { norm(it) }.filter { it.isNotEmpty() }.toSet()
-        val probes = screenLines.map { it.removePrefix("나: ").trim() }
+        return screenLines.map { it.removePrefix("나: ").trim() }
             .filter { it.length >= 6 && COMMON.none { r -> r.containsMatchIn(it) } && norm(it) !in skip }
             .distinct()
+    }
+
+    /** 화면 줄 가운데 [text] 대화에 들어 있는 줄 수 */
+    fun matches(screenLines: List<String>, text: String): Int = probes(screenLines).count { text.contains(it) }
+
+    fun byContent(screenLines: List<String>, chats: Map<String, String>, names: List<String> = emptyList(), atLeast: Int? = null): String? {
+        val probes = probes(screenLines, names)
         if (probes.isEmpty()) return null
         val need = atLeast ?: maxOf(2, (probes.size + 1) / 2)
         val scored = chats.map { (room, text) -> room to probes.count { text.contains(it) } }
@@ -70,19 +79,21 @@ object RoomMatch {
     fun lookup(title: String?, entries: List<Entry>, screenLines: List<String>, text: (String) -> String): String? {
         val t = title?.let { norm(it) }?.takeIf { it.isNotEmpty() }
             ?: return byContent(screenLines, entries.associate { it.id to text(it.id) })
-        // 내보낸 파일 속 방 이름도 같이 봄 (예전에 다른 방 이름이 잘못 묶였어도 자기 이름으로는 찾게)
-        val same = entries.filter { t in it.titles || norm(it.name) == t }
-        return when (same.size) {
-            0 -> null
-            1 -> same[0].id
-            // 이름이 같은 방끼리는 이미 후보가 좁혀졌으니 화면 메시지 한 줄만 맞아도 가림 (똑같이 맞으면 모름)
-            else -> {
-                // 같은 방을 여러 번 내보내 번호가 둘 이상 생긴 경우(첫 메시지가 같음): 가장 긴(최근) 것
-                val firsts = same.map { firstMessage(text(it.id)) }
-                if (firsts.all { it != null && it == firsts[0] }) same.maxByOrNull { text(it.id).length }?.id
-                else byContent(screenLines, same.associate { it.id to text(it.id) }, listOfNotNull(title), atLeast = 1)
-            }
+        fun keys(e: Entry) = e.titles + norm(e.name)
+        // 1) 이름이 그대로 같은 방
+        var cands = entries.filter { t in keys(it) }
+        // 2) 화면에서 잘렸거나 인원수 표시가 붙어 앞부분만 같은 방 (네 글자 이상)
+        if (cands.isEmpty() && t.length >= 4) {
+            cands = entries.filter { e -> keys(e).any { k -> k.length >= 4 && (k.startsWith(t) || t.startsWith(k)) } }
         }
+        // 3) 이름으로 못 찾으면 화면 메시지가 들어 있는 방 (절반 이상, 두 줄 이상)
+        if (cands.isEmpty()) return byContent(screenLines, entries.associate { it.id to text(it.id) }, listOfNotNull(title))
+        if (cands.size == 1) return cands[0].id
+        // 같은 방을 여러 번 내보내 번호가 둘 이상 생긴 경우(첫 메시지가 같음): 가장 긴(최근) 것
+        val firsts = cands.map { firstMessage(text(it.id)) }
+        if (firsts.all { it != null && it == firsts[0] }) return cands.maxByOrNull { text(it.id).length }?.id
+        // 이름이 같은 다른 방들: 화면 메시지 한 줄만 맞아도 가림 (똑같이 맞으면 모름)
+        return byContent(screenLines, cands.associate { it.id to text(it.id) }, listOfNotNull(title), atLeast = 1)
     }
 
     /**
