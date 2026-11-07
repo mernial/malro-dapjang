@@ -29,6 +29,7 @@ object ChatStore {
      * (파일에 방 이름이 없을 때 이름으로도 씀)
      */
     @Volatile var nameHint: String? = null
+    @Volatile var screenHint: String? = null
 
     /** 저장 결과: 대화 번호, 보여 줄 이름, 함께 저장한 사진 수 */
     data class Saved(val room: String, val name: String, val photos: Int)
@@ -118,8 +119,10 @@ object ChatStore {
         val hint = nameHint?.takeIf { it.isNotBlank() }
         val fileName = ChatSearch.roomName(text)
         val name = safe(fileName ?: hint ?: "내보낸 대화")
-        // 앱에서 '찾기'를 누른 방과 실제로 내보낸 방이 다르면(찾기 뒤 시간이 지나 다른 방을 내보낸 경우) 그 방 이름에 묶지 않음
-        val bind = hint?.takeIf { fileName == null || kr.yunho.talkhelper.core.RoomMatch.sameRoomName(it, fileName) }
+        // 앱에서 '찾기'를 누른 방과 실제로 내보낸 방이 같은지: 이름이 맞거나, 그때 화면에 보이던 메시지가 이 파일에 들어 있으면 같은 방
+        // (화면 제목이 잘렸거나 파일 속 이름과 달라도 묶임). 둘 다 아니면(다른 방을 내보냄) 묶지 않음
+        val screenOk = screenHint?.let { kr.yunho.talkhelper.core.RoomMatch.matches(it.lines(), text) >= 2 } ?: false
+        val bind = hint?.takeIf { fileName == null || kr.yunho.talkhelper.core.RoomMatch.sameRoomName(it, fileName) || screenOk }
         // 같은 방을 다시 내보낸 것이면 그 번호에 덮어쓰고, 아니면 새 번호 (이름만 같은 다른 방은 섞지 않음)
         val room = kr.yunho.talkhelper.core.RoomMatch.reuseTarget(bind, name, text, Rooms.all(c)) { chatText(c, it).orEmpty() }
             ?: Rooms.newId()

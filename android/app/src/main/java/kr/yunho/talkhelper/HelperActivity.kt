@@ -632,6 +632,8 @@ class HelperActivity : Activity() {
     private fun chatForThisRoom(): Pair<String, String?> {
         val screen = screenText.orEmpty()
         val room = kr.yunho.talkhelper.core.RoomMatch.lookup(roomTitle, Rooms.all(this), screen.lines()) { ChatStore.chatText(this, it).orEmpty() }
+        // 잘린 제목·화면 메시지로 찾았으면, 지금 화면 이름도 그 방 것으로 기억해 다음엔 바로 찾게
+        if (room != null) Rooms.learn(this, room, roomTitle)
         val saved = room?.let { ChatStore.chatText(this, it) }.orEmpty()
         val chat = if (saved.isNotBlank()) "$saved\n\n[지금 카톡 화면]\n$screen" else screen
         return chat to room
@@ -699,6 +701,8 @@ class HelperActivity : Activity() {
         exportBox.add(Ui.button(ctx, label("📤 직접 내보낼게요", "예전 대화까지 모두 찾아요"), Ui.BROWN, Ui.YELLOW, 18f) {
             AskActivity.pendingQuestion = question to System.currentTimeMillis()
             AskActivity.pendingTitle = roomTitle
+        AskActivity.pendingScreen = screenText
+            AskActivity.pendingScreen = screenText
             dialog.dismiss()
             finish()
             // 카드가 닫혀도 따라 할 순서가 화면 위에 남게 (카톡은 직접 누름)
@@ -730,6 +734,7 @@ class HelperActivity : Activity() {
     private fun exportThenAsk(question: String, svc: KakaoAccessibilityService) {
         AskActivity.pendingQuestion = question to System.currentTimeMillis()
         AskActivity.pendingTitle = roomTitle
+        AskActivity.pendingScreen = screenText
         finish()   // 카드를 닫아야 카톡 메뉴를 누를 수 있음
         Bg.main.postDelayed({
             // 막히면 덮개에 직접 누를 순서가 크게 남음 (질문은 15분 동안 기억)

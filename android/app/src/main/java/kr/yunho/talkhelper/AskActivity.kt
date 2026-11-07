@@ -38,6 +38,9 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
             set(v) { field = v; pendingTitleAt = System.currentTimeMillis() }
         @Volatile private var pendingTitleAt = 0L
         private fun freshTitle() = pendingTitle?.takeIf { System.currentTimeMillis() - pendingTitleAt < 15 * 60_000 }
+        /** 그때 카톡 화면에 보이던 글 (내보낸 파일이 정말 그 방 것인지 맞춰 보는 데 씀) */
+        @Volatile var pendingScreen: String? = null
+        private fun freshScreen() = pendingScreen?.takeIf { System.currentTimeMillis() - pendingTitleAt < 15 * 60_000 }
         private const val REQ_SPEECH = 11
         private const val REQ_FOLDER = 12
         private const val SCREEN = "\u0000screen"   // '지금 화면' 을 나타내는 내부 이름
@@ -117,6 +120,7 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
             else i.getParcelableExtra(Intent.EXTRA_STREAM)
             val text = i.getStringExtra(Intent.EXTRA_TEXT)
             ChatStore.nameHint = freshTitle()   // 앱에서 내보내기를 시작한 방이면 그 방과 짝지어 저장
+            ChatStore.screenHint = freshScreen()
             Prefs(this).logExport("받음: ${i.action?.substringAfterLast('.')} ${i.type} 파일=${uri != null} 글=${text?.length ?: 0}자 · 기다리는 질문=${pendingQuestion != null}")
             showBusy("💬 대화를 저장하는 중이에요…\n\n내보낸 대화는 이 휴대폰 안에만 보관돼요")
             importChat {
@@ -143,7 +147,9 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
             KakaoAccessibilityService.instance?.hideExportGuide()
             Prefs(this).logExport("저장: '${saved.name}' (${saved.room}) 사진 ${saved.photos}장 · 카톡 방 '${ChatStore.nameHint ?: "모름"}'")
             ChatStore.nameHint = null
+            ChatStore.screenHint = null
             pendingTitle = null
+            pendingScreen = null
             selected = saved.room
             val photos = if (saved.photos > 0) " 사진 ${saved.photos}장도 함께 저장했어요." else ""
             Toast.makeText(this, "'${saved.name}' 대화를 저장했어요.$photos 이제 물어보세요.", Toast.LENGTH_LONG).show()
