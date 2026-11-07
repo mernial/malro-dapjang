@@ -201,8 +201,12 @@ export default {
 
     // (2) 하루 한도: 전체 → 폰별
     const day = kstDay();
-    const total = await env.DB.prepare("SELECT COALESCE(SUM(count),0) AS n FROM usage WHERE day = ?").bind(day).first();
-    if ((total?.n ?? 0) >= Number(env.GLOBAL_DAILY_LIMIT)) {
+    // 전체 수는 device='*' 한 줄에 셈 (사용자가 늘어도 읽는 양이 그대로)
+    const total = await env.DB.prepare(
+      "INSERT INTO usage (device, day, count) VALUES ('*', ?, 1) " +
+      "ON CONFLICT(device, day) DO UPDATE SET count = count + 1 RETURNING count"
+    ).bind(day).first();
+    if ((total?.count ?? 0) > Number(env.GLOBAL_DAILY_LIMIT)) {
       return err(429, "rate_limit_error", "오늘은 사용량이 많아 잠시 쉬어요. 내일 다시 해 주세요.");
     }
     const row = await env.DB.prepare(
