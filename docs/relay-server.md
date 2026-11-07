@@ -25,11 +25,11 @@
 ## 앱 쪽
 - 폰에 API 키가 **없으면** 서버로, **있으면**(가족·예전 방식) 그 키로 바로
 - 준비 단계: 접근성 → 마이크 (2단계, 설정 코드 없음)
-- `BuildConfig.RELAY_URL`, `BuildConfig.CLOUD_PROJECT_NUMBER`(Play Integrity, 0이면 끔) — `android/app/build.gradle.kts`
+- `BuildConfig.RELAY_URL`, `BuildConfig.CLOUD_PROJECT_NUMBER`(Play Integrity, Cloud 프로젝트 `talkhelper` 865614768936, 0이면 끔) — `android/app/build.gradle.kts`
 
 ## 진짜 앱 확인 켜는 순서 (남은 일)
 1. 신부님: Play Console → **테스트 및 출시 → 앱 무결성 → Play Integrity API → Cloud 프로젝트 연결** (플레이 업로드용 서비스 계정이 있는 프로젝트를 고르면 편함). 화면의 **프로젝트 번호**(숫자, 비밀 아님)를 Claude에게 알려 줌
-2. Claude: `CLOUD_PROJECT_NUMBER`에 번호 넣고 앱 배포
+2. ✅ (2026-11-07) Cloud 프로젝트 `talkhelper`(865614768936) 연결, 앱에 번호 넣음
 3. 신부님: 그 프로젝트의 서비스 계정 JSON(iCloud `말로답장`의 플레이 서비스 계정 키)을 Cloudflare `malro-dapjang-relay` → 설정 → 변수 및 비밀 → **비밀** `GOOGLE_SA_JSON`에 통째로 붙여 넣기
 4. Claude: D1 `device_check`의 판정이 `ok`로 쌓이는지 확인 → `INTEGRITY_MODE = "enforce"`로 바꿔 배포
 
