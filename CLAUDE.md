@@ -10,7 +10,9 @@
 - 패키지 `kr.yunho.talkhelper`, Kotlin, AppCompat 없이 기본 Activity. 플레이버 `play`(플레이 스토어판, 지금 쓰는 것) / `github`(예전 직접 설치판).
 - 주요 파일: `KakaoAccessibilityService.kt`(떠 있는 버튼·동그라미 메뉴·카톡 화면 읽기/입력/전송·대화 내보내기 자동화), `HelperActivity.kt`(카톡 위 카드), `AskActivity.kt`(대화에서 찾기·내보낸 대화 받기), `MainActivity.kt`(첫 화면, 제목을 길게 누르면 숨은 설정), `core/`(Claude 호출·프롬프트·순수 로직, JVM 단위 테스트 있음).
 - 모델: 다듬기·찾기 모두 `claude-haiku-5-5` (Sonnet은 쓰지 않기로 사용자가 결정).
-- 테스트: `android/app/src/test/java/kr/yunho/talkhelper/core/` (Android SDK 없이 core만 돌리는 별도 Gradle 프로젝트로 확인해 왔음).
+- 테스트: `android/app/src/test/java/kr/yunho/talkhelper/core/` (CI의 `testGithubDebugUnitTest`).
+- **중계 서버**(2026-11-07~): `server/` Cloudflare Workers `malro-dapjang-relay.mernial.workers.dev`. 폰에 키가 없으면 서버가 서버 비밀의 Claude 키로 대신 부름 → 설치만 하면 바로 사용. 자세히 `docs/relay-server.md`. Cloudflare Logs는 켜지 말 것.
+- **에뮬레이터 확인**: `claude/**` 브랜치에 앱을 바꿔 push하면 `crash-check.yml`이 카드를 열어 보고 첫 화면·간단 설정·안내 띠 사진을 `ui-shots` 브랜치에 올림. 카드 고칠 때마다 확인할 것.
 
 ## 빌드와 배포
 
@@ -23,6 +25,7 @@
 ## 남은 일
 
 - 어머니(S26) 설치: 테스터 등록은 됨, 플레이 "다운로드할 수 없습니다" — 예전 '카톡 도우미'(서명이 다른 같은 패키지, 보안 폴더 포함) 잔존 여부 확인 중.
-- 정식 출시: 비공개 테스트(12명 × 14일) → 접근성 심사 → 프로덕션. 카카오 문의 답변 대기(2차, 조항을 짚은 문의 2026-11-06 보냄: `docs/kakao-inquiry.md`). 우려 목록 `docs/launch-risks.md`, 스토어 자료 `docs/play-store/`.
-- 판매 준비(나중): `docs/sales/`. 서버 구매·구조 변경은 신부님이 정할 때까지 하지 않음. AI 호출은 `core/Assistant` 뒤에 있어 서버판으로 바꿔 끼울 수 있음.
+- 정식 출시: **비공개 테스트 승인됨(2026-11-07)** → 테스터 12명 × 14일 → 프로덕션 신청. 계정·앱 판매자 상태는 '비판매자'(유료 전환 때 바꿈, `docs/sales/pricing.md` 8). 카카오 문의 답변 대기(2차, 조항을 짚은 문의 2026-11-06 보냄: `docs/kakao-inquiry.md`). 우려 목록 `docs/launch-risks.md`, 스토어 자료 `docs/play-store/`.
+- 판매 준비(나중): `docs/sales/`. 중계 서버는 무료로 운영 중(구독 확인·결제는 아직 없음).
+- 진짜 앱 확인(Play Integrity): 서버·앱 코드는 들어감, 지금 `log`. 켜는 순서는 `docs/relay-server.md`.
 - 플레이판(`STORE_SAFE`)은 카톡 자동 조작(내보내기 누르기·대화방 넘기기)과 '바로 보내기'를 끔. 찾기는 그 방에서 내보낸 대화만 씀(`Rooms`, 고유 번호 저장).
