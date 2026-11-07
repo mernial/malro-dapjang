@@ -52,6 +52,15 @@ class MainActivity : Activity() {
         body = Ui.vbox(this, 20)
         // 안드로이드 15 이상은 화면 끝까지 그리므로 상태 표시줄·내비게이션 바 자리를 비워 둠
         setContentView(ScrollView(this).apply { fitsSystemWindows = true; addView(body) })
+        // 에뮬레이터 시험(crash-check)에서만: 중계 서버로 다듬기·찾기를 한 번씩 해 보고 기록에 남김
+        if (BuildConfig.E2E && intent?.getBooleanExtra("e2e", false) == true) {
+            Bg.run({
+                val ai = ClaudeProvider.get(this) ?: error("AI 없음")
+                val a = ai.rewrite(kr.yunho.talkhelper.core.Mode.POLITE, "내일 모임 몇 시인지 물어봐 줘", null, "", "")
+                val b = ai.answer("모임 언제야?", "2026년 11월 1일 오후 3:00, 홍길동 : 다음 모임은 11월 15일 오후 2시입니다", "시험방")
+                "rewrite=$a | answer=${b.lines().firstOrNull()}"
+            }) { r -> android.util.Log.i("talkhelper-e2e", r.fold({ "OK $it" }, { "FAIL ${it.message}" })) }
+        }
     }
 
     override fun onResume() {
@@ -100,7 +109,7 @@ class MainActivity : Activity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         // 클립보드는 창이 앞에 있을 때만 읽을 수 있음. 설정 코드를 복사해 두었으면 자동으로 가져옴
-        if (hasFocus && Prefs(this).apiKey.isBlank()) importFromClipboard(silent = true)
+        if (hasFocus && !BuildConfig.STORE_SAFE && Prefs(this).apiKey.isBlank()) importFromClipboard(silent = true)
     }
 
     private fun accessibilityOn(): Boolean {
@@ -396,7 +405,7 @@ class MainActivity : Activity() {
 
         body.add(Ui.text(this, "현재 상태", 16f, bold = true, color = Ui.MUTED), 14)
         body.add(Ui.text(this,
-            "${if (accessibilityOn()) "✅" else "❌"} 카톡 위 버튼   ${if (micOn()) "✅" else "❌"} 마이크   ${if (p.apiKey.isNotBlank()) "✅ API 키" else if (ClaudeProvider.relayAvailable) "✅ AI 서버" else "❌ API 키"}",
+            "${if (accessibilityOn()) "✅" else "❌"} 카톡 위 버튼   ${if (micOn()) "✅" else "❌"} 마이크   ${if (!BuildConfig.STORE_SAFE && p.apiKey.isNotBlank()) "✅ API 키" else if (ClaudeProvider.relayAvailable) "✅ AI 서버" else "❌ API 키"}",
             16f), 4)
         val row = Ui.hbox(this)
         row.add(Ui.button(this, "접근성 설정", Ui.CARD, sp = 15f) { openAccessibilitySettings() })
@@ -452,7 +461,7 @@ class MainActivity : Activity() {
         body.add(Ui.button(this, "🔎 대화에서 찾기 (대화·사진 저장)", Ui.CARD, sp = 15f) {
             startActivity(Intent(this, AskActivity::class.java))
         }, 20)
-        if (p.apiKey.isNotBlank()) body.add(Ui.button(this, "👨‍👩‍👧 가족에게 설정 보내기", Ui.CARD, sp = 15f) { shareSetup() }, 8)
+        if (!BuildConfig.STORE_SAFE && p.apiKey.isNotBlank()) body.add(Ui.button(this, "👨‍👩‍👧 가족에게 설정 보내기", Ui.CARD, sp = 15f) { shareSetup() }, 8)
         // 도우미 버튼이 안 보일 때 원인 확인용
         body.add(Ui.text(this, "도우미 버튼 상태", 14f, bold = true, color = Ui.MUTED), 24)
         body.add(Ui.text(this,

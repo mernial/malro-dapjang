@@ -72,25 +72,20 @@ object ClaudeProvider {
     val relayAvailable get() = BuildConfig.RELAY_URL.isNotBlank()
 
     /**
-     * 폰에 직접 넣은 API 키가 있으면(가족·예전 방식) 그 키로 바로, 없으면 중계 서버로.
-     * 둘 다 없으면 null
+     * 플레이판은 언제나 중계 서버로 (지시문이 앱에 없도록).
+     * 예전 직접 설치판은 폰에 넣은 API 키가 있으면 그 키로 바로, 없으면 중계 서버로. 둘 다 없으면 null
      */
     @Synchronized
     fun get(ctx: Context): Assistant? {
-        val p = Prefs(ctx)
-        val k = p.apiKey.trim()
+        if (BuildConfig.STORE_SAFE) {
+            // 상수라서 플레이판 빌드에선 아래 Claude 쪽 길이 통째로 빠짐 (R8)
+            if (key != "relay") { client = Counting(RelayAssistant(ctx.applicationContext), ctx.applicationContext); key = "relay" }
+            return client
+        }
+        val k = Prefs(ctx).apiKey.trim()
         val id = if (k.isNotBlank()) k else if (relayAvailable) "relay" else return null
         if (id != key) {
-            val c = if (k.isNotBlank()) Claude(k) else Claude(
-                apiKey = "relay",   // 진짜 키는 서버에만 있음
-                baseUrl = BuildConfig.RELAY_URL,
-                headers = mapOf(
-                    "x-malro-device" to p.deviceId,
-                    "x-malro-app" to "malro-dapjang/${BuildConfig.VERSION_NAME}",
-                ),
-                perRequestHeaders = { Integrity.headers(ctx.applicationContext) },
-                relay = true,
-            )
+            val c: Assistant = if (k.isNotBlank()) Claude(k) else RelayAssistant(ctx.applicationContext)
             client = Counting(c, ctx.applicationContext)
             key = id
         }

@@ -6,6 +6,8 @@
  * 대화 내용(요청·응답 본문)은 저장하거나 기록하지 않음. 하루 요청 수만 셈.
  */
 
+import * as P from "./prompts.js";
+
 const ANTHROPIC = "https://api.anthropic.com";
 
 function err(status, type, message) {
@@ -104,6 +106,50 @@ async function integrityGate(env, request, device) {
   return { ok: false, verdict };
 }
 
+
+// ───────── v2: 재료로 요청 만들기 (지시문은 prompts.js) ─────────
+const MESSAGE_FORMAT = {
+  type: "json_schema",
+  schema: {
+    type: "object",
+    properties: { message: { type: "string" } },
+    required: ["message"],
+    additionalProperties: false,
+  },
+};
+
+function str(x, max) {
+  return typeof x === "string" ? x.slice(0, max) : "";
+}
+
+/** 요청 본문 또는 오류 글자 */
+function buildV2(route, input, env) {
+  const base = { model: env.ALLOWED_MODEL, max_tokens: 4000 };
+  const sys = (text) => [{ type: "text", text, cache_control: { type: "ephemeral" } }];
+  if (route === "/v2/rewrite") {
+    const mode = String(input.mode || "");
+    if (!P.MODES[mode]) return "알 수 없는 말투입니다.";
+    const spoken = str(input.spoken, 3000);
+    if (!spoken.trim()) return "말한 내용이 비어 있습니다.";
+    const style = Array.isArray(input.myStyle) ? input.myStyle.slice(0, 30).map((x) => str(x, 300)) : [];
+    return {
+      ...base,
+      // 정해진 형식 {"message": "..."} 으로만 받아, AI 가 생각한 내용이 카톡으로 나가지 않게
+      output_config: { effort: "medium", format: MESSAGE_FORMAT },
+      system: sys(P.system(mode)),
+      messages: [{ role: "user", content: P.user(mode, spoken, str(input.screenText, 20000), str(input.myName, 100), str(input.myRole, 100), style) }],
+    };
+  }
+  const question = str(input.question, 1000);
+  if (!question.trim()) return "질문이 비어 있습니다.";
+  return {
+    ...base,
+    output_config: { effort: "low" },
+    system: sys(P.ASK_SYSTEM),
+    messages: [{ role: "user", content: P.askUser(question, str(input.room, 200), str(input.transcript, 200000)) }],
+  };
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -111,11 +157,13 @@ export default {
     if (request.method === "GET" && url.pathname === "/") {
       return new Response("malro-dapjang relay ok", { headers: { "content-type": "text/plain" } });
     }
-    if (request.method !== "POST" || url.pathname !== "/v1/messages") {
+    if (request.method !== "POST") return err(404, "not_found_error", "not found");
+    const route = url.pathname;
+    if (route !== "/v1/messages" && route !== "/v2/rewrite" && route !== "/v2/answer") {
       return err(404, "not_found_error", "not found");
     }
 
-    // (1) 우리 앱에서 온 요청인지 (가벼운 확인. 진짜 앱 확인(Play Integrity)은 다음 단계)
+    // (1) 우리 앱에서 온 요청인지 (가벼운 확인 + 진짜 앱 확인)
     const device = request.headers.get("x-malro-device") || "";
     const app = request.headers.get("x-malro-app") || "";
     if (!/^[0-9a-f-]{32,40}$/i.test(device) || !app.startsWith("malro-dapjang/")) {
@@ -124,18 +172,12 @@ export default {
     if (!env.ANTHROPIC_API_KEY) {
       return err(503, "api_error", "서버 준비 중입니다. 잠시 뒤에 다시 해 주세요.");
     }
-
-    let body;
+    let input;
     try {
-      body = await request.json();
+      input = await request.json();
     } catch {
       return err(400, "invalid_request_error", "잘못된 요청입니다.");
     }
-    if (body.model !== env.ALLOWED_MODEL) {
-      return err(400, "invalid_request_error", "허용되지 않은 모델입니다.");
-    }
-    body.max_tokens = Math.min(Number(body.max_tokens) || 1000, Number(env.MAX_TOKENS));
-    if (body.stream) body.stream = false;
 
     // (1-2) 플레이에서 받은 진짜 앱인지 (모드에 따라 기록만 하거나 막음)
     const gate = await integrityGate(env, request, device);
@@ -143,10 +185,28 @@ export default {
       return err(403, "permission_error", "플레이 스토어에서 받은 최신 앱에서만 쓸 수 있어요. 앱을 업데이트해 주세요.");
     }
 
+    // (1-3) 보낼 요청 만들기. v2 는 앱이 재료만 보내고 지시문은 서버가 붙임 (앱을 뜯어도 지시문이 안 보이게)
+    let body;
+    if (route === "/v1/messages") {
+      // 예전 앱(1.170 이하): 앱이 만든 요청을 그대로. 모두 새 앱으로 바뀌면 V1_ALLOWED=false 로 막음
+      if (env.V1_ALLOWED === "false") return err(403, "permission_error", "앱을 최신 버전으로 업데이트해 주세요.");
+      body = input;
+      if (body.model !== env.ALLOWED_MODEL) return err(400, "invalid_request_error", "허용되지 않은 모델입니다.");
+    } else {
+      body = buildV2(route, input, env);
+      if (typeof body === "string") return err(400, "invalid_request_error", body);
+    }
+    body.max_tokens = Math.min(Number(body.max_tokens) || 1000, Number(env.MAX_TOKENS));
+    if (body.stream) body.stream = false;
+
     // (2) 하루 한도: 전체 → 폰별
     const day = kstDay();
-    const total = await env.DB.prepare("SELECT COALESCE(SUM(count),0) AS n FROM usage WHERE day = ?").bind(day).first();
-    if ((total?.n ?? 0) >= Number(env.GLOBAL_DAILY_LIMIT)) {
+    // 전체 수는 device='*' 한 줄에 셈 (사용자가 늘어도 읽는 양이 그대로)
+    const total = await env.DB.prepare(
+      "INSERT INTO usage (device, day, count) VALUES ('*', ?, 1) " +
+      "ON CONFLICT(device, day) DO UPDATE SET count = count + 1 RETURNING count"
+    ).bind(day).first();
+    if ((total?.count ?? 0) > Number(env.GLOBAL_DAILY_LIMIT)) {
       return err(429, "rate_limit_error", "오늘은 사용량이 많아 잠시 쉬어요. 내일 다시 해 주세요.");
     }
     const row = await env.DB.prepare(
@@ -165,16 +225,36 @@ export default {
     };
     const beta = request.headers.get("anthropic-beta");
     if (beta) headers["anthropic-beta"] = beta;
-
-    const upstream = await fetch(ANTHROPIC + "/v1/messages" + url.search, {
+    const search = route === "/v1/messages" ? url.search : "?beta=true";
+    const upstream = await fetch(ANTHROPIC + "/v1/messages" + search, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
     });
-    return new Response(upstream.body, {
-      status: upstream.status,
-      headers: { "content-type": upstream.headers.get("content-type") || "application/json" },
-    });
+
+    if (route === "/v1/messages") {
+      return new Response(upstream.body, {
+        status: upstream.status,
+        headers: { "content-type": upstream.headers.get("content-type") || "application/json" },
+      });
+    }
+    // v2: 앱에 필요한 것만 (글, 끝난 이유, 토큰 수)
+    const j = await upstream.json().catch(() => null);
+    if (!upstream.ok || !j) {
+      const status = upstream.status === 429 ? 429 : upstream.status >= 500 ? 502 : upstream.status;
+      return err(status, j?.error?.type || "api_error", j?.error?.message || "AI 서버 오류");
+    }
+    const u = j.usage || {};
+    return new Response(JSON.stringify({
+      text: (j.content || []).filter((c) => c.type === "text").map((c) => c.text).join(""),
+      stop_reason: j.stop_reason,
+      usage: {
+        input: u.input_tokens || 0,
+        cache_read: u.cache_read_input_tokens || 0,
+        cache_write: u.cache_creation_input_tokens || 0,
+        output: u.output_tokens || 0,
+      },
+    }), { headers: { "content-type": "application/json" } });
   },
 
   // 매일 새벽: 30일 지난 사용 기록 지움
