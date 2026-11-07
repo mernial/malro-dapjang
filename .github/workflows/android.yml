@@ -107,5 +107,7 @@ jobs:
           serviceAccountJson: ${{ runner.temp }}/play-service-account.json
           packageName: kr.yunho.talkhelper
           releaseFiles: android/app/build/outputs/bundle/playRelease/app-play-release.aab
+          # 코드 이름을 숨겼으므로, 플레이 오류 기록을 읽을 수 있게 짝표(mapping)도 올림
+          mappingFile: android/app/build/outputs/mapping/playRelease/mapping.txt
           track: internal
           status: completed

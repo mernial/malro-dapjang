@@ -1,6 +1,6 @@
 #!/bin/bash
 # 에뮬레이터에서 카드 화면(HelperActivity)을 열어 보고, 앱이 죽으면 그 기록을 출력
-APK=android/app/build/outputs/apk/play/debug/app-play-debug.apk
+APK=android/app/build/outputs/apk/play/release/app-play-release.apk
 PKG=kr.yunho.talkhelper
 adb wait-for-device
 adb root >/dev/null 2>&1; sleep 3; adb wait-for-device
@@ -35,6 +35,14 @@ adb shell input keyevent KEYCODE_BACK; sleep 1
 adb shell input keyevent KEYCODE_HOME; sleep 2
 timeout 30 adb shell am start -n $PKG/.HelperActivity --ez debugGuide true; sleep 4
 timeout 30 adb exec-out screencap -p > shots/guide.png
+# 중계 서버로 다듬기·찾기 한 번씩 (코드 숨김 뒤에도 되는지)
+adb shell input keyevent KEYCODE_HOME; sleep 1
+timeout 30 adb shell am start -n $PKG/.MainActivity --ez e2e true
+for t in $(seq 1 30); do
+  timeout 10 adb logcat -d -s talkhelper-e2e | grep -qE "OK|FAIL" && break; sleep 2
+done
+echo "== 서버 시험"
+timeout 10 adb logcat -d -s talkhelper-e2e
 echo "== 죽은 기록"
 timeout 30 adb logcat -d -b crash
 echo "== 앱 기록"

@@ -17,6 +17,8 @@ android {
         // 중계 서버 (키 없이 설치만 하면 쓰게). Claude 키는 서버의 Cloudflare 비밀에만 있음. 비우면 예전처럼 폰의 키만 씀
         // Play Integrity 용 Google Cloud 프로젝트 번호 (Play Console 에 연결한 프로젝트). 0 이면 쓰지 않음
         buildConfigField("long", "CLOUD_PROJECT_NUMBER", "865614768936L")
+        // 에뮬레이터 시험용 신호를 받을지 (crash-check 에서만 켬, 실제 배포판은 false)
+        buildConfigField("boolean", "E2E", if (System.getenv("E2E") == "1") "true" else "false")
         buildConfigField("String", "RELAY_URL", "\"https://malro-dapjang-relay.mernial.workers.dev\"")
     }
 
@@ -51,6 +53,8 @@ android {
     productFlavors {
         create("github") {
             dimension = "dist"
+            // 이 판은 Claude SDK(리플렉션 많음)를 그대로 써서 통째로 남김
+            proguardFile("proguard-github.pro")
             buildConfigField("boolean", "SELF_UPDATE", "true")
             buildConfigField("boolean", "STORE_SAFE", "false")
         }
@@ -64,8 +68,12 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // 코드 줄이기·이름 숨기기(R8): 앱을 뜯어 봐도 알아보기 어렵게. 플레이판은 AI 지시문 자체가 없음(서버에)
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (storePath != null) signingConfig = signingConfigs.getByName("upload")
+            // 에뮬레이터 시험(crash-check): 서명 키 없이 디버그 키로 서명한 릴리스판
+            else if (System.getenv("E2E") == "1") signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {

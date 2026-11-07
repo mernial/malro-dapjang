@@ -119,7 +119,7 @@ class HelperActivity : Activity() {
 
     private fun start() {
         // 에뮬레이터 확인용 (디버그판만): 내보내기 안내 띠를 띄우고 닫음
-        if (BuildConfig.DEBUG && intent?.getBooleanExtra("debugGuide", false) == true) {
+        if ((BuildConfig.DEBUG || BuildConfig.E2E) && intent?.getBooleanExtra("debugGuide", false) == true) {
             KakaoAccessibilityService.instance?.showExportGuide(); finish(); return
         }
         screenText = pendingScreenText
