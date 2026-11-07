@@ -68,13 +68,30 @@ object ClaudeProvider {
     private var key: String? = null
     private var client: Assistant? = null
 
+    /** 중계 서버를 쓸 수 있는지 (키 없이 바로 사용) */
+    val relayAvailable get() = BuildConfig.RELAY_URL.isNotBlank()
+
+    /**
+     * 폰에 직접 넣은 API 키가 있으면(가족·예전 방식) 그 키로 바로, 없으면 중계 서버로.
+     * 둘 다 없으면 null
+     */
     @Synchronized
     fun get(ctx: Context): Assistant? {
-        val k = Prefs(ctx).apiKey.trim()
-        if (k.isBlank()) return null
-        if (k != key) {
-            client = Counting(Claude(k), ctx.applicationContext)
-            key = k
+        val p = Prefs(ctx)
+        val k = p.apiKey.trim()
+        val id = if (k.isNotBlank()) k else if (relayAvailable) "relay" else return null
+        if (id != key) {
+            val c = if (k.isNotBlank()) Claude(k) else Claude(
+                apiKey = "relay",   // 진짜 키는 서버에만 있음
+                baseUrl = BuildConfig.RELAY_URL,
+                headers = mapOf(
+                    "x-malro-device" to p.deviceId,
+                    "x-malro-app" to "malro-dapjang/${BuildConfig.VERSION_NAME}",
+                ),
+                relay = true,
+            )
+            client = Counting(c, ctx.applicationContext)
+            key = id
         }
         return client
     }
