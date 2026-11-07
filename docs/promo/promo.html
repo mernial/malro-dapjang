@@ -61,6 +61,15 @@ h2{font-size:72px;font-weight:900;line-height:1.3;text-align:center;letter-spaci
 .say{font-size:50px;font-weight:700;background:#fff;border-radius:34px;padding:30px 40px;width:100%;text-align:center;box-shadow:0 10px 30px rgba(29,43,39,.08)}
 .res{font-size:52px;font-weight:900;background:var(--me);border-radius:34px;padding:30px 40px;width:100%;text-align:center}
 .x{text-decoration:line-through;color:#B0B8B5}
+.hand{position:absolute;left:606px;top:756px;width:200px;height:200px;opacity:0;transform-origin:67px 17px;animation:hand 1.6s ease var(--d) both;filter:drop-shadow(0 8px 16px rgba(0,0,0,.25))}
+.hand svg{width:200px;height:200px}
+@keyframes hand{0%{opacity:0;transform:translate(160px,280px)}15%{opacity:1}55%{transform:translate(0,0) scale(1)}62%{transform:scale(.86)}72%{transform:scale(1)}85%{opacity:1}100%{opacity:0;transform:translate(30px,60px)}}
+.spoken{font-size:44px;font-weight:700;line-height:1.5;color:#3A4743}
+.w{opacity:0;animation:fo2 .25s ease var(--d) both}
+@keyframes fo2{from{opacity:0}to{opacity:1}}
+.eq{display:inline-flex;gap:6px;align-items:center;height:30px;margin-right:10px;vertical-align:middle}
+.eq i{display:block;width:8px;height:30px;border-radius:4px;background:var(--r);animation:eq .55s ease-in-out infinite alternate}
+@keyframes eq{from{transform:scaleY(.25)}to{transform:scaleY(1)}}
 </style></head><body>
 
 <!-- 1. 첫 인사 0~6초 -->
@@ -81,65 +90,64 @@ h2{font-size:72px;font-weight:900;line-height:1.3;text-align:center;letter-spaci
   <div class="card in" style="--d:8.8s"><div class="num">3</div><div>바쁠 때 <span class="g">말로 빠르게</span> 답장하고 싶은 분</div></div>
 </section>
 
-<!-- 3. 쓰는 모습 13~27초 -->
-<section class="scene" style="--at:13s;--len:14s;padding-top:200px">
-  <h2 class="in" style="--d:13.2s;font-size:64px">버튼 누르고 말하면<br><span class="g">다듬어서 보내요</span></h2>
+<!-- 3. 쓰는 모습 13~29초 (목소리 16.0초부터) -->
+<section class="scene" style="--at:13s;--len:16s;padding-top:200px">
+  <h2 class="in" style="--d:13.2s;font-size:64px">버튼 누르고 <span class="r">편하게 말하면</span><br><span class="g">이렇게 바뀌어요</span></h2>
   <div class="phone in" style="--d:13.6s">
     <div class="top">우리 성당 모임</div>
     <div style="height:90px"></div>
-    <div class="bub them">내일 저녁 모임 오세요?</div>
-    <div class="bub mine pop" style="--d:24.6s">내일은 못 가요. 다음에 봐요.</div>
-    <div class="fab out" style="--d:15.8s"><div class="ring" style="--d:14.6s"></div>
-      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></svg></div>
-    <div class="panel" style="animation:in .6s cubic-bezier(.2,.8,.2,1) 15.9s both, fo .4s ease 24.2s forwards">
-      <div>
-      <div class="lbl">말한 것</div>
-      <div class="big" style="font-weight:700"><span class="type" style="--d:16.4s;--dur:2.2s;--n:14;--w:600px">"내일 못 간다고 해 줘"</span></div>
-      <div class="in" style="--d:19.2s">
-        <div class="lbl" style="margin-top:26px">다듬은 글</div>
-        <div class="big g">내일은 못 가요. 다음에 봐요.</div>
-        <div class="cnt"><b class="pop" style="--d:20.4s">3</b><span>초 뒤 보내요 · 그 사이 취소할 수 있어요</span></div>
-      </div>
+    <div style="font-size:30px;color:var(--mut);font-weight:700;margin:20px 0 -14px 10px">베드로 형제님</div>
+    <div class="bub them">내일 저녁 7시 모임 오세요?</div>
+    <div class="bub mine" style="opacity:0;animation:pop .7s cubic-bezier(.3,1.6,.5,1) 26.95s both">내일 모임은 허리가 좀 아파서 못 가요. 다음엔 꼭 갈게요.</div>
+    <div class="fab" style="animation:fo .3s ease 15.5s forwards"><div class="ring" style="--d:15.1s"></div><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></svg></div>
+    <div class="hand" style="--d:14.2s"><svg viewBox="0 0 24 24" fill="#fff" stroke="#1D2B27" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15V4a2 2 0 0 1 4 0v5.5V9a2 2 0 0 1 4 0v1a2 2 0 0 1 4 0z"/><path d="M11 9.5V13M15 10v3M19 11v2" fill="none"/></svg></div>
+    <div class="panel" style="animation:in .5s cubic-bezier(.2,.8,.2,1) 15.6s both, fo .4s ease 26.75s forwards">
+      <div class="lbl"><span class="eq"><i style="animation-delay:0.00s"></i><i style="animation-delay:0.11s"></i><i style="animation-delay:0.22s"></i><i style="animation-delay:0.33s"></i><i style="animation-delay:0.44s"></i></span> 편하게 말한 것</div>
+      <div class="spoken"><span class="w" style="--d:16.12s">어</span> <span class="w" style="--d:16.68s">그</span> <span class="w" style="--d:17.00s">내일</span> <span class="w" style="--d:17.34s">모임</span> <span class="w" style="--d:17.65s">말이야</span> <span class="w" style="--d:18.48s">허리가</span> <span class="w" style="--d:19.06s">좀</span> <span class="w" style="--d:19.34s">아파가지고</span> <span class="w" style="--d:19.94s">못</span> <span class="w" style="--d:20.12s">간다고</span> <span class="w" style="--d:20.49s">해</span> <span class="w" style="--d:20.61s">줘</span> <span class="w" style="--d:21.26s">다음엔</span> <span class="w" style="--d:21.90s">꼭</span> <span class="w" style="--d:22.15s">간다고</span> <span class="w" style="--d:22.61s">하고</span> <span class="w" style="--d:24.14s;color:#9AA5A1">보내</span> <span class="w" style="--d:24.64s;color:#9AA5A1">줘</span></div>
+      <div style="opacity:0;animation:in .5s ease 25.31s both">
+        <div class="lbl" style="margin-top:28px">이렇게 바뀌어요</div>
+        <div class="big g">내일 모임은 허리가 좀 아파서 못 가요. 다음엔 꼭 갈게요.</div>
+        <div class="cnt"><b class="pop" style="--d:25.91s">3</b><span>초 뒤 보내요 · 그 사이 취소할 수 있어요</span></div>
       </div>
     </div>
   </div>
 </section>
 
 <!-- 4. 말투 다섯 가지 27~35초 -->
-<section class="scene" style="--at:27s;--len:8s">
-  <div class="tag in" style="--d:27.2s">말투 다섯 가지</div>
-  <div class="say in" style="--d:27.6s">"알았어 고마워"</div>
-  <div class="row in" style="--d:28.6s"><div class="chip">정중하게</div><div class="out2">네, 알겠어요. 고마워요.</div></div>
-  <div class="row in" style="--d:29.6s"><div class="chip">친구처럼</div><div class="out2">알았어, 고마워!</div></div>
-  <div class="row in" style="--d:30.6s"><div class="chip">업무 연락</div><div class="out2">네, 확인했습니다. 감사합니다.</div></div>
-  <div class="sub in" style="--d:31.8s">+ 자녀에게 · <b class="g">내 말투</b>(그 방에서 내가 쓰던 말투)</div>
+<section class="scene" style="--at:29.00s;--len:7.38s">
+  <div class="tag in" style="--d:29.18s">말투 다섯 가지</div>
+  <div class="say in" style="--d:29.55s">"알았어 고마워"</div>
+  <div class="row in" style="--d:30.48s"><div class="chip">정중하게</div><div class="out2">네, 알겠어요. 고마워요.</div></div>
+  <div class="row in" style="--d:31.40s"><div class="chip">친구처럼</div><div class="out2">알았어, 고마워!</div></div>
+  <div class="row in" style="--d:32.32s"><div class="chip">업무 연락</div><div class="out2">네, 확인했습니다. 감사합니다.</div></div>
+  <div class="sub in" style="--d:33.43s">+ 자녀에게 · <b class="g">내 말투</b>(그 방에서 내가 쓰던 말투)</div>
 </section>
 
 <!-- 5. 지어내지 않아요 35~42초 -->
-<section class="scene" style="--at:35s;--len:7s">
-  <h2 class="in" style="--d:35.2s">답장을 지어내지 않아요<br><span class="g">내 말을 다듬어요</span></h2>
-  <div class="say in" style="--d:36.2s;margin-top:60px">"자매님한테 토요일에 뵙자고 해"</div>
-  <div class="arrow in" style="--d:37.0s">↓</div>
-  <div class="res in" style="--d:37.4s">자매님, 토요일에 뵈어요.</div>
-  <div class="sub in" style="--d:38.6s">호칭은 말한 그대로<br>말하지 않은 약속·날짜는 붙이지 않아요</div>
+<section class="scene" style="--at:36.38s;--len:6.46s">
+  <h2 class="in" style="--d:36.57s">답장을 지어내지 않아요<br><span class="g">내 말을 다듬어요</span></h2>
+  <div class="say in" style="--d:37.49s;margin-top:60px">"자매님한테 토요일에 뵙자고 해"</div>
+  <div class="arrow in" style="--d:38.23s">↓</div>
+  <div class="res in" style="--d:38.60s">자매님, 토요일에 뵈어요.</div>
+  <div class="sub in" style="--d:39.71s">호칭은 말한 그대로<br>말하지 않은 약속·날짜는 붙이지 않아요</div>
 </section>
 
 <!-- 6. 지난 대화 찾기 42~48초 -->
-<section class="scene" style="--at:42s;--len:6s">
-  <div class="tag in" style="--d:42.2s">지난 대화에서 찾기</div>
-  <h2 class="in" style="--d:42.5s;font-size:64px">말로 물으면<br><span class="g">찾아서 정리해 드려요</span></h2>
-  <div class="say in" style="--d:43.3s;margin-top:60px">"지난번 모임 날짜<br>언제로 정했지?"</div>
-  <div class="arrow in" style="--d:44.0s">↓</div>
-  <div class="res in" style="--d:44.3s">11월 15일 토요일 오후 2시</div>
-  <div class="small in" style="--d:45.0s">카카오톡 '대화 내보내기'로 보내 둔 대화에서 찾아요<br>대화는 휴대폰 안에만 보관돼요</div>
+<section class="scene" style="--at:42.85s;--len:5.54s">
+  <div class="tag in" style="--d:43.03s">지난 대화에서 찾기</div>
+  <h2 class="in" style="--d:43.31s;font-size:64px">말로 물으면<br><span class="g">찾아서 정리해 드려요</span></h2>
+  <div class="say in" style="--d:44.05s;margin-top:60px">"지난번 모임 날짜<br>언제로 정했지?"</div>
+  <div class="arrow in" style="--d:44.69s">↓</div>
+  <div class="res in" style="--d:44.97s">11월 15일 토요일 오후 2시</div>
+  <div class="small in" style="--d:45.62s">카카오톡 '대화 내보내기'로 보내 둔 대화에서 찾아요<br>대화는 휴대폰 안에만 보관돼요</div>
 </section>
 
 <!-- 7. 편한 점 48~53초 -->
-<section class="scene" style="--at:48s;--len:5s">
-  <div class="tag in" style="--d:48.2s">이래서 편해요</div>
-  <div class="card in" style="--d:48.5s"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></div><div>복사·붙여넣기 없이<br><span class="g">카톡 입력칸에 바로</span></div></div>
-  <div class="card in" style="--d:49.1s"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></div><div>보내기 전에 <span class="g">확인·취소</span> 가능</div></div>
-  <div class="card in" style="--d:49.7s"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></div><div>설치하고 두 가지만 켜면 끝<br><span class="g">가입 필요 없음</span></div></div>
+<section class="scene" style="--at:48.38s;--len:4.62s">
+  <div class="tag in" style="--d:48.57s">이래서 편해요</div>
+  <div class="card in" style="--d:48.85s"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></div><div>복사·붙여넣기 없이<br><span class="g">카톡 입력칸에 바로</span></div></div>
+  <div class="card in" style="--d:49.40s"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></div><div>보내기 전에 <span class="g">확인·취소</span> 가능</div></div>
+  <div class="card in" style="--d:49.95s"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg></div><div>설치하고 두 가지만 켜면 끝<br><span class="g">가입 필요 없음</span></div></div>
 </section>
 
 <!-- 8. 테스터 모집 53~60초 -->
