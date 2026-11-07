@@ -91,6 +91,8 @@ dependencies {
     implementation("com.anthropic:anthropic-java:3.2.0")
     // 중계 서버에 '플레이에서 받은 진짜 앱'임을 알리는 구글 Play Integrity
     implementation("com.google.android.play:integrity:1.4.0")
+    // 플레이 권고: 간접으로 들어오던 옛 androidx.fragment 1.0.0 대신 최신으로
+    implementation("androidx.fragment:fragment:1.8.5")
     // 플레이 스토어판: 새 버전이 있는지 플레이 스토어에 물어봄
     "playImplementation"("com.google.android.play:app-update:2.1.0")
     testImplementation("junit:junit:4.13.2")
