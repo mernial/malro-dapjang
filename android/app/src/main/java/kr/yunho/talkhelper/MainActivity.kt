@@ -365,7 +365,7 @@ class MainActivity : Activity() {
             item.add(Ui.text(ctx, what, 17f).apply { setPadding(Ui.dp(ctx, 4), 0, 0, 0) }, 6)
             how.add(item, 14)
         }
-        gesture("누르기", "말하고 끝에 \"…라고 보내 줘\"")
+        gesture("누르기", "말하고 끝에 \"…라고 보내 줘\" 또는 \"…라고 전해 줘\"")
         gesture("꾹 누르기", "말투 바꾸기 · 🔎 찾기 · ⚙ 설정")
         gesture("끌어 옮기기", "버튼 자리 바꾸기")
         body.add(how, 16)

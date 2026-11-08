@@ -13,6 +13,10 @@ class EndSignalTest {
         assertTrue(EndSignal.isEnd("고맙다고 보내줘."))
         assertTrue(EndSignal.isEnd("수고하셨습니다 라고 보내 주세요"))
         assertTrue(EndSignal.isEnd("언제 오냐고 전송해"))
+        assertTrue(EndSignal.isEnd("내일 못 간다고 전해 줘"))
+        assertTrue(EndSignal.isEnd("고맙다고 전해줘"))
+        assertTrue(EndSignal.isEnd("수고했다고 전해 주세요."))
+        assertTrue(EndSignal.isEnd("늦는다고 전달해 줘"))
     }
 
     @Test
@@ -22,6 +26,8 @@ class EndSignalTest {
         assertFalse(EndSignal.isEnd("모임에 백 명 이상"))
         assertFalse(EndSignal.isEnd("오늘 일이 다 끝"))
         assertFalse(EndSignal.isEnd("보내"))
+        assertFalse(EndSignal.isEnd("그 얘기 전해 들었어"))
+        assertFalse(EndSignal.isEnd("안부 전해 줘"))
         assertFalse(EndSignal.isEnd("토요일에 하자고 보내 준 사진 잘 받았어요"))
     }
 
