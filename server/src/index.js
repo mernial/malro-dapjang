@@ -171,6 +171,8 @@ export default {
     // (1) 우리 앱에서 온 요청인지 (가벼운 확인 + 진짜 앱 확인)
     const device = request.headers.get("x-malro-device") || "";
     const app = request.headers.get("x-malro-app") || "";
+    // 시험 요청(에뮬레이터 확인·개발자 시험): 사용 현황에서 빼고, 폰별 한도는 '~test' 한 칸에 함께 셈
+    const isTest = request.headers.get("x-malro-test") === "1" || /^malro-dapjang\/(test|promo)/.test(app);
     if (!/^[0-9a-f-]{32,40}$/i.test(device) || !app.startsWith("malro-dapjang/")) {
       return err(403, "permission_error", "허용되지 않은 요청입니다.");
     }
@@ -217,7 +219,7 @@ export default {
     const row = await env.DB.prepare(
       "INSERT INTO usage (device, day, count) VALUES (?, ?, 1) " +
       "ON CONFLICT(device, day) DO UPDATE SET count = count + 1 RETURNING count"
-    ).bind(device, day).first();
+    ).bind(isTest ? "~test" : device, day).first();
     if ((row?.count ?? 0) > Number(env.DEVICE_DAILY_LIMIT)) {
       return err(429, "rate_limit_error", "오늘 쓸 수 있는 횟수를 다 썼어요. 내일 다시 해 주세요.");
     }
@@ -238,7 +240,7 @@ export default {
     });
 
     if (route === "/v1/messages") {
-      await countDaily(env, day, "v1").catch(() => {});
+      if (!isTest) await countDaily(env, day, "v1").catch(() => {});
       return new Response(upstream.body, {
         status: upstream.status,
         headers: { "content-type": upstream.headers.get("content-type") || "application/json" },
@@ -251,7 +253,7 @@ export default {
       return err(status, j?.error?.type || "api_error", j?.error?.message || "AI 서버 오류");
     }
     const u = j.usage || {};
-    await countDaily(env, day, route === "/v2/rewrite" ? "rewrite" : "answer", {
+    if (!isTest) await countDaily(env, day, route === "/v2/rewrite" ? "rewrite" : "answer", {
       input: u.input_tokens || 0, output: u.output_tokens || 0,
       cache_read: u.cache_read_input_tokens || 0, cache_write: u.cache_creation_input_tokens || 0,
     }).catch(() => {});
