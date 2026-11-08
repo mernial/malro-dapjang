@@ -13,3 +13,15 @@ CREATE TABLE IF NOT EXISTS device_check (
   verdict TEXT NOT NULL,      -- ok / no-token / bad-app:… / error:…
   checked_at INTEGER NOT NULL -- 밀리초
 );
+
+-- 날마다 합계 (폰 번호 없이 숫자만, 오래 보관해 누적 사용량을 봄)
+CREATE TABLE IF NOT EXISTS daily (
+  day TEXT NOT NULL,          -- YYYY-MM-DD (한국 시간)
+  kind TEXT NOT NULL,         -- rewrite(다듬기) / answer(찾기) / v1(예전 앱)
+  count INTEGER NOT NULL DEFAULT 0,
+  in_tok INTEGER NOT NULL DEFAULT 0,
+  out_tok INTEGER NOT NULL DEFAULT 0,
+  cache_read INTEGER NOT NULL DEFAULT 0,
+  cache_write INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, kind)
+);

@@ -7,6 +7,7 @@
  */
 
 import * as P from "./prompts.js";
+import { countDaily, stats, page } from "./admin.js";
 
 const ANTHROPIC = "https://api.anthropic.com";
 
@@ -158,6 +159,9 @@ export default {
     if (request.method === "GET" && url.pathname === "/") {
       return new Response("malro-dapjang relay ok", { headers: { "content-type": "text/plain" } });
     }
+    // 관리자 사용 현황 (비밀번호 ADMIN_KEY)
+    if (request.method === "GET" && url.pathname === "/admin") return page();
+    if (request.method === "GET" && url.pathname === "/admin/stats") return stats(env, request);
     if (request.method !== "POST") return err(404, "not_found_error", "not found");
     const route = url.pathname;
     if (route !== "/v1/messages" && route !== "/v2/rewrite" && route !== "/v2/answer") {
@@ -234,6 +238,7 @@ export default {
     });
 
     if (route === "/v1/messages") {
+      await countDaily(env, day, "v1").catch(() => {});
       return new Response(upstream.body, {
         status: upstream.status,
         headers: { "content-type": upstream.headers.get("content-type") || "application/json" },
@@ -246,6 +251,10 @@ export default {
       return err(status, j?.error?.type || "api_error", j?.error?.message || "AI 서버 오류");
     }
     const u = j.usage || {};
+    await countDaily(env, day, route === "/v2/rewrite" ? "rewrite" : "answer", {
+      input: u.input_tokens || 0, output: u.output_tokens || 0,
+      cache_read: u.cache_read_input_tokens || 0, cache_write: u.cache_creation_input_tokens || 0,
+    }).catch(() => {});
     return new Response(JSON.stringify({
       text: (j.content || []).filter((c) => c.type === "text").map((c) => c.text).join(""),
       stop_reason: j.stop_reason,
