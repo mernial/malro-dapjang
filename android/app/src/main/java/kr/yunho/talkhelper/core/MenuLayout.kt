@@ -1,68 +1,97 @@
 package kr.yunho.talkhelper.core
 
 import kotlin.math.PI
-import kotlin.math.abs
+import kotlin.math.asin
+import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.hypot
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
 /**
  * 도우미 버튼을 꾹 누르면 펼쳐지는 동그라미들의 자리.
- * 모든 동그라미는 같은 크기, 같은 간격으로 반원 위에 놓임. 화면에 다 안 들어가면
- * 하나만 밀어 넣지 않고(그러면 간격이 어긋남) 반원 전체를 옮기거나 다 같이 작게 함.
- * 안내 띠·아래 설명 알약 같은 가로 띠([avoid], 위~아래 좌표)와 겹치면 반원 전체를 띠 위나 아래로 옮김.
+ *  - 버튼 둘레에 바짝 붙여 오밀조밀하게 (버튼은 가리지 않음, 동그라미끼리 [gap] 만큼만 띄움)
+ *  - 화면 가장자리나 피할 칸([avoid]: 안내 띠·설명 알약 등)에 걸리면, 버튼 둘레를 돌며 걸리지 않는 방향을 찾고
+ *    그래도 안 되면 조금씩 넓혀 감 (화면 가운데 쪽 방향을 먼저)
+ *  - 끝내 자리가 없으면 다 같이 작게, 그래도 없으면 가장 덜 겹치는 자리 ([Placement.clearOfBands] = false)
  */
 object MenuLayout {
     data class Placement(val size: Float, val centers: List<Pair<Float, Float>>, val clearOfBands: Boolean = true)
 
+    /** 피할 네모 칸 (화면 좌표) */
+    data class Box(val left: Float, val top: Float, val right: Float, val bottom: Float)
+
+    /**
+     * [n] 개를 버튼 중심([cx],[cy], 반지름 [bubbleR]) 둘레에 놓음. 화면 [w]×[h], 가장자리 여백 [margin].
+     * 동그라미 지름 [maxSize] (자리가 없으면 [minSize] 까지 줄임), 동그라미 사이·버튼과의 틈 [gap]
+     */
     fun place(
         n: Int, cx: Float, cy: Float, w: Float, h: Float,
-        maxRadius: Float, maxSize: Float, gap: Float, margin: Float, minSize: Float,
-        avoid: List<Pair<Float, Float>> = emptyList(),
+        bubbleR: Float, maxSize: Float, gap: Float, margin: Float, minSize: Float,
+        avoid: List<Box> = emptyList(),
     ): Placement {
-        val left = cx > w / 2   // 버튼이 오른쪽에 있으면 왼쪽으로 펼침
-        val step = if (n > 1) PI / (n - 1) else PI
         var size = maxSize
-        var r = maxRadius
-        var maxR = maxRadius
-        var acy = cy
-        var clear = true
-        // 띠를 피할 자리가 없으면 반원을 조금씩 줄여 가며 다시 (많아야 네 번)
-        for (shrink in 0..4) {
-            size = maxSize
-            r = maxR
-            repeat(3) {
-                // 반원 중심(가로): 끝 동그라미가 화면 밖으로 나가지 않게 반원 전체를 안쪽으로
-                val acx = cx.coerceIn(margin + size / 2, w - margin - size / 2)
-                val far = if (left) acx - margin - size / 2 else w - margin - size / 2 - acx
-                r = minOf(maxR, far, (h - 2 * margin - size) / 2)
-                // 이웃한 동그라미 중심 사이 거리가 크기+간격보다 작으면 다 같이 줄임
-                val chord = (2 * r * sin(step / 2)).toFloat()
-                if (chord >= size + gap) return@repeat
-                size = (chord - gap).coerceAtLeast(minSize)
-            }
-            val lo = margin + r + size / 2
-            val hi = h - margin - r - size / 2
-            acy = if (lo <= hi) cy.coerceIn(lo, hi) else h / 2
-            // 반원이 세로로 차지하는 범위가 띠와 겹치는지
-            fun clearOf(y: Float) = avoid.none { (bt, bb) -> y + r + size / 2 > bt - margin && y - r - size / 2 < bb + margin }
-            clear = clearOf(acy)
-            if (!clear) {
-                // 띠 바로 위 또는 바로 아래 가운데, 화면 안에 들어가고 다른 띠와도 안 겹치며 버튼에서 가장 가까운 자리
-                val options = avoid.flatMap { (bt, bb) -> listOf(bt - margin - r - size / 2, bb + margin + r + size / 2) }
-                    .filter { it >= lo && it <= hi && clearOf(it) }
-                val best = options.minByOrNull { abs(it - cy) }
-                if (best != null) { acy = best; clear = true }
-            }
-            if (clear || shrink == 4) break
-            maxR *= 0.82f
+        while (true) {
+            tryPlace(n, cx, cy, w, h, bubbleR, size, gap, margin, avoid, strict = true)?.let { return Placement(size, it, true) }
+            if (size <= minSize) break
+            size = max(minSize, size * 0.88f)
         }
-        val acx = cx.coerceIn(margin + size / 2, w - margin - size / 2)
-        val centers = (0 until n).map { i ->
-            val t = if (n > 1) i.toDouble() / (n - 1) else 0.5
-            val a = if (left) PI + PI / 2 - PI * t else -PI / 2 + PI * t   // 위에서 아래로
-            (acx + r * cos(a)).toFloat() to (acy + r * sin(a)).toFloat()
-        }
-        return Placement(min(size, maxSize), centers, clear)
+        // 피할 칸을 다 피할 수는 없음: 화면 안에만 들게, 가장 덜 겹치는 자리
+        val loose = tryPlace(n, cx, cy, w, h, bubbleR, minSize, gap, margin, avoid, strict = false)
+            ?: fallbackColumn(n, w, h, minSize, gap, margin)
+        return Placement(minSize, loose, false)
     }
+
+    private fun tryPlace(
+        n: Int, cx: Float, cy: Float, w: Float, h: Float,
+        bubbleR: Float, size: Float, gap: Float, margin: Float, avoid: List<Box>, strict: Boolean,
+    ): List<Pair<Float, Float>>? {
+        val half = size / 2
+        // 버튼에 바짝: 버튼 테두리에서 gap 만큼 떨어진 원 위
+        val rMin = bubbleR + gap + half
+        // 화면 가운데 쪽 방향 (먼저 시도)
+        val toCenter = atan2((h / 2 - cy).toDouble(), (w / 2 - cx).toDouble())
+        var r = rMin
+        val rMax = max(w, h).toFloat()
+        var best: List<Pair<Float, Float>>? = null
+        var bestBad = Int.MAX_VALUE
+        while (r <= rMax) {
+            // 이웃 동그라미 중심 사이가 지름+gap 이 되는 각도
+            val ratio = ((size + gap) / (2 * r)).toDouble()
+            if (ratio < 1.0) {
+                val step = 2 * asin(ratio)
+                if (step * (n - 1) <= 2 * PI - step) {   // 한 바퀴 안에 들어감 (겹치지 않게)
+                    // 가운데 방향에서 시작해 양옆으로 5도씩 돌려 보며 찾음
+                    for (k in 0..72) {
+                        val turn = (if (k % 2 == 0) 1 else -1) * ((k + 1) / 2) * (PI / 36)
+                        val mid = toCenter + turn
+                        val pts = (0 until n).map { i ->
+                            val a = mid + (i - (n - 1) / 2.0) * step
+                            (cx + r * cos(a)).toFloat() to (cy + r * sin(a)).toFloat()
+                        }
+                        // 화면 위쪽부터 차례로 (순서가 늘 위→아래)
+                        val ordered = pts.sortedBy { it.second }
+                        val inScreen = ordered.all { (x, y) -> x - half >= margin && x + half <= w - margin && y - half >= margin && y + half <= h - margin }
+                        if (!inScreen) continue
+                        val bad = ordered.count { (x, y) -> avoid.any { b -> x + half > b.left - gap && x - half < b.right + gap && y + half > b.top - gap && y - half < b.bottom + gap } }
+                        if (bad == 0) return ordered
+                        if (!strict && bad < bestBad) { bestBad = bad; best = ordered }
+                    }
+                }
+            }
+            r += max(4f, size * 0.12f)
+        }
+        return if (strict) null else best
+    }
+
+    /** 어떤 원 위에도 못 놓을 때(아주 작은 화면): 화면 가운데 세로 한 줄 */
+    private fun fallbackColumn(n: Int, w: Float, h: Float, size: Float, gap: Float, margin: Float): List<Pair<Float, Float>> {
+        val total = n * size + (n - 1) * gap
+        val top = max(margin, (h - total) / 2)
+        return (0 until n).map { i -> w / 2 to min(h - margin - size / 2, top + size / 2 + i * (size + gap)) }
+    }
+
+    /** 두 점 사이 거리 (시험용) */
+    fun dist(a: Pair<Float, Float>, b: Pair<Float, Float>) = hypot(a.first - b.first, a.second - b.second)
 }

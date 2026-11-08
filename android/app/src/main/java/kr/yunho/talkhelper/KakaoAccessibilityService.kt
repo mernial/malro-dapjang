@@ -1214,17 +1214,19 @@ class KakaoAccessibilityService : AccessibilityService() {
         val cy = bl[1] + b.height / 2f - o[1]
         val w = root.width; val h = root.height
         // 피할 띠: 아래 설명 알약, 화면에 떠 있는 안내 띠(내보내기 순서·검색 안내)
-        val bands = ArrayList<Pair<Float, Float>>()
-        menuHint?.let { if (it.height > 0) bands += it.top.toFloat() to it.bottom.toFloat() }
+        val bands = ArrayList<kr.yunho.talkhelper.core.MenuLayout.Box>()
+        // 설명 알약은 글이 막 바뀌어 폭을 아직 모를 수 있어 가로 전체를 피함
+        menuHint?.let { if (it.height > 0) bands += kr.yunho.talkhelper.core.MenuLayout.Box(0f, it.top.toFloat(), w.toFloat(), it.bottom.toFloat()) }
         guide?.let { g ->
             val gl = IntArray(2).also { g.getLocationOnScreen(it) }
-            if (g.height > 0) bands += (gl[1] - o[1]).toFloat() to (gl[1] - o[1] + g.height).toFloat()
+            if (g.height > 0) bands += kr.yunho.talkhelper.core.MenuLayout.Box(
+                (gl[0] - o[0]).toFloat(), (gl[1] - o[1]).toFloat(), (gl[0] - o[0] + g.width).toFloat(), (gl[1] - o[1] + g.height).toFloat())
         }
-        // 같은 크기·같은 간격으로 반원 위에 놓음 (화면에 안 들어가거나 띠와 겹치면 반원 전체를 옮기거나 다 같이 줄임)
+        // 버튼 둘레에 바짝 붙여 놓음 (버튼은 가리지 않음). 벽·안내 칸에 걸리면 둘레를 돌거나 조금씩 넓혀 피함
         val p = kr.yunho.talkhelper.core.MenuLayout.place(
             n = items.size, cx = cx, cy = cy, w = w.toFloat(), h = h.toFloat(),
-            maxRadius = Ui.dp(this, 172).toFloat(), maxSize = size.toFloat(),
-            gap = Ui.dp(this, 8).toFloat(), margin = Ui.dp(this, 8).toFloat(), minSize = Ui.dp(this, 56).toFloat(),
+            bubbleR = b.width / 2f, maxSize = size.toFloat(),
+            gap = Ui.dp(this, 6).toFloat(), margin = Ui.dp(this, 8).toFloat(), minSize = Ui.dp(this, 56).toFloat(),
             avoid = bands,
         )
         // 피할 자리가 아예 없으면 설명 알약을 위로 옮김
