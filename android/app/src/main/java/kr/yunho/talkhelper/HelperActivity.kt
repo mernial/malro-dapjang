@@ -475,7 +475,7 @@ class HelperActivity : Activity() {
         Sounds.listenStart(this)
         Sounds.buzz(this, 70)
         startPulse()
-        Bg.main.postDelayed({ if (listening && !isFinishing) listen() }, 250)
+        Bg.main.postDelayed({ if (listening && !isFinishing && !isDestroyed) listen() }, 250)
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
