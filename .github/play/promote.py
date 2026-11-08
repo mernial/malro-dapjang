@@ -15,16 +15,22 @@ base = f"https://androidpublisher.googleapis.com/androidpublisher/v3/application
 
 def ok(r):
     if r.status_code >= 300:
-        print("오류", r.status_code, r.text[:800]); sys.exit(1)
+        # 오류 글에 서비스 계정 주소가 섞이면 GitHub 이 통째로 가리므로 메시지만, 주소는 지워서
+        try: msg = r.json().get("error", {}).get("message", "")
+        except Exception: msg = r.text[:300]
+        print("오류", r.status_code, msg.replace(creds.service_account_email, "(서비스 계정)")); sys.exit(1)
     return r.json() if r.text else {}
 
 edit = ok(s.post(base))["id"]
 tracks = ok(s.get(f"{base}/{edit}/tracks")).get("tracks", [])
 names = [t["track"] for t in tracks]
-print("트랙들:", names)
+for t in tracks:
+    print("트랙", t["track"], [(r.get("status"), r.get("versionCodes")) for r in t.get("releases", [])])
 want = os.environ.get("CLOSED_TRACK", "").strip()
 if not want:
-    want = "alpha" if "alpha" in names else next((n for n in names if n not in ("internal", "beta", "production")), "alpha")
+    # 테스터가 받고 있는(버전이 올라가 있는) 비공개 트랙. 없으면 alpha
+    closed = [t for t in tracks if t["track"] not in ("internal", "beta", "production") and t.get("releases")]
+    want = closed[0]["track"] if closed else "alpha"
 print("비공개 트랙:", want, "· 버전:", version)
 body = {"track": want, "releases": [{
     "versionCodes": [version],
