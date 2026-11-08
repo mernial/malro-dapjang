@@ -980,7 +980,8 @@ class KakaoAccessibilityService : AccessibilityService() {
      */
     private fun openHelper(ask: Boolean = false, all: Boolean = false) {
         closeMenu()
-        HelperActivity.pendingScreenText = screenTexts().joinToString("\n")
+        // 대화방 목록에서 '모든 대화에서 찾기'를 열 때는 화면 글(방 이름·미리보기)을 읽지 않음 (저장해 둔 대화만 씀)
+        HelperActivity.pendingScreenText = if (all) null else screenTexts().joinToString("\n")
         HelperActivity.pendingTitle = if (all) null else chatTitle()
         val intent = Intent(this, HelperActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)

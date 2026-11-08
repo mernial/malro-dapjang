@@ -139,17 +139,20 @@ Play Console → 앱 콘텐츠 → **민감한 권한 및 API** → 접근성 AP
 
 - **isAccessibilityTool:** 사용 안 함. 장애인 보조 도구로 신청하지 않습니다.
 - **앱 안 공개와 동의:** 있음. 첫 화면의 '설정 열기'를 누르면 「접근성 권한 사용 안내」 창이 뜨고, **동의해야** 설정으로 이동합니다.
-- **사용 목적 (영문 신고 예시):** (2026-11-05 고침: 자동 내보내기·자동 넘기기·바로 보내기를 뺀 지금 동작 기준)
+- **사용 목적 (영문 신고 예시):** (2026-11-08 고침: 대화방 목록의 🔎 버튼을 덧붙임. 거기서는 화면 글을 읽지 않음)
 ```
 The app helps users who have difficulty typing (e.g., elderly users) reply in KakaoTalk by voice.
 The AccessibilityService is used only for these user-initiated purposes:
-(1) to show the app's floating button while KakaoTalk is in the foreground (window changes are observed only to show/hide the button),
-(2) when the user taps the button, to read the text currently visible on the KakaoTalk chat screen so the reply fits the conversation,
+(1) to show the app's floating button while KakaoTalk is in the foreground (window changes are observed only to show/hide the button:
+    a microphone button inside a chat room, and a search button on the chat-list tab),
+(2) when the user taps the microphone button, to read the text currently visible on the KakaoTalk chat screen so the reply fits the conversation,
 (3) after the user dictates a reply and it is shown to them, to type it into the KakaoTalk input box and press its send button.
+The search button on the chat-list tab only opens the app's own screen to search chat histories the user had previously exported
+into the app with KakaoTalk's own "Export chat" feature; no screen text is read there.
 Sending always gives the user a chance to review: a 3-second countdown with a cancel button, an explicit "Send" tap, or a spoken "send" confirmation.
 There is no immediate send without review. The app does not navigate KakaoTalk menus, scroll conversations, or perform any action on its own.
 It does not read or act on any app other than KakaoTalk.
-Screen text and the user's words are sent to the Anthropic Claude API only to draft the reply or answer the user's question.
+Screen text and the user's words are sent to the Anthropic Claude API (through the developer's relay server, which stores nothing) only to draft the reply or answer the user's question.
 A prominent disclosure and consent dialog is shown before the service can be enabled.
 ```
 - **영상 (필수, 30초~1분, 유튜브 미등록 링크):**
