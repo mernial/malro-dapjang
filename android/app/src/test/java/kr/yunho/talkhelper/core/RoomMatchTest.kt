@@ -19,6 +19,15 @@ class RoomMatchTest {
     }
 
     @Test
+    fun normStripsCountsInEveryShape() {
+        assertEquals("청년부", RoomMatch.norm("청년부 12"))
+        assertEquals("청년부", RoomMatch.norm("청년부 12명"))
+        assertEquals("가족", RoomMatch.norm("가족 (4)"))
+        assertEquals("봉담성당주일학교교", RoomMatch.norm("봉담성당 주일학교 교…"))
+        assertEquals("김은미로사", RoomMatch.norm("김은미 로사 님과 카카오톡 대화"))
+    }
+
+    @Test
     fun remembersExportedRoom() {
         val aliases = mapOf(RoomMatch.norm("💕 우리 엄마") to "내보낸 대화")
         assertEquals("내보낸 대화", RoomMatch.find("💕 우리 엄마", saved + "내보낸 대화", aliases))
@@ -43,7 +52,7 @@ class RoomMatchTest {
         )
         val screen = listOf("김은미 로사", "2026년 11월 5일 수요일", "김은미 로사님이 들어왔습니다.", "로사님 안녕하세요 반가워요", "나: 네 신부님 잘 부탁드려요")
         assertNull(RoomMatch.byContent(screen, chats, names = listOf("김은미 로사")))
-        // 이름을 넘기지 않아도 날짜·알림 줄과 '절반 이상' 기준 때문에 고르지 않음
+        // 이름을 넘기지 않아도 날짜·알림 줄 때문에 고르지 않음
         assertNull(RoomMatch.byContent(screen, chats))
     }
 
@@ -54,10 +63,10 @@ class RoomMatchTest {
         "r_d" to "가족 카카오톡 대화\n2026. 2. 1. 오전 8:00, 형 : 처가 식구들 단톡방이야",
     )
     private val entries = listOf(
-        RoomMatch.Entry("r_a", "상임위원회", setOf(RoomMatch.norm("상임위원회 15"))),
-        RoomMatch.Entry("r_b", "김은미 로사", setOf(RoomMatch.norm("김은미 로사"))),
-        RoomMatch.Entry("r_c", "가족", setOf(RoomMatch.norm("가족"))),
-        RoomMatch.Entry("r_d", "가족", setOf(RoomMatch.norm("가족"))),
+        RoomMatch.Entry("r_a", "상임위원회", setOf(RoomMatch.norm("상임위원회 15")), setOf("김은미 로사", "윤호")),
+        RoomMatch.Entry("r_b", "김은미 로사", setOf(RoomMatch.norm("김은미 로사")), setOf("윤호", "김은미 로사")),
+        RoomMatch.Entry("r_c", "가족", setOf(RoomMatch.norm("가족")), setOf("엄마")),
+        RoomMatch.Entry("r_d", "가족", setOf(RoomMatch.norm("가족")), setOf("형")),
     )
 
     @Test
@@ -101,6 +110,30 @@ class RoomMatchTest {
         val screen = listOf("주일학교 선생님들", "혹시 시온이 본인 연락처 아시는 분 계신가요", "네 시준이 지금 단톡에 있어요")
         assertEquals("r_t", RoomMatch.lookup("주일학교 선생님들", e, screen) { chat })
         assertEquals(2, RoomMatch.matches(screen, chat))
+    }
+
+    @Test
+    fun recognizesGroupRoomBySenderNamesAfterNewMessages() {
+        // 내보낸 뒤에 온 새 메시지만 화면에 보여 내용은 하나도 안 맞지만, 말한 사람 이름으로 알아봄
+        val e = listOf(
+            RoomMatch.Entry("r_t", "교사회", setOf("교사회"), setOf("권예하", "최미진", "윤호", "김요한")),
+            RoomMatch.Entry("r_y", "청년부", setOf("청년부"), setOf("박베드로", "이수산나", "윤호")),
+        )
+        val screen = listOf("주일학교 선생님들 11", "권예하", "내일 교사 회의 3시에 해요", "오후 2:10", "최미진", "네 알겠습니다", "나: 저도 갈게요")
+        assertEquals("r_t", RoomMatch.lookup("주일학교 선생님들 11", e, screen) { "" })
+        // 이름 하나만 보이면 짐작하지 않음
+        assertNull(RoomMatch.lookup("어떤 방", e, listOf("권예하", "내일 교사 회의 3시에 해요")) { "" })
+    }
+
+    @Test
+    fun contentMatchNeedsOnlyTwoLinesEvenOnBusyScreen() {
+        val chat = "교사회 님과 카카오톡 대화\n2026. 11. 6. 오후 2:32, 권예하 : 혹시 시온이 본인 연락처 아시는 분 계신가요\n2026. 11. 6. 오후 2:35, 최미진 : 네 시준이 지금 단톡에 있어요"
+        val e = listOf(RoomMatch.Entry("r_t", "교사회", setOf("교사회")))
+        // 화면에 새 메시지 여섯 줄이 더 있어도 두 줄이 맞으면 그 방
+        val screen = listOf("주일학교 선생님들", "혹시 시온이 본인 연락처 아시는 분 계신가요", "네 시준이 지금 단톡에 있어요",
+            "새로 온 첫 번째 메시지입니다", "새로 온 두 번째 메시지입니다", "새로 온 세 번째 메시지입니다",
+            "새로 온 네 번째 메시지입니다", "새로 온 다섯 번째 메시지입니다", "새로 온 여섯 번째 메시지입니다")
+        assertEquals("r_t", RoomMatch.lookup("주일학교 선생님들", e, screen) { chat })
     }
 
     @Test

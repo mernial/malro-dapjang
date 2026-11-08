@@ -366,9 +366,35 @@ class MainActivity : Activity() {
             how.add(item, 14)
         }
         gesture("누르기", "말하고 끝에 \"…라고 보내 줘\"")
-        gesture("꾹 누르기", "말투 고르기 · 🔎 찾기")
+        gesture("꾹 누르기", "말투 바꾸기 · 🔎 찾기 · ⚙ 설정")
         gesture("끌어 옮기기", "버튼 자리 바꾸기")
         body.add(how, 16)
+
+        // 말투 예시: 같은 말이 말투마다 어떻게 바뀌는지 한눈에
+        val ex = Ui.vbox(ctx, 16, Ui.CARD)
+        ex.add(Ui.text(ctx, "말투에 따라 이렇게 바뀌어요", 17f, bold = true), 0)
+        ex.add(Ui.text(ctx, "🎤 \"알았어 고마워\"", 18f, bold = true).apply {
+            background = Ui.rounded(ctx, Ui.THEM, 14)
+            val ph = Ui.dp(ctx, 14); val pv = Ui.dp(ctx, 10); setPadding(ph, pv, ph, pv)
+        }, 12)
+        fun example(m: kr.yunho.talkhelper.core.Mode, out: String) {
+            val row = Ui.hbox(ctx)
+            row.addView(Ui.text(ctx, "${m.emoji} ${m.label}", 14f, bold = true).apply {
+                background = Ui.rounded(ctx, Ui.CARD, 14, Ui.LINE)
+                gravity = android.view.Gravity.CENTER
+                val ph = Ui.dp(ctx, 8); val pv = Ui.dp(ctx, 8); setPadding(ph, pv, ph, pv)
+            }, android.widget.LinearLayout.LayoutParams(Ui.dp(ctx, 124), android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
+            row.addView(Ui.text(ctx, out, 16f, bold = true).apply {
+                background = Ui.rounded(ctx, Ui.MINE, 14)
+                val ph = Ui.dp(ctx, 12); val pv = Ui.dp(ctx, 9); setPadding(ph, pv, ph, pv)
+            }, android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = Ui.dp(ctx, 8) })
+            ex.add(row, 10)
+        }
+        example(kr.yunho.talkhelper.core.Mode.POLITE, "네, 알겠어요. 고마워요.")
+        example(kr.yunho.talkhelper.core.Mode.FRIENDLY, "알았어, 고마워!")
+        example(kr.yunho.talkhelper.core.Mode.BUSINESS, "네, 확인했습니다. 감사합니다.")
+        ex.add(Ui.text(ctx, "🤗 자녀에게 · 🪞 내 말투도 있어요. 🎤 버튼을 꾹 누르고 '말투'를 고르면 그 방에서는 계속 그 말투로 써요.", 14f, color = Ui.MUTED), 12)
+        body.add(ex, 16)
 
         // 보내는 방식: 한 줄 알약 + 설명 한 줄
         body.add(Ui.text(ctx, "보내는 방식", 18f, bold = true), 24)

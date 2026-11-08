@@ -395,13 +395,15 @@ class KakaoAccessibilityService : AccessibilityService() {
     private var pendingSearch: String? = null
     private var pendingSearchAt = 0L
 
-    fun waitForSearchBox(word: String) {
+    /** [room] 은 여러 방에서 찾았을 때 그 말이 있는 방 이름 (그 방에 들어가라고 안내) */
+    fun waitForSearchBox(word: String, room: String? = null) {
         pendingSearch = word
         pendingSearchAt = System.currentTimeMillis()
         // 카톡 🔍를 눌러 검색 칸이 열려도 화면 전환 알림이 오지 않을 수 있어, 기다리는 동안 0.5초마다 살펴봄
         handler.removeCallbacks(searchPoll)
         handler.postDelayed(searchPoll, 500)
-        showGuide("🔍 대화방 오른쪽 위 돋보기를 누르세요", "검색 칸이 열리면 '$word'를 넣어 드려요.\n그다음 키보드의 검색(🔍)을 눌러 주세요.")
+        val title = if (room != null) "🔍 '$room' 방에 들어가 오른쪽 위 돋보기를 누르세요" else "🔍 대화방 오른쪽 위 돋보기를 누르세요"
+        showGuide(title, "검색 칸이 열리면 '$word'를 넣어 드려요.\n그다음 키보드의 검색(🔍)을 눌러 주세요.")
     }
 
     /** 카톡 화면이 바뀔 때마다: 위쪽에 새로 열린 빈 글 칸(대화방 검색 칸)이 있으면 찾을 말을 넣음 */
@@ -827,6 +829,13 @@ class KakaoAccessibilityService : AccessibilityService() {
         return walk(root) { it.isEditable && it.isVisibleToUser && bounds(it).centerY() > win.top + win.height() / 2 } != null
     }
 
+    /** 지금 카톡 화면이 대화방 목록('채팅' 탭)인지: 맨 위 제목이 '채팅'. (대화방 안이 아닐 때만 봄) */
+    private fun inChatList(): Boolean = chatTitle()?.trim() in setOf("채팅", "Chats", "채팅 목록")
+
+    /** 떠 있는 버튼의 종류: 대화방에선 🎤(말로 답장·메뉴), 대화방 목록에선 🔎(저장된 모든 대화에서 찾기) */
+    private enum class BubbleKind { MIC, SEARCH }
+    private var bubbleKind = BubbleKind.MIC
+
     private fun updateBubble() {
         val wins = appWindows()
         val apps = wins.mapNotNull { it.root?.packageName?.toString() }
@@ -838,31 +847,39 @@ class KakaoAccessibilityService : AccessibilityService() {
             // 창 목록을 못 받는 기기에서는 마지막으로 앞에 나온 앱으로 판단
             KAKAO in apps || (apps.isEmpty() && lastPkg == KAKAO)
         }
-        // 카톡 안에서도 대화방에서만 (쇼핑·설정·친구 목록 등에서는 숨김): 화면 아래쪽에 메시지 입력 칸이 있으면 대화방
+        // 카톡 안에서도 대화방(🎤)과 대화방 목록(🔎)에서만 (쇼핑·설정·친구 목록 등에서는 숨김)
         val room = kakao && inChatRoom()
+        val list = kakao && !room && inChatList()
         // 🎤 카드를 연 채 뒤로가기 등으로 대화방을 나가면 카드(마이크)도 닫음
         //   (화면이 잠깐 바뀌는 중일 수 있어 0.7초 뒤 한 번 더 보고 그래도 대화방이 아니면 닫음)
         if (kakao && !room && HelperActivity.openInRoom != null) {
             handler.removeCallbacks(leftRoomCheck)
             handler.postDelayed(leftRoomCheck, 700)
         }
-        val show = room && packageName !in apps && Prefs(this).enabled
-        if (show) showBubble() else removeBubble()
+        val show = (room || list) && packageName !in apps && Prefs(this).enabled
+        if (show) showBubble(if (room) BubbleKind.MIC else BubbleKind.SEARCH) else removeBubble()
         // 플레이판: 카톡을 떠날 때(홈·다른 앱) 그쪽 이벤트는 받지 않으므로, 버튼이 떠 있는 동안 1초마다 다시 확인
         if (BuildConfig.STORE_SAFE && bubble != null) {
             handler.removeCallbacks(refresh)
             handler.postDelayed(refresh, 1000)
         }
-        diag("앱 창 ${wins.size}개 [${apps.joinToString().ifBlank { "없음" }}] · 최근 앱 ${lastPkg.ifBlank { "-" }} · 카톡 ${if (kakao) "인식" else "못 찾음"} · 대화방 ${if (room) "예" else "아니오"} · 버튼 ${if (bubble != null) "표시 중" else "숨김"}")
+        diag("앱 창 ${wins.size}개 [${apps.joinToString().ifBlank { "없음" }}] · 최근 앱 ${lastPkg.ifBlank { "-" }} · 카톡 ${if (kakao) "인식" else "못 찾음"} · 대화방 ${if (room) "예" else if (list) "목록" else "아니오"} · 버튼 ${if (bubble != null) "표시 중" else "숨김"}")
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    private fun showBubble() {
-        if (bubble != null) return
+    private fun showBubble(kind: BubbleKind) {
+        if (bubble != null && bubbleKind == kind) return
+        if (bubble != null) removeBubble()   // 종류가 바뀌면(대화방 ↔ 목록) 새로 그림
+        bubbleKind = kind
         val size = Ui.dp(this, 62)
-        // 차콜 원 + 얇은 금색 테두리 + 흰 마이크 하나 (글자 없이 간결하게)
+        // 차콜 원 + 얇은 금색 테두리 + 흰 마이크(또는 돋보기) 하나 (글자 없이 간결하게)
         val v = android.widget.ImageView(this).apply {
-            setImageResource(R.drawable.ic_bubble_mic)
+            if (kind == BubbleKind.MIC) setImageResource(R.drawable.ic_bubble_mic)
+            else {
+                setImageResource(R.drawable.ic_search)
+                imageTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
+                scaleX = 1.15f; scaleY = 1.15f
+            }
             scaleType = android.widget.ImageView.ScaleType.CENTER
             background = android.graphics.drawable.GradientDrawable(
                 android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
@@ -872,7 +889,8 @@ class KakaoAccessibilityService : AccessibilityService() {
                 setStroke(Ui.dp(this@KakaoAccessibilityService, 2), GOLD)
             }
             elevation = Ui.dp(this@KakaoAccessibilityService, 10).toFloat()
-            contentDescription = getString(R.string.app_name) + " 열기. 길게 누르면 말투와 찾기 메뉴"
+            contentDescription = if (kind == BubbleKind.MIC) getString(R.string.app_name) + " 열기. 길게 누르면 말투와 찾기 메뉴"
+                else "저장된 모든 대화에서 찾기"
         }
         // 지금 화면 크기 (폴드폰은 펼침·접힘에 따라 바뀜)
         val (sw, sh) = screenSize()
@@ -896,7 +914,7 @@ class KakaoAccessibilityService : AccessibilityService() {
         val longPress = Runnable {
             if (!dragged) {
                 longPressed = true
-                showMenu()
+                showMenu(kind)
             }
         }
         v.setOnTouchListener { _, e ->
@@ -924,7 +942,7 @@ class KakaoAccessibilityService : AccessibilityService() {
                     when {
                         longPressed -> releaseMenu(e.rawX, e.rawY, Math.hypot((e.rawX - downX).toDouble(), (e.rawY - downY).toDouble()) > size)
                         dragged -> { prefs.bubbleX = lp.x; prefs.bubbleY = lp.y }
-                        else -> openHelper()
+                        else -> openHelper(ask = kind == BubbleKind.SEARCH, all = kind == BubbleKind.SEARCH)
                     }
                     true
                 }
@@ -956,14 +974,18 @@ class KakaoAccessibilityService : AccessibilityService() {
         bubble = null
     }
 
-    /** 도우미 카드 열기. [ask] 면 말투 다듬기 대신 '대화에서 찾기'로 바로 듣기 시작 */
-    private fun openHelper(ask: Boolean = false) {
+    /**
+     * 도우미 카드 열기. [ask] 면 말투 다듬기 대신 '대화에서 찾기'로 바로 듣기 시작 (도우미 버튼을 꾹 눌러 🔎 고른 경우).
+     * [all] 이면 지금 방이 아니라 저장해 둔 모든 대화에서 찾음 (대화방 목록의 🔎 버튼)
+     */
+    private fun openHelper(ask: Boolean = false, all: Boolean = false) {
         closeMenu()
         HelperActivity.pendingScreenText = screenTexts().joinToString("\n")
-        HelperActivity.pendingTitle = chatTitle()
+        HelperActivity.pendingTitle = if (all) null else chatTitle()
         val intent = Intent(this, HelperActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             .putExtra(HelperActivity.EXTRA_ASK, ask)
+            .putExtra(HelperActivity.EXTRA_ALL, all)
         startActivity(intent)
     }
 
@@ -973,23 +995,39 @@ class KakaoAccessibilityService : AccessibilityService() {
     }
 
     // ───────── 꾹 누르면 버튼 둘레에 펼쳐지는 동그라미 메뉴 ─────────
+    //  첫 단계: [말투] [찾기] [설정]  →  '말투'를 누르거나 꾹 누르면 그 자리에 다섯 말투가 펼쳐짐 (이 방의 말투로 기억)
 
     private var menu: FrameLayout? = null
+    private var menuHint: TextView? = null
+    /** 메뉴를 연 순간의 대화방 이름 (이 방의 말투를 고르는 데 씀) */
+    private var menuRoom: String? = null
 
-    private class MenuEntry(val key: String, val label: String, val on: Boolean, val act: () -> Unit)
-    /** 지금 놓인 순서 (자리 번호 = 목록 순서) */
+    /** 동그라미 하나. [onHold] 가 있으면 꾹 눌렀을 때 그것을 함(말투 펼치기), 없으면 꾹 누른 채 끌어 자리 바꾸기 */
+    private class MenuEntry(val key: String, val label: String, val on: Boolean, val act: () -> Unit, val onHold: (() -> Unit)? = null)
+    /** 지금 펼쳐진 단계의 동그라미들, 놓인 순서 (자리 번호 = 목록 순서) */
     private val menuOrder = mutableListOf<Pair<MenuEntry, View>>()
     private var menuSlots: List<Pair<Float, Float>> = emptyList()
     private var menuSlotSize = 0
+    /** 지금 말투 단계인지 (순서를 저장할 곳이 다름) */
+    private var menuToneLevel = false
+    private var menuItems: List<Pair<View, () -> Unit>> = emptyList()
+    private var menuHot: View? = null
 
-    /** 동그라미 누르기 = 고르기, 꾹 누른 채 끌기 = 자리 옮기기 */
+    /** 동그라미 누르기 = 고르기, 꾹 누른 채 끌기 = 자리 옮기기 ('말투'는 꾹 누르면 펼침) */
     @SuppressLint("ClickableViewAccessibility")
     private fun attachReorder(v: View, entry: MenuEntry) {
         var downX = 0f; var downY = 0f; var startX = 0f; var startY = 0f
-        var dragging = false; var moved = false
+        var dragging = false; var moved = false; var held = false
         val slop = Ui.dp(this, 10)
         val startDrag = Runnable {
             if (moved) return@Runnable
+            val hold = entry.onHold
+            if (hold != null) {
+                // 꾹 누르면 펼침: 손가락을 뗀 뒤 눌러 골라도 되고, 그대로 끌고 가 동그라미 위에서 떼도 됨
+                held = true
+                hold()
+                return@Runnable
+            }
             dragging = true
             buzz()
             v.bringToFront()
@@ -999,12 +1037,14 @@ class KakaoAccessibilityService : AccessibilityService() {
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downX = e.rawX; downY = e.rawY; startX = v.translationX; startY = v.translationY
-                    dragging = false; moved = false
+                    dragging = false; moved = false; held = false
                     handler.postDelayed(startDrag, LONG_PRESS_MS)
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = e.rawX - downX; val dy = e.rawY - downY
-                    if (!dragging && Math.hypot(dx.toDouble(), dy.toDouble()) > slop) { moved = true; handler.removeCallbacks(startDrag) }
+                    val far = Math.hypot(dx.toDouble(), dy.toDouble())
+                    if (held) { hoverMenu(e.rawX, e.rawY, far > slop * 2); return@setOnTouchListener true }
+                    if (!dragging && far > slop) { moved = true; handler.removeCallbacks(startDrag) }
                     if (dragging && menuSlots.isNotEmpty()) {
                         v.translationX = startX + dx; v.translationY = startY + dy
                         // 손가락에 가장 가까운 자리로 옮기고, 나머지는 한 칸씩 비켜 줌
@@ -1019,12 +1059,22 @@ class KakaoAccessibilityService : AccessibilityService() {
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     handler.removeCallbacks(startDrag)
-                    if (dragging) {
-                        dragging = false
-                        layoutMenu(except = null)
-                        Prefs(this).menuOrder = menuOrder.map { it.first.key }
-                        menuItems = menuOrder.map { it.second to it.first.act }
-                    } else if (!moved && e.actionMasked == MotionEvent.ACTION_UP) entry.act()
+                    when {
+                        held -> {
+                            // 펼쳐진 말투 동그라미 위에서 뗐으면 그것을 고름. 이 동그라미는 이제 숨겨졌으니 더는 반응하지 않게
+                            v.setOnTouchListener(null)
+                            val far = Math.hypot((e.rawX - downX).toDouble(), (e.rawY - downY).toDouble())
+                            if (e.actionMasked == MotionEvent.ACTION_UP) releaseMenu(e.rawX, e.rawY, far > slop * 2)
+                        }
+                        dragging -> {
+                            dragging = false
+                            layoutMenu(except = null)
+                            val keys = menuOrder.map { it.first.key }
+                            if (menuToneLevel) Prefs(this).toneOrder = keys else Prefs(this).menuOrder = keys
+                            menuItems = menuOrder.map { it.second to it.first.act }
+                        }
+                        !moved && e.actionMasked == MotionEvent.ACTION_UP -> entry.act()
+                    }
                 }
             }
             true
@@ -1041,8 +1091,6 @@ class KakaoAccessibilityService : AccessibilityService() {
                 .setStartDelay(0).setDuration(160).start()
         }
     }
-    private var menuItems: List<Pair<View, () -> Unit>> = emptyList()
-    private var menuHot: View? = null
 
     private fun oval(fill: Int, stroke: Int) = android.graphics.drawable.GradientDrawable().apply {
         shape = android.graphics.drawable.GradientDrawable.OVAL
@@ -1050,10 +1098,15 @@ class KakaoAccessibilityService : AccessibilityService() {
         setStroke(Ui.dp(this@KakaoAccessibilityService, 2), stroke)
     }
 
-    private fun showMenu() {
-        val b = bubble ?: return
+    /** 저장해 둔 순서대로 ([saved] 에 없는 것은 뒤에) */
+    private fun ordered(all: List<MenuEntry>, saved: List<String>): List<MenuEntry> =
+        saved.mapNotNull { k -> all.firstOrNull { it.key == k } } + all.filter { it.key !in saved }
+
+    private fun showMenu(kind: BubbleKind) {
+        if (bubble == null) return
         closeMenu()
         val prefs = Prefs(this)
+        menuRoom = if (kind == BubbleKind.MIC) chatTitle() else null
         val root = FrameLayout(this).apply {
             setBackgroundColor(0x66101012)
             setOnClickListener { closeMenu() }   // 빈 곳을 누르면 닫힘
@@ -1064,13 +1117,69 @@ class KakaoAccessibilityService : AccessibilityService() {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply { gravity = Gravity.TOP or Gravity.START }
+        // 화면 아래 가운데 알약 모양 안내 (어두운 바탕 위에서도 잘 보이게 흰 바탕·굵은 글씨)
+        val hint = TextView(this).apply {
+            setTextColor(CHARCOAL_BOTTOM)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            val ph = Ui.dp(this@KakaoAccessibilityService, 18); val pv = Ui.dp(this@KakaoAccessibilityService, 10)
+            setPadding(ph, pv, ph, pv)
+            background = Ui.rounded(this@KakaoAccessibilityService, 0xF2FFFFFF.toInt(), 24, GOLD)
+            elevation = Ui.dp(this@KakaoAccessibilityService, 6).toFloat()
+            text = " "
+        }
+        root.addView(hint, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = Ui.dp(this@KakaoAccessibilityService, 56) })
+        runCatching { wm.addView(root, lp); menu = root; menuHint = hint }
+            .onFailure { diag("메뉴 그리기 실패: ${it.javaClass.simpleName} ${it.message}"); return }
+        buzz()
 
-        // 말투들 + 찾기 + 설정. 지금 고른 말투는 진하게. 순서는 사용자가 끌어서 바꾼 대로
-        val all = Mode.values().map { m -> MenuEntry(m.name, "${m.emoji}\n${m.label}", m == prefs.mode) { prefs.mode = m; openHelper() } } +
-            MenuEntry("ASK", "🔎\n찾기", false) { openHelper(ask = true) } +
-            MenuEntry("SETTINGS", "⚙️\n설정", false) { openQuickSettings() }
-        val savedOrder = prefs.menuOrder
-        val entries = savedOrder.mapNotNull { k -> all.firstOrNull { it.key == k } } + all.filter { it.key !in savedOrder }
+        // 첫 단계: 말투(지금 이 방의 말투 아이콘) · 찾기 · 설정. 순서는 사용자가 끌어서 바꾼 대로
+        val cur = prefs.modeFor(menuRoom)
+        val all = if (kind == BubbleKind.MIC) listOf(
+            MenuEntry("TONE", "${cur.emoji}\n말투", false, { openTones() }, onHold = { openTones() }),
+            MenuEntry("ASK", "🔎\n찾기", false, { openHelper(ask = true) }),
+            MenuEntry("SETTINGS", "⚙️\n설정", false, { openQuickSettings() }),
+        ) else listOf(
+            MenuEntry("ASK", "🔎\n찾기", false, { openHelper(ask = true, all = true) }),
+            MenuEntry("SETTINGS", "⚙️\n설정", false, { openQuickSettings() }),
+        )
+        menuToneLevel = false
+        val hintText = if (kind == BubbleKind.MIC) "👆 누르면 고르기   ·   지금 말투: ${cur.label}" else "👆 찾기: 저장해 둔 모든 대화에서 찾아요"
+        // 창이 그려진 뒤(크기를 안 뒤)에 동그라미를 놓음
+        root.post { if (menu === root) showLevel(root, ordered(all, prefs.menuOrder), hintText, demo = false) }
+    }
+
+    /** '말투' 동그라미: 첫 단계 동그라미들을 접고 그 자리에 다섯 말투를 펼침. 고르면 이 방의 말투로 기억 */
+    private fun openTones() {
+        val root = menu ?: return
+        if (menuToneLevel) return
+        val prefs = Prefs(this)
+        val room = menuRoom
+        val cur = prefs.modeFor(room)
+        // 첫 단계 동그라미는 숨기고 더는 눌리지 않게
+        // (꾹 누르고 있는 '말투' 동그라미는 손을 뗄 때까지 손가락 움직임을 받아야 하므로 그대로 둠 — 떼면 스스로 멈춤)
+        menuOrder.forEach { (entry, v) ->
+            if (entry.key != "TONE") v.setOnTouchListener(null)
+            v.animate().alpha(0f).scaleX(0.3f).scaleY(0.3f).setStartDelay(0).setDuration(140).start()
+        }
+        val all = Mode.values().map { m ->
+            MenuEntry(m.name, "${m.emoji}\n${m.label}", m == cur, { prefs.setModeFor(room, m); openHelper() })
+        }
+        menuToneLevel = true
+        buzz()
+        showLevel(root, ordered(all, prefs.toneOrder), "👆 누르면 이 방의 말투로 정해져요   ·   ✋ 꾹 누른 채 끌면 자리 바꾸기", demo = true)
+    }
+
+    /**
+     * [entries] 를 버튼 둘레 반원에 펼침. 아래 설명 알약과 떠 있는 안내 띠는 피해서 (겹치면 반원 전체를 옮김).
+     * [demo] 면 처음 몇 번은 꾹 눌러 끄는 시범을 보여 줌
+     */
+    private fun showLevel(root: FrameLayout, entries: List<MenuEntry>, hintText: String, demo: Boolean) {
+        val b = bubble ?: return
+        val prefs = Prefs(this)
+        menuHint?.let { it.text = hintText; Ui.iconize(it) }
         val size = Ui.dp(this, 78)
         menuOrder.clear()
         val items = entries.map { entry ->
@@ -1095,54 +1204,51 @@ class KakaoAccessibilityService : AccessibilityService() {
             root.addView(item, FrameLayout.LayoutParams(size, size))
             item to act
         }
-        // 사용법 한 줄
-        // 화면 아래 가운데 알약 모양 안내 (어두운 바탕 위에서도 잘 보이게 흰 바탕·굵은 글씨)
-        root.addView(TextView(this).apply {
-            text = "👆 누르면 고르기   ·   ✋ 꾹 누른 채 끌면 자리 바꾸기"
-            setTextColor(CHARCOAL_BOTTOM)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-            Ui.iconize(this)
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            gravity = Gravity.CENTER
-            val ph = Ui.dp(this@KakaoAccessibilityService, 18); val pv = Ui.dp(this@KakaoAccessibilityService, 10)
-            setPadding(ph, pv, ph, pv)
-            background = Ui.rounded(this@KakaoAccessibilityService, 0xF2FFFFFF.toInt(), 24, GOLD)
-            elevation = Ui.dp(this@KakaoAccessibilityService, 6).toFloat()
-        }, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
-            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = Ui.dp(this@KakaoAccessibilityService, 56) })
-        runCatching { wm.addView(root, lp); menu = root; menuItems = items }
-            .onFailure { diag("메뉴 그리기 실패: ${it.javaClass.simpleName} ${it.message}"); return }
-        buzz()
+        menuItems = items
 
         // 버튼 자리에서 화면 가운데 쪽으로 부채꼴로 하나씩 펼침
-        root.post {
-            val o = IntArray(2).also { root.getLocationOnScreen(it) }
-            val bl = IntArray(2).also { b.getLocationOnScreen(it) }
-            val cx = bl[0] + b.width / 2f - o[0]
-            val cy = bl[1] + b.height / 2f - o[1]
-            val w = root.width; val h = root.height
-            // 같은 크기·같은 간격으로 반원 위에 놓음 (화면에 안 들어가면 반원 전체를 옮기거나 다 같이 줄임)
-            val p = kr.yunho.talkhelper.core.MenuLayout.place(
-                n = items.size, cx = cx, cy = cy, w = w.toFloat(), h = h.toFloat(),
-                maxRadius = Ui.dp(this, 172).toFloat(), maxSize = size.toFloat(),
-                gap = Ui.dp(this, 8).toFloat(), margin = Ui.dp(this, 8).toFloat(), minSize = Ui.dp(this, 56).toFloat(),
-            )
-            val sz = p.size.toInt()
-            menuSlots = p.centers
-            menuSlotSize = sz
-            items.forEachIndexed { i, (v, _) ->
-                if (sz != size) v.layoutParams = FrameLayout.LayoutParams(sz, sz)
-                val (x, y) = p.centers[i]
-                v.translationX = cx - sz / 2f; v.translationY = cy - sz / 2f
-                v.animate().translationX(x - sz / 2f).translationY(y - sz / 2f).alpha(1f).scaleX(1f).scaleY(1f)
-                    .setStartDelay(i * 50L).setDuration(220).start()
+        val o = IntArray(2).also { root.getLocationOnScreen(it) }
+        val bl = IntArray(2).also { b.getLocationOnScreen(it) }
+        val cx = bl[0] + b.width / 2f - o[0]
+        val cy = bl[1] + b.height / 2f - o[1]
+        val w = root.width; val h = root.height
+        // 피할 띠: 아래 설명 알약, 화면에 떠 있는 안내 띠(내보내기 순서·검색 안내)
+        val bands = ArrayList<Pair<Float, Float>>()
+        menuHint?.let { if (it.height > 0) bands += it.top.toFloat() to it.bottom.toFloat() }
+        guide?.let { g ->
+            val gl = IntArray(2).also { g.getLocationOnScreen(it) }
+            if (g.height > 0) bands += (gl[1] - o[1]).toFloat() to (gl[1] - o[1] + g.height).toFloat()
+        }
+        // 같은 크기·같은 간격으로 반원 위에 놓음 (화면에 안 들어가거나 띠와 겹치면 반원 전체를 옮기거나 다 같이 줄임)
+        val p = kr.yunho.talkhelper.core.MenuLayout.place(
+            n = items.size, cx = cx, cy = cy, w = w.toFloat(), h = h.toFloat(),
+            maxRadius = Ui.dp(this, 172).toFloat(), maxSize = size.toFloat(),
+            gap = Ui.dp(this, 8).toFloat(), margin = Ui.dp(this, 8).toFloat(), minSize = Ui.dp(this, 56).toFloat(),
+            avoid = bands,
+        )
+        // 피할 자리가 아예 없으면 설명 알약을 위로 옮김
+        if (!p.clearOfBands) menuHint?.let { hv ->
+            (hv.layoutParams as? FrameLayout.LayoutParams)?.let { hl ->
+                hl.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                hl.topMargin = Ui.dp(this, 56); hl.bottomMargin = 0
+                hv.layoutParams = hl
             }
-            // 처음 몇 번은 손가락이 동그라미 하나를 꾹 눌러 끌어 보이는 시범을 보여 줌
-            val shown = prefs.menuDemoCount
-            if (shown < 3 && items.size >= 2) {
-                prefs.menuDemoCount = shown + 1
-                root.postDelayed({ if (menu === root) dragDemo(root, items.last().first, cx, cy) }, items.size * 50L + 450)
-            }
+        }
+        val sz = p.size.toInt()
+        menuSlots = p.centers
+        menuSlotSize = sz
+        items.forEachIndexed { i, (v, _) ->
+            if (sz != size) v.layoutParams = FrameLayout.LayoutParams(sz, sz)
+            val (x, y) = p.centers[i]
+            v.translationX = cx - sz / 2f; v.translationY = cy - sz / 2f
+            v.animate().translationX(x - sz / 2f).translationY(y - sz / 2f).alpha(1f).scaleX(1f).scaleY(1f)
+                .setStartDelay(i * 50L).setDuration(220).start()
+        }
+        // 처음 몇 번은 손가락이 동그라미 하나를 꾹 눌러 끌어 보이는 시범을 보여 줌
+        val shown = prefs.menuDemoCount
+        if (demo && shown < 3 && items.size >= 2) {
+            prefs.menuDemoCount = shown + 1
+            root.postDelayed({ if (menu === root) dragDemo(root, items.last().first, cx, cy) }, items.size * 50L + 450)
         }
     }
 
@@ -1191,12 +1297,7 @@ class KakaoAccessibilityService : AccessibilityService() {
     }
 
     /** 메뉴가 펼쳐질 때 '드르륵' 한 번 (휴대폰 '터치 진동' 설정이 꺼져 있어도 울리도록 진동기를 직접 씀) */
-    private fun buzz() = runCatching {
-        val vib = if (Build.VERSION.SDK_INT >= 31)
-            (getSystemService(VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager).defaultVibrator
-        else @Suppress("DEPRECATION") (getSystemService(VIBRATOR_SERVICE) as android.os.Vibrator)
-        vib.vibrate(android.os.VibrationEffect.createOneShot(60, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
-    }
+    private fun buzz() = Sounds.buzz(this, 60)
 
     private fun itemAt(rawX: Float, rawY: Float): Pair<View, () -> Unit>? = menuItems.firstOrNull { (v, _) ->
         val l = IntArray(2).also { v.getLocationOnScreen(it) }
@@ -1226,6 +1327,10 @@ class KakaoAccessibilityService : AccessibilityService() {
     private fun closeMenu() {
         menu?.let { runCatching { wm.removeView(it) } }
         menu = null
+        menuHint = null
+        menuRoom = null
+        menuToneLevel = false
+        menuOrder.clear()
         menuItems = emptyList()
         menuHot = null
     }

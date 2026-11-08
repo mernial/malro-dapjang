@@ -1,6 +1,7 @@
 package kr.yunho.talkhelper
 
 import android.content.Context
+import kr.yunho.talkhelper.core.MyStyle
 import kr.yunho.talkhelper.core.RoomMatch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -9,14 +10,16 @@ import java.util.UUID
 
 /**
  * 내보내 저장한 대화의 목록. 대화마다 앱이 붙인 고유 번호(r_xxxxxxxx)로 저장하고,
- * 그 대화를 내보낸 카톡 방의 화면 이름을 함께 기억함.
+ * 그 대화를 내보낸 카톡 방의 화면 이름과 그 대화에서 말한 사람들을 함께 기억함.
  *  - 카톡 방 이름이 같아도(가족방이 여럿 등) 번호가 달라 서로 덮어쓰지 않음
- *  - 카톡 방에 들어가 찾으면 그 방 이름으로 번호를 바로 찾음 (RoomMatch.lookup)
+ *  - 카톡 방에 들어가 찾으면 그 방 이름(또는 화면의 사람 이름들)으로 번호를 바로 찾음 (RoomMatch.lookup)
  * 목록 파일: chats/rooms.json
  */
 object Rooms {
     private fun file(c: Context) = File(ChatStore.dir(c), "rooms.json")
     private val lock = Any()
+    /** 기억해 두는 사람 수 (많이 말한 순서) */
+    private const val MAX_SENDERS = 60
 
     fun newId() = "r_" + UUID.randomUUID().toString().replace("-", "").take(8)
     fun isId(s: String) = Regex("^r_[0-9a-f]{8}$").matches(s)
@@ -25,6 +28,7 @@ object Rooms {
         migrate(c)
         repair(c)
         repairV5(c)
+        fillSenders(c)
         read(c)
     }
 
@@ -39,13 +43,22 @@ object Rooms {
             .filter { it in known }
     }
 
-    /** [id] 를 저장 (이름·카톡 방 이름 추가) */
+    /** [id] 를 저장 (이름·카톡 방 이름 추가). 사람 목록은 그대로 둠 */
     fun put(c: Context, id: String, name: String, title: String?) = synchronized(lock) {
         val list = read(c).toMutableList()
         val old = list.firstOrNull { it.id == id }
         val titles = (old?.titles.orEmpty() + listOfNotNull(title?.let { RoomMatch.norm(it) }?.takeIf { it.isNotEmpty() })).toSet()
         list.removeAll { it.id == id }
-        list.add(RoomMatch.Entry(id, name, titles))
+        list.add(RoomMatch.Entry(id, name, titles, old?.senders.orEmpty()))
+        write(c, list)
+    }
+
+    /** [id] 대화에서 말한 사람들을 기억 (화면의 사람 이름으로 방을 알아보는 데 씀) */
+    fun putSenders(c: Context, id: String, chat: String) = synchronized(lock) {
+        val list = read(c).toMutableList()
+        val old = list.firstOrNull { it.id == id } ?: return@synchronized
+        list.removeAll { it.id == id }
+        list.add(old.copy(senders = MyStyle.senders(chat).take(MAX_SENDERS).toSet()))
         write(c, list)
     }
 
@@ -67,14 +80,22 @@ object Rooms {
             (0 until arr.length()).map { i ->
                 val o = arr.getJSONObject(i)
                 val t = o.optJSONArray("titles") ?: JSONArray()
-                RoomMatch.Entry(o.getString("id"), o.getString("name"), (0 until t.length()).map { t.getString(it) }.toSet())
+                val s = o.optJSONArray("senders") ?: JSONArray()
+                RoomMatch.Entry(
+                    o.getString("id"), o.getString("name"),
+                    (0 until t.length()).map { t.getString(it) }.toSet(),
+                    (0 until s.length()).map { s.getString(it) }.toSet(),
+                )
             }
         }.getOrDefault(emptyList())
     }
 
     private fun write(c: Context, list: List<RoomMatch.Entry>) {
         val arr = JSONArray()
-        list.forEach { e -> arr.put(JSONObject().put("id", e.id).put("name", e.name).put("titles", JSONArray(e.titles.toList()))) }
+        list.forEach { e ->
+            arr.put(JSONObject().put("id", e.id).put("name", e.name)
+                .put("titles", JSONArray(e.titles.toList())).put("senders", JSONArray(e.senders.toList())))
+        }
         file(c).writeText(arr.toString())
     }
 
@@ -127,5 +148,16 @@ object Rooms {
             e.copy(titles = (e.titles.filter { RoomMatch.sameRoomName(it, e.name) } + RoomMatch.norm(e.name)).filter { it.isNotEmpty() }.toSet())
         })
         sp.edit().putBoolean("roomsV5", true).apply()
+    }
+
+    /** 1.172 전에 저장한 대화에는 사람 목록이 없음 → 한 번 읽어 채움 */
+    private fun fillSenders(c: Context) {
+        val sp = c.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        if (sp.getBoolean("roomsV6", false)) return
+        write(c, read(c).map { e ->
+            if (e.senders.isNotEmpty()) e
+            else e.copy(senders = MyStyle.senders(ChatStore.chatText(c, e.id).orEmpty()).take(MAX_SENDERS).toSet())
+        })
+        sp.edit().putBoolean("roomsV6", true).apply()
     }
 }

@@ -55,9 +55,14 @@ export function user(modeKey, spoken, screenText, myName = "", myRole = "", mySt
   return s;
 }
 
-export function askUser(question, room, transcript) {
+// 여러 방에서 한꺼번에 찾을 때 덧붙이는 말 (앱 core/Prompts.kt 의 MANY_ROOMS 와 같게)
+export const MANY_ROOMS = "여러 대화방의 기록에서 찾습니다. 기록은 \"[대화방: 이름]\" 줄로 방마다 나뉘어 있습니다. " +
+  "찾았으면 맨 첫 줄에 \"대화방: 이름\"(찾은 방의 이름)을 쓰고, 그다음 줄부터 결론 등을 쓰세요. 여러 방에 같은 내용이 있으면 가장 최근 것을 고르세요.";
+
+export function askUser(question, room, transcript, manyRooms = false) {
   let s = "";
-  if (room && room.trim()) s += "대화방: " + room + "\n\n";
+  if (manyRooms) s += MANY_ROOMS + "\n\n";
+  else if (room && room.trim()) s += "대화방: " + room + "\n\n";
   s += "<대화기록>\n" + transcript.trim() + "\n</대화기록>\n\n";
   s += "<질문>" + question.trim() + "</질문>";
   return s;

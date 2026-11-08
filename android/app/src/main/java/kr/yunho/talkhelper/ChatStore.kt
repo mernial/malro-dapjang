@@ -129,6 +129,8 @@ object ChatStore {
         File(dir(c), "$room.txt").writeText(text)
         Rooms.put(c, room, name, name)
         if (bind != null) Rooms.put(c, room, name, bind)
+        // 이 대화에서 말한 사람들도 기억 (내보낸 뒤 새 메시지만 보여도 화면의 이름으로 방을 알아보게)
+        Rooms.putSenders(c, room, text)
         // 같은 방을 예전에 다른 번호로 저장해 둔 것(이름·첫 메시지가 같음)은 지워 하나로 합침
         val first = kr.yunho.talkhelper.core.RoomMatch.firstMessage(text)
         if (first != null) Rooms.all(c).filter { e ->

@@ -56,9 +56,9 @@ class Claude(
             // 사용자가 말하지 않은 호칭(예: 내 신분인 '신부님')으로 상대를 부르면 바로잡음
             .let { TitleGuard.fix(it, spoken) }
 
-    /** 카톡 대화에서 [question] 에 대한 답 찾기. [chat] 이 길면 관련 부분만 골라 보냄 */
-    override fun answer(question: String, chat: String, room: String?): String =
-        ask(Prompts.ASK_SYSTEM, Prompts.askUser(question, room, ChatSearch.excerpt(chat, question))).trim()
+    /** 카톡 대화에서 [question] 에 대한 답 찾기. [chat] 이 길면 관련 부분만 골라 보냄 (여러 방이면 이미 골라져 있음) */
+    override fun answer(question: String, chat: String, room: String?, manyRooms: Boolean): String =
+        ask(Prompts.ASK_SYSTEM, Prompts.askUser(question, room, if (manyRooms) chat else ChatSearch.excerpt(chat, question), manyRooms)).trim()
 
     private fun ask(
         system: String, user: String, model: String = MODEL, json: Boolean = false,
