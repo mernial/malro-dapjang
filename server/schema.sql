@@ -25,3 +25,6 @@ CREATE TABLE IF NOT EXISTS daily (
   cache_write INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (day, kind)
 );
+
+-- 사용 현황에서 뺄 시험 기기 (2026-11-08 이전 개발자 시험·에뮬레이터 번호). 이후 시험은 x-malro-test 머리글로 '~test' 에 셈
+CREATE TABLE IF NOT EXISTS test_device (device TEXT PRIMARY KEY);

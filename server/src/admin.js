@@ -52,18 +52,18 @@ export async function stats(env, request) {
   }
   // 날마다 쓴 폰 수 (30일치만 남아 있음)
   const devDays = (await env.DB.prepare(
-    "SELECT day, COUNT(*) n FROM usage WHERE device <> '*' GROUP BY day"
+    "SELECT day, COUNT(*) n FROM usage WHERE device NOT IN ('*', '~test') AND device NOT IN (SELECT device FROM test_device) GROUP BY day"
   ).all()).results || [];
   for (const r of devDays) (perDay[r.day] ||= { day: r.day, count: 0, rewrite: 0, answer: 0, other: 0, won: 0, devices: 0 }).devices = r.n;
 
   const active = async (from) => (await env.DB.prepare(
-    "SELECT COUNT(DISTINCT device) n FROM usage WHERE device <> '*' AND day >= ?"
+    "SELECT COUNT(DISTINCT device) n FROM usage WHERE device NOT IN ('*', '~test') AND device NOT IN (SELECT device FROM test_device) AND day >= ?"
   ).bind(from).first())?.n || 0;
 
   // 폰별 (최근 30일): 번호 앞 6자리만
   const devices = ((await env.DB.prepare(
     "SELECT device, SUM(count) total, COUNT(*) days, MAX(day) last, " +
-    "SUM(CASE WHEN day = ? THEN count ELSE 0 END) today FROM usage WHERE device <> '*' AND day >= ? " +
+    "SUM(CASE WHEN day = ? THEN count ELSE 0 END) today FROM usage WHERE device NOT IN ('*', '~test') AND device NOT IN (SELECT device FROM test_device) AND day >= ? " +
     "GROUP BY device ORDER BY total DESC LIMIT 100"
   ).bind(today, d30).all()).results || []).map((r) => ({ id: r.device.slice(0, 6), total: r.total, days: r.days, last: r.last, today: r.today }));
 

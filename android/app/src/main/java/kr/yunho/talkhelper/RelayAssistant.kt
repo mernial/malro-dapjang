@@ -61,6 +61,7 @@ class RelayAssistant(private val ctx: Context) : Assistant {
                 setRequestProperty("content-type", "application/json")
                 setRequestProperty("x-malro-device", p.deviceId)
                 setRequestProperty("x-malro-app", "malro-dapjang/${BuildConfig.VERSION_NAME}")
+                if (BuildConfig.E2E) setRequestProperty("x-malro-test", "1")   // 에뮬레이터 시험은 사용 현황에서 뺌
                 Integrity.headers(ctx).forEach { (k, v) -> setRequestProperty(k, v) }
             }
         } catch (e: IOException) {
