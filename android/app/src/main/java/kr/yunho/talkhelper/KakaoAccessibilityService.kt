@@ -830,7 +830,21 @@ class KakaoAccessibilityService : AccessibilityService() {
     }
 
     /** 지금 카톡 화면이 대화방 목록('채팅' 탭)인지: 맨 위 제목이 '채팅'. (대화방 안이 아닐 때만 봄) */
-    private fun inChatList(): Boolean = chatTitle()?.trim() in setOf("채팅", "Chats", "채팅 목록")
+    private fun inChatList(): Boolean {
+        val root = kakaoRoot() ?: return false
+        val win = bounds(root)
+        val names = setOf("채팅", "Chats", "채팅 목록", "채팅 탭")
+        // 1) 화면 위쪽(20%) 왼쪽에 '채팅' 제목 (글자나 설명 어느 쪽이든)
+        // 2) 또는 아래 탭 줄에서 '채팅' 탭이 골라져 있음
+        return walk(root) { n ->
+            if (!n.isVisibleToUser) return@walk false
+            val l = label(n).removeSuffix(" 탭").trim()
+            if (l !in names && !(n.isSelected && l.startsWith("채팅"))) return@walk false
+            val b = bounds(n)
+            val top = b.top - win.top < win.height() * 0.2 && b.left - win.left < win.width() * 0.6
+            top || n.isSelected
+        } != null
+    }
 
     /** 떠 있는 버튼의 종류: 대화방에선 🎤(말로 답장·메뉴), 대화방 목록에선 🔎(저장된 모든 대화에서 찾기) */
     private enum class BubbleKind { MIC, SEARCH }
