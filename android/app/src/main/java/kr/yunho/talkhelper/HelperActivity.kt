@@ -263,6 +263,7 @@ class HelperActivity : Activity() {
         head.add(handle, weight = 4f)
         head.add(small("✕", sp = 16f) { finish() }, weight = 1f)
         makeDraggable(handle)
+        headLabel = handle
         card.add(head, 0)
 
         // 말투 모드 (마지막에 고른 것을 기억)
@@ -343,17 +344,32 @@ class HelperActivity : Activity() {
             }
         }
         resultBox.add(resultEdit, 4)
+        // 말투 바꿔 보기: 누르면 같은 말을 그 말투로 다시 다듬어 보여 줌 (한 번 다듬은 말투는 기억해 두어 바로 바뀜)
+        val toneScroll = android.widget.HorizontalScrollView(ctx).apply { isHorizontalScrollBarEnabled = false }
+        val toneRow = Ui.hbox(ctx)
+        val chips = LinkedHashMap<Mode, TextView>()
+        for (m in Mode.values()) {
+            val chip = Ui.text(ctx, "${m.emoji} ${m.label}", 15f, bold = true).apply {
+                val ph = Ui.dp(ctx, 14); val pv = Ui.dp(ctx, 9); setPadding(ph, pv, ph, pv)
+                setOnClickListener { switchTone(m) }
+            }
+            toneRow.addView(chip, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                .apply { marginEnd = Ui.dp(ctx, 6) })
+            chips[m] = chip
+        }
+        toneChips = chips
+        toneScroll.addView(toneRow)
+        resultBox.add(toneScroll, 10)
+        paintToneChips()
         val sendRow = Ui.hbox(ctx)
         cancelButton = small("✋ 취소", Ui.CARD, Ui.RED, sp = 17f) { stopCountdown() }
         sendRow.add(cancelButton, weight = 1f)
         sendButton = small("📤 보내기", Ui.BROWN, Ui.YELLOW, sp = 17f) { send() }
-        sendRow.add(sendButton, weight = 1.4f)
-        resultBox.add(sendRow, 8)
-        againRow = Ui.hbox(ctx)
-        againRow.add(small("🎤 다시 말하기", sp = 14f) { stopConfirm(); stopCountdown(); resultBox.visibility = View.GONE; toggleMic() })
-        againRow.add(small("🔄 다시 다듬기", sp = 14f) { stopCountdown(); if (lastSpoken.isNotBlank()) rewrite(lastSpoken) })
-        againRow.add(small("🚩", sp = 14f) { stopConfirm(); stopCountdown(); reportAi(resultEdit.text.toString()) }, weight = 0.5f)
-        resultBox.add(againRow, 6)
+        sendRow.add(sendButton, weight = 2.4f)
+        sendRow.add(small("🚩", sp = 16f) { stopConfirm(); stopCountdown(); reportAi(resultEdit.text.toString()) }, weight = 0.6f)
+        resultBox.add(sendRow, 10)
+        // (예전 '다시 말하기·다시 다듬기' 줄은 없앰. 말투 칩으로 다시 다듬고, 다시 말하려면 🎤 버튼을 다시 누름)
+        againRow = Ui.hbox(ctx).apply { visibility = View.GONE }
         card.add(resultBox, 8)
 
         // 대화에서 찾은 답
@@ -464,6 +480,7 @@ class HelperActivity : Activity() {
         listenStartedAt = System.currentTimeMillis()
         if (::answerBox.isInitialized) answerBox.visibility = View.GONE
         resultBox.visibility = View.GONE
+        talkRowView.visibility = View.VISIBLE
         listening = true; finishing = false
         micButton.text = "🎙️ 듣는 중 (누르면 끝)"; Ui.iconize(micButton)
         micButton.background = Ui.rounded(this, Ui.GREEN, 18)
@@ -1052,9 +1069,13 @@ class HelperActivity : Activity() {
             if (isFinishing) return@run
             r.onSuccess { text ->
                 showStatus(null)
+                toneCache.clear()
+                toneCache[m] = text
                 resultEdit.setText(text)
                 resultEdit.clearFocus()
                 resultBox.visibility = View.VISIBLE
+                talkRowView.visibility = View.GONE   // 다듬은 글이 나오면 말하기 버튼은 숨김 (보내기·말투 바꾸기만)
+                paintToneChips()
                 when (prefs.sendMode) {
                     SendMode.INSTANT -> send()
                     SendMode.COUNTDOWN -> startCountdown()
@@ -1063,6 +1084,52 @@ class HelperActivity : Activity() {
                 }
                 resultBox.post { (resultBox.parent?.parent as? ScrollView)?.smoothScrollTo(0, resultBox.bottom) }
             }.onFailure { showStatus((it as? HelperException)?.message ?: "문제가 생겼어요: ${it.message}", Ui.RED) }
+        }
+    }
+
+    // ───────── 말투 바꿔 보기 (보내기 전) ─────────
+
+    private var toneChips: Map<Mode, TextView> = emptyMap()
+    /** 같은 말을 말투마다 다듬은 결과 (다시 누르면 요금 없이 바로) */
+    private val toneCache = HashMap<Mode, String>()
+    private var headLabel: TextView? = null
+    private var toneJob = 0
+
+    private fun paintToneChips() = toneChips.forEach { (m, chip) ->
+        val on = m == mode
+        chip.background = Ui.rounded(this, if (on) Ui.BROWN else Ui.CARD, 18, if (on) Ui.BROWN else Ui.LINE)
+        chip.setTextColor(if (on) Ui.YELLOW else Ui.BROWN)
+        chip.text = "${m.emoji} ${m.label}"
+        Ui.iconize(chip)
+    }
+
+    /** 결과 칸의 말투 칩을 누름: 같은 말을 그 말투로 다시 다듬어 보여 줌. 보내지는 않음 (확인 후 '보내기') */
+    private fun switchTone(m: Mode) {
+        if (lastSpoken.isBlank()) return
+        stopConfirm(); stopCountdown()
+        if (m == mode && toneCache[m] != null) return
+        // 지금 보이는 글(직접 고쳤을 수도 있음)은 그 말투 자리에 기억
+        resultEdit.text.toString().takeIf { it.isNotBlank() }?.let { toneCache[mode] = it }
+        mode = m
+        prefs.setModeFor(roomTitle, m)   // 이 방의 말투로 기억
+        headLabel?.let { it.text = "⠿  ${m.emoji} ${m.label} · ${prefs.sendMode.label}"; Ui.iconize(it) }
+        paintToneChips()
+        toneCache[m]?.let { resultEdit.setText(it); resultTitle.text = "이렇게 보낼까요? (눌러서 고칠 수 있어요)"; return }
+        val claude = ClaudeProvider.get(this) ?: return
+        val job = ++toneJob
+        resultTitle.text = "${m.label} 말투로 바꾸는 중…"
+        sendButton.isEnabled = false
+        val spoken = lastSpoken
+        Bg.run({
+            val style = if (m == Mode.MINE) ChatStore.myStyle(this, chatForThisRoom().second).ifEmpty { kr.yunho.talkhelper.core.MyStyle.fromScreen(screenText) } else emptyList()
+            claude.rewrite(m, spoken, screenText, prefs.myName, prefs.myRole, style)
+        }) { r ->
+            if (isFinishing || job != toneJob) return@run
+            sendButton.isEnabled = true
+            r.onSuccess { text ->
+                toneCache[m] = text
+                if (mode == m) { resultEdit.setText(text); resultTitle.text = "이렇게 보낼까요? (눌러서 고칠 수 있어요)" }
+            }.onFailure { resultTitle.text = (it as? HelperException)?.message ?: "바꾸지 못했어요. 다시 눌러 주세요." }
         }
     }
 
@@ -1084,7 +1151,7 @@ class HelperActivity : Activity() {
         resultTitle.text = "이렇게 보낼까요? (눌러서 고칠 수 있어요)"
         sendButton.text = "📤 보내기"; Ui.iconize(sendButton)
         cancelButton.visibility = View.GONE
-        againRow.visibility = View.VISIBLE
+        againRow.visibility = View.GONE
     }
 
     private fun send() {
