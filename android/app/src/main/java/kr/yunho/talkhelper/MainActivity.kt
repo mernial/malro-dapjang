@@ -157,7 +157,7 @@ class MainActivity : Activity() {
             runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_URL))) }
                 .onFailure { Toast.makeText(this, PRIVACY_URL, Toast.LENGTH_LONG).show() }
         }, 32)
-        body.add(Ui.text(this, "문의·불편 신고: $REPORT_EMAIL\n이 앱은 카카오와 관련이 없는 독립 앱입니다.", 13f, color = Ui.MUTED)
+        body.add(Ui.text(this, "버전 ${BuildConfig.VERSION_NAME}\n문의·불편 신고: $REPORT_EMAIL\n이 앱은 카카오와 관련이 없는 독립 앱입니다.", 13f, color = Ui.MUTED)
             .apply { setTextIsSelectable(true) }, 8)
         body.add(View(this), 24)
     }
