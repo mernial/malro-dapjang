@@ -111,3 +111,10 @@ jobs:
           mappingFile: android/app/build/outputs/mapping/playRelease/mapping.txt
           track: internal
           status: completed
+      # main 에 합친 버전은 비공개 테스트(가족 테스터)에도 올림 → 구글 검토 뒤 테스터 폰에 자동 업데이트
+      - name: 비공개 테스트에도 올리기 (main 만)
+        if: ${{ github.ref == 'refs/heads/main' && env.PLAY_JSON != '' && env.SIGNING_STORE_FILE != '' }}
+        working-directory: .
+        run: |
+          pip install -q google-auth requests
+          SA_PATH="$RUNNER_TEMP/play-service-account.json" python3 .github/play/promote.py
