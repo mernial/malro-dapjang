@@ -3,6 +3,14 @@ package kr.yunho.talkhelper.core
 /**
  * 지금 보고 있는 카톡 방(화면 맨 위 이름)과 내보내 저장해 둔 대화를 짝지음.
  * 카톡 화면 이름과 내보낸 파일 속 이름은 띄어쓰기·인원수 표시 등이 조금씩 다를 수 있음.
+ *
+ * 알아보는 규칙 (위에서부터 차례로, 하나라도 맞으면 그 방):
+ *  1. 이름이 같음 — 화면 이름(인원수·'…'·띄어쓰기 뺀 것)이 저장할 때 기억한 이름들 중 하나와 같음
+ *  2. 화면에서 끝이 잘린 이름("…")이면 앞부분이 같은 방 (네 글자 이상)
+ *  3. 화면에 보이는 '보낸 사람 이름'들이 그 대화에 나오는 사람들 — 단체방은 메시지마다 이름이 붙으므로,
+ *     내보낸 뒤에 새 메시지만 보여도 사람 이름으로 알아봄 (두 사람 이상, 가장 많이 맞는 방 하나)
+ *  4. 화면에 보이는 메시지 두 줄 이상이 그 대화에 들어 있음 (가장 많이 맞는 방 하나)
+ * 그래도 모르면 null → 저장된 모든 대화에서 찾음 (다시 내보내라고 하지 않음)
  */
 object RoomMatch {
     /** 화면에서 끝이 잘린 제목인지 ("봉담성당 주일학교 교…") */
@@ -13,7 +21,8 @@ object RoomMatch {
         .replace(Regex("[…]|\\.\\.\\.$"), "")            // 화면에서 잘린 제목의 "…"
         .replace(Regex("님과\\s*카카오톡\\s*대화.*$"), "")
         .replace(Regex("카카오톡\\s*대화.*$"), "")
-        .replace(Regex("\\s+\\d+$"), "")      // "청년부 12" → "청년부"
+        .replace(Regex("\\s*\\(\\d+\\)$"), "")           // "가족 (4)" → "가족"
+        .replace(Regex("\\s+\\d+\\s*명?$"), "")          // "청년부 12", "청년부 12명" → "청년부"
         .replace(Regex("[\\s_]+"), "")
         .lowercase()
 
@@ -37,11 +46,6 @@ object RoomMatch {
         Regex("^(사진|동영상|이모티콘|파일|음성메시지)(\\s*\\d+장)?$"),
     )
 
-    /**
-     * 대화 내용으로 방 알아보기: 지금 카톡 화면에 보이는 메시지들이 저장해 둔 어느 대화에 들어 있는지 셈.
-     * 방 이름을 못 읽었을 때만 씀. 날짜·알림 줄, 방 이름·사람 이름 줄([names])은 어느 방에나 있을 수 있어 빼고,
-     * 화면 메시지의 절반 이상이 들어 있는 방만 (두 줄 이상) 고름. 애매하면 null → 사용자에게 물어봄
-     */
     /** 화면 줄 가운데 어느 방에나 있을 법한 줄을 뺀, 비교에 쓸 만한 줄들 */
     fun probes(screenLines: List<String>, names: List<String> = emptyList()): List<String> {
         val skip = names.map { norm(it) }.filter { it.isNotEmpty() }.toSet()
@@ -53,14 +57,19 @@ object RoomMatch {
     /** 화면 줄 가운데 [text] 대화에 들어 있는 줄 수 */
     fun matches(screenLines: List<String>, text: String): Int = probes(screenLines).count { text.contains(it) }
 
-    fun byContent(screenLines: List<String>, chats: Map<String, String>, names: List<String> = emptyList(), atLeast: Int? = null): String? {
+    /**
+     * 대화 내용으로 방 알아보기: 지금 카톡 화면에 보이는 메시지들이 저장해 둔 어느 대화에 들어 있는지 셈.
+     * 날짜·알림 줄, 방 이름·사람 이름 줄([names])은 어느 방에나 있을 수 있어 빼고,
+     * [atLeast] 줄 이상(기본 두 줄: 여섯 글자 넘는 메시지 두 줄이 같은 대화에 있으면 그 방으로 봄) 들어 있는 방 가운데
+     * 가장 많이 맞는 방. 두 방이 똑같이 맞으면(같은 공지를 여러 방에 보낸 경우 등) null
+     */
+    fun byContent(screenLines: List<String>, chats: Map<String, String>, names: List<String> = emptyList(), atLeast: Int = 2): String? {
         val probes = probes(screenLines, names)
         if (probes.isEmpty()) return null
-        val need = atLeast ?: maxOf(2, (probes.size + 1) / 2)
+        val need = atLeast
         val scored = chats.map { (room, text) -> room to probes.count { text.contains(it) } }
             .filter { it.second >= need }
             .sortedByDescending { it.second }
-        // 두 방이 똑같이 맞으면 어느 방인지 모름
         if (scored.size >= 2 && scored[0].second == scored[1].second) return null
         return scored.firstOrNull()?.first
     }
@@ -69,27 +78,47 @@ object RoomMatch {
 
     /**
      * 저장해 둔 대화 하나. [id] 는 앱이 붙인 고유 번호(카톡 방 이름이 바뀌거나 같은 이름 방이 여럿이어도 안 섞임),
-     * [name] 은 보여 줄 이름, [titles] 는 이 대화를 내보낸 카톡 방의 화면 이름들(정규화한 것)
+     * [name] 은 보여 줄 이름, [titles] 는 이 대화를 내보낸 카톡 방의 화면 이름들(정규화한 것),
+     * [senders] 는 이 대화에서 말한 사람들 (화면의 이름으로 방을 알아볼 때 씀)
      */
-    data class Entry(val id: String, val name: String, val titles: Set<String>)
+    data class Entry(val id: String, val name: String, val titles: Set<String>, val senders: Set<String> = emptySet())
 
     /**
-     * 지금 카톡 방([title] = 화면 맨 위 이름)에 해당하는 저장 대화 번호.
-     *  - 방 이름이 이 대화를 내보낸 방 이름과 같아야 함 (비슷한 이름·다른 방은 고르지 않음)
-     *  - 같은 이름 방이 여럿이면 화면 메시지로 가림, 그래도 모르면 null (사용자에게 다시 내보내기를 물음)
-     *  - 방 이름을 아예 못 읽었을 때만 화면 메시지로 짐작
+     * 화면에 보이는 '보낸 사람 이름' 줄로 방 알아보기 (규칙 3).
+     * 단체방은 다른 사람 메시지마다 이름이 따로 보이므로, 그 이름 두 개 이상이 어느 대화의 사람들인지 셈.
+     * 방 이름 자체([title])는 세지 않음. 가장 많이 맞는 방 하나; 똑같이 맞는 방이 여럿이면 그 방들 모두(내용으로 가림)
+     */
+    fun bySenders(title: String?, entries: List<Entry>, screenLines: List<String>): List<Entry> {
+        val t = title?.let { norm(it) }.orEmpty()
+        val onScreen = screenLines.asSequence().map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("나: ") && it.length <= 30 }
+            .map { norm(it) }.filter { it.isNotEmpty() && it != t }.toSet()
+        if (onScreen.isEmpty()) return emptyList()
+        val scored = entries.filter { it.senders.isNotEmpty() }
+            .map { e -> e to e.senders.map { norm(it) }.count { it in onScreen } }
+            .filter { it.second >= 2 }
+            .sortedByDescending { it.second }
+        if (scored.isEmpty()) return emptyList()
+        val top = scored[0].second
+        return scored.filter { it.second == top }.map { it.first }
+    }
+
+    /**
+     * 지금 카톡 방([title] = 화면 맨 위 이름)에 해당하는 저장 대화 번호. 위 규칙 1→4 차례로.
+     * 같은 이름 방이 여럿이면 화면 메시지로 가림, 그래도 모르면 null
      */
     fun lookup(title: String?, entries: List<Entry>, screenLines: List<String>, text: (String) -> String): String? {
         val t = title?.let { norm(it) }?.takeIf { it.isNotEmpty() }
-            ?: return byContent(screenLines, entries.associate { it.id to text(it.id) })
         fun keys(e: Entry) = e.titles + norm(e.name)
         // 1) 이름이 그대로 같은 방
-        var cands = entries.filter { t in keys(it) }
+        var cands = if (t != null) entries.filter { t in keys(it) } else emptyList()
         // 2) 화면에서 제목이 "…"로 잘린 경우만: 앞부분이 같은 방 (네 글자 이상). 잘리지 않은 비슷한 이름은 다른 방으로 봄
-        if (cands.isEmpty() && isTruncated(title) && t.length >= 4) {
+        if (cands.isEmpty() && t != null && isTruncated(title) && t.length >= 4) {
             cands = entries.filter { e -> keys(e).any { k -> k.startsWith(t) } }
         }
-        // 3) 이름으로 못 찾으면 화면 메시지가 들어 있는 방 (절반 이상, 두 줄 이상)
+        // 3) 화면에 보이는 사람 이름들이 들어 있는 방
+        if (cands.isEmpty()) cands = bySenders(title, entries, screenLines)
+        // 4) 화면 메시지가 들어 있는 방
         if (cands.isEmpty()) return byContent(screenLines, entries.associate { it.id to text(it.id) }, listOfNotNull(title))
         if (cands.size == 1) return cands[0].id
         // 같은 방을 여러 번 내보내 번호가 둘 이상 생긴 경우(첫 메시지가 같음): 가장 긴(최근) 것

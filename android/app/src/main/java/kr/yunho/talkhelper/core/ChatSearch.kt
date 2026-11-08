@@ -61,6 +61,66 @@ object ChatSearch {
         return out.toString()
     }
 
+    /** 여러 방 기록에서 방이 바뀌는 자리에 넣는 머리글 */
+    fun roomHeader(name: String) = "[대화방: $name]"
+
+    /**
+     * 저장해 둔 여러 방의 대화([rooms] = (방 이름, 대화))에서 질문과 관련 있는 부분을 방마다 묶어 [maxChars] 안으로.
+     * 검색어가 많이 맞는 줄부터(방 가리지 않고) 앞뒤 몇 줄과 함께 고르고, 방마다 최근 대화도 조금씩 넣음.
+     * 각 묶음은 "[대화방: 이름]" 줄로 시작해 AI 가 어느 방에서 찾았는지 알 수 있게 함
+     */
+    fun excerptMany(rooms: List<Pair<String, String>>, question: String, maxChars: Int = MAX_CHARS): String {
+        if (rooms.isEmpty()) return ""
+        val lines = rooms.map { it.second.lines() }
+        val keys = keywords(question)
+        val picked = lines.map { BooleanArray(it.size) }
+        // 방 머리글 자리 미리 빼 둠
+        var budget = maxChars - rooms.sumOf { roomHeader(it.first).length + 2 }
+        // 1) 방마다 최근 대화를 조금씩 (전체의 1/5 를 방 수로 나눔, 방마다 최소 300자)
+        val recentEach = maxOf(300, (maxChars / 5) / rooms.size)
+        lines.forEachIndexed { r, ls ->
+            var recent = recentEach
+            for (j in ls.indices.reversed()) {
+                if (recent - ls[j].length - 1 < 0 || budget - ls[j].length - 1 < 0) break
+                picked[r][j] = true
+                recent -= ls[j].length + 1
+                budget -= ls[j].length + 1
+            }
+        }
+        // 2) 검색어가 많이 맞는 줄부터 (같으면 최근 것부터), 앞뒤 몇 줄과 함께
+        data class Hit(val room: Int, val line: Int, val score: Int)
+        val hits = ArrayList<Hit>()
+        lines.forEachIndexed { r, ls ->
+            ls.forEachIndexed { i, l -> val s = keys.count { k -> l.contains(k, ignoreCase = true) }; if (s > 0) hits += Hit(r, i, s) }
+        }
+        for (hit in hits.sortedWith(compareByDescending<Hit> { it.score }.thenByDescending { it.line })) {
+            val ls = lines[hit.room]
+            for (j in maxOf(0, hit.line - WINDOW)..minOf(ls.lastIndex, hit.line + WINDOW)) {
+                if (picked[hit.room][j]) continue
+                if (budget - ls[j].length - 1 < 0) break
+                picked[hit.room][j] = true
+                budget -= ls[j].length + 1
+            }
+            if (budget <= 0) break
+        }
+        val out = StringBuilder()
+        rooms.forEachIndexed { r, (name, _) ->
+            val ls = lines[r]
+            if (picked[r].none { it }) return@forEachIndexed
+            if (out.isNotEmpty()) out.append('\n')
+            out.append(roomHeader(name)).append('\n')
+            var gap = false
+            for (j in ls.indices) {
+                if (picked[r][j]) {
+                    if (gap) out.append("…(중략)…\n")
+                    out.append(ls[j]).append('\n')
+                    gap = false
+                } else gap = true
+            }
+        }
+        return out.toString()
+    }
+
     /** AI 답에서 마지막 '찾을말:' 줄을 떼어 냄 → (보여 줄 답, 카톡 검색에 쓸 낱말) */
     fun splitAnswer(text: String): Pair<String, String?> {
         val clean = PhotoFind.strip(text)   // '사진시각:' 줄도 함께 뺌
@@ -68,6 +128,10 @@ object ChatSearch {
         val word = m.groupValues[1].trim().trim('"', '\'', '“', '”', '‘', '’').takeIf { it.isNotBlank() }
         return clean.removeRange(m.range).trim() to word
     }
+
+    /** 여러 방에서 찾은 답의 첫 줄 "대화방: 이름"에서 방 이름 (없으면 null) */
+    fun answeredRoom(text: String): String? =
+        Regex("""^\s*대화방\s*[:：]\s*(.+?)\s*$""", RegexOption.MULTILINE).find(text)?.groupValues?.get(1)?.takeIf { it.isNotBlank() }
 
     /** 내보낸 카톡 파일 첫머리에서 대화방 이름 찾기 */
     fun roomName(chat: String): String? {

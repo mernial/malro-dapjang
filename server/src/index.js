@@ -146,7 +146,8 @@ function buildV2(route, input, env) {
     ...base,
     output_config: { effort: "low" },
     system: sys(P.ASK_SYSTEM),
-    messages: [{ role: "user", content: P.askUser(question, str(input.room, 200), str(input.transcript, 200000)) }],
+    // scope "all": 저장된 여러 방에서 한꺼번에 찾기 (앱이 방마다 "[대화방: 이름]" 머리글을 붙여 보냄)
+    messages: [{ role: "user", content: P.askUser(question, str(input.room, 200), str(input.transcript, 200000), input.scope === "all") }],
   };
 }
 

@@ -97,8 +97,8 @@ object ClaudeProvider {
         override fun rewrite(mode: Mode, spoken: String, screenText: String?, myName: String, myRole: String, myStyle: List<String>) =
             inner.rewrite(mode, spoken, screenText, myName, myRole, myStyle).also { Prefs(app).addUsage(UsageStats.Kind.REWRITE, inner.lastUsage) }
 
-        override fun answer(question: String, chat: String, room: String?) =
-            inner.answer(question, chat, room).also { Prefs(app).addUsage(UsageStats.Kind.SEARCH, inner.lastUsage) }
+        override fun answer(question: String, chat: String, room: String?, manyRooms: Boolean) =
+            inner.answer(question, chat, room, manyRooms).also { Prefs(app).addUsage(UsageStats.Kind.SEARCH, inner.lastUsage) }
 
         override val lastUsage: Usage? get() = inner.lastUsage
     }

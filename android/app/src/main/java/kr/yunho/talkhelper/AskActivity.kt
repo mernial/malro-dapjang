@@ -44,6 +44,7 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
         private const val REQ_SPEECH = 11
         private const val REQ_FOLDER = 12
         private const val SCREEN = "\u0000screen"   // '지금 화면' 을 나타내는 내부 이름
+        private const val ALL = "\u0000all"         // '저장된 모든 대화' 를 나타내는 내부 이름
 
         fun chatsDir(c: Context) = ChatStore.dir(c)
         /** 저장된 대화 번호들 (최근 순). 보여 줄 이름은 Rooms.name */
@@ -212,7 +213,7 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
     }
 
     private fun chatOf(name: String?): String? = when (name) {
-        null -> null
+        null, ALL -> null
         SCREEN -> screenText
         else -> File(chatsDir(this), "$name.txt").takeIf { it.exists() }?.readText()
     }
@@ -226,9 +227,11 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
 
         // 어느 대화에서 찾을지
         body.add(Ui.text(this, "어느 대화에서 찾을까요?", 18f, bold = true), 20)
+        val saved = savedRooms(this@AskActivity)
         val sources = buildList {
             if (screenText != null) add(SCREEN)
-            addAll(savedRooms(this@AskActivity))
+            if (saved.size >= 2) add(ALL)   // 방이 둘 이상이면 한꺼번에 찾기도
+            addAll(saved)
         }
         if (sources.isEmpty()) {
             body.add(Ui.text(this,
@@ -236,15 +239,19 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
                 17f), 8)
         }
         for (s in sources) {
-            val label = if (s == SCREEN) "📱 지금 카톡 화면의 대화" else "💬 ${Rooms.name(this, s)}"
+            val label = when (s) {
+                SCREEN -> "📱 지금 카톡 화면의 대화"
+                ALL -> "🔎 저장된 모든 대화에서 (${saved.size}개)"
+                else -> "💬 ${Rooms.name(this, s)}"
+            }
             val on = s == selected
             body.add(Ui.button(this, label, if (on) Ui.YELLOW else Ui.CARD, sp = 18f) { selected = s; render() }
                 .apply { background = Ui.rounded(this@AskActivity, if (on) Ui.YELLOW else Ui.CARD, 18, if (on) Ui.BROWN else Ui.LINE) }, 8)
         }
-        if (selected != null && selected != SCREEN) {
+        if (selected != null && selected != SCREEN && selected != ALL) {
             body.add(Ui.button(this, "이 대화 지우기", Ui.CARD, Ui.RED, sp = 14f) { confirmDelete(selected!!) }, 6)
         }
-        if (selected != null && selected != SCREEN) {
+        if (selected != null && selected != SCREEN && selected != ALL) {
             val room = selected!!
             val me = Prefs(this).kakaoMe(room)
             body.add(Ui.button(this, if (me != null) "🪞 이 방에서 나: $me (바꾸기)" else "🪞 내 말투 배우기: 내 이름 고르기", Ui.CARD, sp = 14f) {
@@ -325,22 +332,31 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
     private fun search() {
         val q = question.text.toString().trim()
         if (q.isEmpty()) { Toast.makeText(this, "무엇을 찾을지 말하거나 써 주세요.", Toast.LENGTH_SHORT).show(); return }
+        val all = selected == ALL
         val chat = chatOf(selected)
-        if (chat.isNullOrBlank()) { Toast.makeText(this, "먼저 찾을 대화를 골라 주세요.", Toast.LENGTH_SHORT).show(); return }
+        if (!all && chat.isNullOrBlank()) { Toast.makeText(this, "먼저 찾을 대화를 골라 주세요.", Toast.LENGTH_SHORT).show(); return }
         val claude = ClaudeProvider.get(this)
         if (claude == null) { Toast.makeText(this, "먼저 앱 설정을 마쳐 주세요.", Toast.LENGTH_LONG).show(); return }
-        val room = selected?.takeIf { it != SCREEN }
+        val room = selected?.takeIf { it != SCREEN && it != ALL }
         val roomName = Rooms.name(this, room)
-        showBusy("🔎 ${if (roomName != null) "'$roomName' 대화에서" else "대화에서"} 찾고 있어요…\n\n물어본 것: $q\n\n어떻게 진행되고 무엇이 정해졌는지 정리하는 중이에요")
+        showBusy("🔎 ${if (all) "저장된 모든 대화에서" else if (roomName != null) "'$roomName' 대화에서" else "대화에서"} 찾고 있어요…\n\n물어본 것: $q\n\n어떻게 진행되고 무엇이 정해졌는지 정리하는 중이에요")
         answer.visibility = View.GONE
         photoBox.visibility = View.GONE
-        Bg.run({ claude.answer(q, chat, roomName) }) { r ->
+        Bg.run({
+            if (all) {
+                // 방마다 "[대화방: 이름]"으로 묶어 관련 부분만 보냄. 답 첫 줄에 어느 방인지 나옴
+                val rooms = savedRooms(this).map { id -> (Rooms.name(this, id) ?: id) to ChatStore.chatText(this, id).orEmpty() }.filter { it.second.isNotBlank() }
+                claude.answer(q, ChatSearch.excerptMany(rooms, q), null, manyRooms = true)
+            } else claude.answer(q, chat.orEmpty(), roomName)
+        }) { r ->
             if (isFinishing) return@run
             hideBusy()
             Prefs(this).logExport(if (r.isSuccess) "찾기 완료" else "찾기 실패: ${r.exceptionOrNull()?.message}")
             val text = r.map { ChatSearch.splitAnswer(it).first }
                 .getOrElse { (it as? HelperException)?.message ?: "문제가 생겼어요: ${it.message}" }
-            showPhotos(room, r.getOrNull())
+            // 여러 방에서 찾았으면 답 첫 줄의 방 이름으로 사진 둘 곳을 앎
+            val photoRoom = room ?: r.getOrNull()?.let { ChatSearch.answeredRoom(it) }?.let { name -> Rooms.all(this).firstOrNull { it.name == name }?.id }
+            showPhotos(photoRoom, r.getOrNull())
             answer.text = if (r.isSuccess) Ui.answer(text) else text
             answer.visibility = View.VISIBLE
             body.findViewWithTag<View>("replay")?.visibility = View.VISIBLE

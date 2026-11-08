@@ -28,6 +28,12 @@ class AnswerFormatTest {
     }
 
     @Test
+    fun roomLineFromManyRoomsSearchIsAHeading() {
+        assertEquals("대화방\n   가족\n\n결론\n   11월 22일 토요일", AnswerFormat.format("대화방: 가족\n결론: 11월 22일 토요일"))
+        assertEquals(true, AnswerFormat.isLabelLine("대화방"))
+    }
+
+    @Test
     fun keepsPlainText() {
         assertEquals("결론\n   대화에서 찾지 못했습니다", AnswerFormat.format("결론: 대화에서 찾지 못했습니다"))
     }

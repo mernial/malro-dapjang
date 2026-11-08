@@ -30,6 +30,21 @@ class ChatSearchTest {
     }
 
     @Test
+    fun excerptManyLabelsRoomsAndKeepsRelevantLines() {
+        val rooms = listOf(
+            "청년부" to bigChat(),
+            "가족" to "가족 카카오톡 대화\n2026년 11월 2일 오전 8:00, 엄마 : 김장은 11월 22일 토요일에 하자\n2026년 11월 2일 오전 8:05, 윤호 : 네 알겠어요",
+        )
+        val ex = ChatSearch.excerptMany(rooms, "김장 언제 하기로 했지?")
+        assertTrue(ex.contains("[대화방: 가족]"))
+        assertTrue(ex.contains("김장은 11월 22일"))
+        assertTrue(ex.contains("[대화방: 청년부]"))   // 최근 대화도 조금은
+        assertTrue(ex.length <= ChatSearch.MAX_CHARS + 200)
+        assertEquals("가족", ChatSearch.answeredRoom("대화방: 가족\n결론: 11월 22일 토요일"))
+        assertEquals(null, ChatSearch.answeredRoom("결론: 찾지 못했습니다"))
+    }
+
+    @Test
     fun shortChatIsSentWhole() {
         val chat = "a\nb\nc"
         assertEquals(chat, ChatSearch.excerpt(chat, "아무거나"))

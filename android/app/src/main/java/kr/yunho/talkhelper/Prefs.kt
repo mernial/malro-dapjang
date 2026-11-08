@@ -85,10 +85,36 @@ class Prefs(ctx: Context) {
         get() = sp.getBoolean("enabled", true)
         set(v) = sp.edit().putBoolean("enabled", v).apply()
 
-    /** 마지막으로 고른 말투 모드 */
+    /** 마지막으로 고른 말투 모드 (방마다 따로 고른 게 없는 방에서 씀) */
     var mode: Mode
         get() = runCatching { Mode.valueOf(sp.getString("mode", Mode.POLITE.name)!!) }.getOrDefault(Mode.POLITE)
         set(v) = sp.edit().putString("mode", v.name).apply()
+
+    /** 말투를 방마다 기억하는 열쇠 (인원수·'…'·띄어쓰기를 뺀 방 이름) */
+    private fun roomKey(room: String?): String? = room?.let { kr.yunho.talkhelper.core.RoomMatch.norm(it) }?.takeIf { it.isNotEmpty() }
+
+    /**
+     * 이 방([room] = 카톡 화면 맨 위 이름)에서 쓰는 말투. 그 방에서 고른 적이 있으면 그것, 없으면 마지막에 고른 말투.
+     * 화면에서 이름이 잘린("…") 경우엔 앞부분이 같은 방의 것
+     */
+    fun modeFor(room: String?): Mode {
+        val k = roomKey(room) ?: return mode
+        val saved = sp.getString("mode:$k", null)
+            ?: if (kr.yunho.talkhelper.core.RoomMatch.isTruncated(room))
+                sp.all.entries.firstOrNull { (key, _) -> key.startsWith("mode:$k") }?.value as? String else null
+        return saved?.let { runCatching { Mode.valueOf(it) }.getOrNull() } ?: mode
+    }
+
+    /** 이 방의 말투를 [m] 으로 (다른 방은 그대로). 방 이름이 없으면 기본 말투만 바꿈 */
+    fun setModeFor(room: String?, m: Mode) {
+        mode = m
+        roomKey(room)?.let { sp.edit().putString("mode:$it", m.name).apply() }
+    }
+
+    /** 동그라미 메뉴 '말투' 안의 다섯 말투 순서 (사용자가 끌어서 바꾼 것) */
+    var toneOrder: List<String>
+        get() = (sp.getString("toneOrder", "") ?: "").split(',').filter { it.isNotBlank() }
+        set(v) = sp.edit().putString("toneOrder", v.joinToString(",")).apply()
 
     /** 도우미 버튼 진단 기록 */
     var bubbleDiag: String

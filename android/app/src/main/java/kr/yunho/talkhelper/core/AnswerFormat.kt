@@ -5,7 +5,7 @@ package kr.yunho.talkhelper.core
  * 진행·결정·미정은 쉼표로 나뉜 것을 한 줄씩. 칸 사이는 한 줄 띄움.
  */
 object AnswerFormat {
-    private val LABEL = Regex("""^\s*(결론|진행|결정|미정|근거|비슷한 것)\s*[:：]\s*(.*)$""")
+    private val LABEL = Regex("""^\s*(대화방|결론|진행|결정|미정|근거|비슷한 것)\s*[:：]\s*(.*)$""")
     private val LIST_LABELS = setOf("진행", "결정", "미정")
     const val INDENT = "   "
 
@@ -45,5 +45,5 @@ object AnswerFormat {
     }
 
     /** 제목 줄(결론·진행…)인지 — 화면에서 굵게 보여 줄 때 */
-    fun isLabelLine(line: String) = line in setOf("결론", "진행", "결정", "미정", "근거", "비슷한 것")
+    fun isLabelLine(line: String) = line in setOf("대화방", "결론", "진행", "결정", "미정", "근거", "비슷한 것")
 }

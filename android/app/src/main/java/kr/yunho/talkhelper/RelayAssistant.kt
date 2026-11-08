@@ -37,12 +37,13 @@ class RelayAssistant(private val ctx: Context) : Assistant {
             .let { TitleGuard.fix(it, spoken) }
     }
 
-    override fun answer(question: String, chat: String, room: String?): String {
+    override fun answer(question: String, chat: String, room: String?, manyRooms: Boolean): String {
         val body = JSONObject()
             .put("question", question)
             .put("room", room ?: "")
-            // 대화 전체가 아니라 질문과 관련된 부분만 보냄
-            .put("transcript", ChatSearch.excerpt(chat, question))
+            // 대화 전체가 아니라 질문과 관련된 부분만 보냄 (여러 방이면 ChatSearch.excerptMany 로 이미 골라져 있음)
+            .put("transcript", if (manyRooms) chat else ChatSearch.excerpt(chat, question))
+        if (manyRooms) body.put("scope", "all")
         return post("/v2/answer", body).trim()
     }
 
