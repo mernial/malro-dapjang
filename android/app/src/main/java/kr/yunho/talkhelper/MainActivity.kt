@@ -484,6 +484,10 @@ class MainActivity : Activity() {
         })
         body.add(notifyRow, 6)
 
+        // 운영자용: 사용자들의 사용 횟수·요금 (서버 비밀번호 ADMIN_KEY 필요, 웹 페이지로 열림)
+        body.add(Ui.button(this, "📊 사용 현황 (운영자)", Ui.CARD, sp = 15f) {
+            runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(BuildConfig.RELAY_URL.trimEnd('/') + "/admin"))) }
+        }, 20)
         body.add(Ui.button(this, "🔎 대화에서 찾기 (대화·사진 저장)", Ui.CARD, sp = 15f) {
             startActivity(Intent(this, AskActivity::class.java))
         }, 20)
