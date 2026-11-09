@@ -10,7 +10,7 @@ import android.os.VibratorManager
 
 /**
  * 듣기 시작·끝을 알리는 짧은 종소리(앱에 넣어 둔 소리 파일)와 진동.
- * 소리는 미디어 음량으로 (읽어 주기와 같은 음량이라 예측하기 쉬움). 무음이면 진동만 느껴짐
+ * 소리는 미디어 음량으로. 휴대폰이 무음·진동 모드면 소리는 내지 않고 진동만
  */
 object Sounds {
     private var pool: SoundPool? = null
@@ -40,7 +40,13 @@ object Sounds {
     /** 다 들었음: 내려오는 두 음 */
     fun listenDone(ctx: Context) = play(ctx, doneId)
 
+    /** 휴대폰이 무음·진동 모드인지 (그때는 소리 없이 진동만) */
+    private fun silent(ctx: Context): Boolean = runCatching {
+        (ctx.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager).ringerMode != android.media.AudioManager.RINGER_MODE_NORMAL
+    }.getOrDefault(false)
+
     private fun play(ctx: Context, id: Int) {
+        if (silent(ctx)) return
         init(ctx)
         val ready = synchronized(loaded) { id in loaded }
         if (ready) runCatching { pool?.play(id, 0.9f, 0.9f, 1, 0, 1f) }
