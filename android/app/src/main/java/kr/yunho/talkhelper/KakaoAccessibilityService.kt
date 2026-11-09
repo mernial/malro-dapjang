@@ -283,6 +283,8 @@ class KakaoAccessibilityService : AccessibilityService() {
 
     // ───────── 플레이판: 직접 내보낼 때 화면 위에 남는 순서 안내 (카톡을 대신 누르지 않음) ─────────
     private var guide: View? = null
+    /** 지금 떠 있는 안내 띠가 '찾을 말 넣기' 안내인지 (카톡을 떠나면 닫음. 내보내기 안내는 공유 창에서도 남겨 둠) */
+    private var guideIsSearch = false
     private val guideTimeout = Runnable { hideExportGuide() }
 
     /** 카드를 닫은 뒤에도 내보내는 순서를 위쪽에 작게 띄워 둠. 뒤의 카톡은 그대로 누를 수 있음 */
@@ -303,8 +305,9 @@ class KakaoAccessibilityService : AccessibilityService() {
      * 반투명한 작은 안내 띠. 손가락으로 위아래로 끌어 옮길 수 있고, '접기'로 작은 단추만 남길 수 있음.
      * 카톡을 대신 누르지 않음 (안내만)
      */
-    private fun showGuide(title: String, body: CharSequence) {
+    private fun showGuide(title: String, body: CharSequence, search: Boolean = false) {
         hideExportGuide()
+        guideIsSearch = search
         val ctx = this
         val dark = android.graphics.Color.argb(225, 0x2A, 0x16, 0x16)   // 진한 갈색, 살짝 비침
         val box = android.widget.LinearLayout(ctx).apply {
@@ -380,11 +383,11 @@ class KakaoAccessibilityService : AccessibilityService() {
                     runCatching { wm.updateViewLayout(box, lp) }
                     true
                 }
-                MotionEvent.ACTION_UP -> { Prefs(ctx).guideY = lp.y; true }
+                MotionEvent.ACTION_UP -> { Prefs(ctx).guideY = lp.y; box.post { avoidKeyboard() }; true }
                 else -> false
             }
         }
-        runCatching { wm.addView(box, lp); guide = box }
+        runCatching { wm.addView(box, lp); guide = box; box.post { avoidKeyboard() } }
             .onFailure { diag("안내 띠 그리기 실패: ${it.javaClass.simpleName} ${it.message}") }
         handler.removeCallbacks(guideTimeout)
         handler.postDelayed(guideTimeout, 15 * 60_000L)
@@ -402,7 +405,7 @@ class KakaoAccessibilityService : AccessibilityService() {
         handler.removeCallbacks(searchPoll)
         handler.postDelayed(searchPoll, 500)
         val title = if (room != null) "🔍 '$room' 방에 들어가 오른쪽 위 돋보기를 누르세요" else "🔍 대화방 오른쪽 위 돋보기를 누르세요"
-        showGuide(title, "검색 칸이 열리면 '$word'를 넣어 드려요.\n그다음 키보드의 검색(🔍)을 눌러 주세요.")
+        showGuide(title, "검색 칸이 열리면 '$word'를 넣어 드려요.\n그다음 키보드의 검색(🔍)을 눌러 주세요.", search = true)
     }
 
     /** 카톡 화면이 바뀔 때마다: 위쪽에 새로 열린 빈 글 칸(대화방 검색 칸)이 있으면 찾을 말을 넣음 */
@@ -433,9 +436,12 @@ class KakaoAccessibilityService : AccessibilityService() {
     }
 
     fun hideExportGuide() {
+        guideIsSearch = false
         handler.removeCallbacks(guideTimeout)
+        val had = guide != null
         guide?.let { runCatching { wm.removeView(it) } }
         guide = null
+        if (had) handler.post { avoidKeyboard() }   // 띠를 피해 옮겼던 버튼을 제자리로
     }
 
     private fun removeCover() {
@@ -887,6 +893,8 @@ class KakaoAccessibilityService : AccessibilityService() {
             handler.removeCallbacks(leftRoomCheck)
             handler.postDelayed(leftRoomCheck, 700)
         }
+        // '찾을 말 넣기' 안내는 카톡을 떠나면 닫음 (다른 앱·홈 화면에 남지 않게)
+        if (!kakao && guideIsSearch) { pendingSearch = null; hideExportGuide() }
         val show = (room || list) && packageName !in apps && Prefs(this).enabled
         if (show) { showBubble(if (room) BubbleKind.MIC else BubbleKind.SEARCH); avoidKeyboard() } else removeBubble()
         // 플레이판: 카톡을 떠날 때(홈·다른 앱) 그쪽 이벤트는 받지 않으므로, 버튼이 떠 있는 동안 1초마다 다시 확인
@@ -993,8 +1001,19 @@ class KakaoAccessibilityService : AccessibilityService() {
         val (_, sh) = screenSize()
         val saved = Prefs(this).bubbleY.takeIf { it >= 0 } ?: (sh * 0.55).toInt()
         val kb = keyboardTop()
-        val want = if (kb != null && kb < sh && saved + size > kb - Ui.dp(this, 8)) maxOf(0, kb - size - Ui.dp(this, 12))
+        var want = if (kb != null && kb < sh && saved + size > kb - Ui.dp(this, 8)) maxOf(0, kb - size - Ui.dp(this, 12))
             else saved.coerceIn(0, maxOf(0, sh - size))
+        // 떠 있는 안내 띠와 겹치면 띠 아래로 (아래 자리가 없으면 위로)
+        guide?.takeIf { it.height > 0 }?.let { g ->
+            val gl = IntArray(2).also { g.getLocationOnScreen(it) }
+            val gTop = gl[1]; val gBottom = gl[1] + g.height
+            val gap = Ui.dp(this, 10)
+            if (want + size > gTop - gap && want < gBottom + gap) {
+                val below = gBottom + gap
+                val limit = (kb ?: sh) - size - gap
+                want = if (below <= limit) below else maxOf(0, gTop - size - gap)
+            }
+        }
         if (lp.y != want) {
             lp.y = want
             runCatching { wm.updateViewLayout(v, lp) }
