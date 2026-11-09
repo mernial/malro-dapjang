@@ -87,6 +87,7 @@ class KakaoAccessibilityService : AccessibilityService() {
             val ignore = pkg.isEmpty() || pkg == packageName || "inputmethod" in pkg || "honeyboard" in pkg || pkg == "com.android.systemui"
             if (!ignore) lastPkg = pkg
         }
+        if (event?.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED && event.packageName == KAKAO) noteSplitTap(event)
         handler.removeCallbacks(refresh)
         handler.postDelayed(refresh, 60)
         if (pendingSearch != null && event?.packageName == KAKAO) {
@@ -952,7 +953,9 @@ class KakaoAccessibilityService : AccessibilityService() {
             KAKAO in apps || (apps.isEmpty() && lastPkg == KAKAO)
         }
         // 카톡 안에서도 대화방(🎤)과 대화방 목록(🔎)에서만 (쇼핑·설정·친구 목록 등에서는 숨김)
-        val room = kakao && inChatRoom()
+        // 폴드 펼침(목록|대화방): 마지막으로 목록 쪽 탭·메뉴를 눌렀으면 목록(🔍)으로, 방이나 방 목록 줄을 눌렀으면 방(🎤)으로. 버튼은 하나만
+        val splitShowsList = kakao && splitFocusList && isSplit() && inChatList()
+        val room = kakao && !splitShowsList && inChatRoom()
         val list = kakao && !room && inChatList()
         // 🎤 카드를 연 채 뒤로가기 등으로 대화방을 나가면 카드(마이크)도 닫음
         //   (화면이 잠깐 바뀌는 중일 수 있어 0.7초 뒤 한 번 더 보고 그래도 대화방이 아니면 닫음)
@@ -970,8 +973,7 @@ class KakaoAccessibilityService : AccessibilityService() {
         val show = (room || list) && packageName !in apps && Prefs(this).enabled
         if (show) { showBubble(if (room) BubbleKind.MIC else BubbleKind.SEARCH); avoidKeyboard() } else removeBubble()
         // 폴드를 펼쳐 왼쪽 목록·오른쪽 대화방이 함께 보이면: 오른쪽엔 🎤, 왼쪽 목록 쪽엔 작은 🔍 를 하나 더
-        val splitList = if (show && room) splitListArea() else null
-        if (splitList != null) showSideSearch(splitList) else removeSideSearch()
+        removeSideSearch()
         // 플레이판: 카톡을 떠날 때(홈·다른 앱) 그쪽 이벤트는 받지 않으므로, 버튼이 떠 있는 동안 1초마다 다시 확인
         // 카톡 안에서 탭(채팅·오픈채팅·쇼핑 등)을 옮기면 창 바뀜 알림이 오지 않는 폰이 많아,
         // 카톡이 앞에 있는 동안은 버튼이 숨어 있어도 1초마다 다시 봄 (카톡을 떠나면 멈춤)
@@ -1115,7 +1117,37 @@ class KakaoAccessibilityService : AccessibilityService() {
         }
     }
 
-    // ───────── 폴드 펼침(목록+대화방 한 화면): 왼쪽 목록 쪽 작은 🔍 ─────────
+    // ───────── 폴드 펼침(목록+대화방 한 화면): 마지막으로 누른 쪽에 맞춰 🔍 또는 🎤 하나만 ─────────
+    @Volatile private var splitFocusList = false
+
+    /** 카톡 화면이 목록|대화방으로 나뉘어 있는지 */
+    private fun isSplit(): Boolean {
+        val root = kakaoRoot() ?: return false
+        val win = bounds(root)
+        val pane = roomPane(root)
+        return pane.width() <= win.width() * 0.85 && pane.left - win.left >= win.width() * 0.25
+    }
+
+    /**
+     * 나뉜 화면에서 누른 자리: 오른쪽 대화방 → 방(🎤). 왼쪽이면 맨 왼쪽 메뉴 줄이나 위쪽 탭·칩(채팅·오픈채팅 등) → 목록(🔍),
+     * 목록의 방 줄(그 방이 열림) → 방(🎤)
+     */
+    private fun noteSplitTap(e: AccessibilityEvent) {
+        val src = e.source ?: return
+        val root = kakaoRoot() ?: return
+        val win = bounds(root)
+        val pane = roomPane(root)
+        if (pane.width() > win.width() * 0.85) { splitFocusList = false; return }
+        val b = bounds(src)
+        splitFocusList = when {
+            b.centerX() >= pane.left -> false
+            b.centerX() < win.left + win.width() * 0.08 -> true
+            b.top - win.top < win.height() * 0.25 -> true
+            else -> false
+        }
+    }
+
+    // (예전: 목록 쪽 작은 🔍 를 하나 더 띄웠음 — 버튼은 하나만 두기로 해서 쓰지 않음)
     private var sideSearch: View? = null
 
     /** 화면이 목록|대화방으로 나뉘어 있고 왼쪽이 채팅·오픈채팅 목록이면 그 목록 칸 (아니면 null) */
@@ -1133,7 +1165,9 @@ class KakaoAccessibilityService : AccessibilityService() {
         val size = Ui.dp(this, 52)
         val margin = Ui.dp(this, 14)
         val x = area.right - size - margin
-        val y = area.top + (area.height() * 0.72).toInt()
+        // 목록 칸 아래쪽에 두되, 키보드가 올라와 있으면 키보드 바로 위로 (키보드 자판을 가리지 않게)
+        val kb = keyboardTop()?.takeIf { it < area.bottom }
+        val y = minOf(area.top + (area.height() * 0.72).toInt(), (kb ?: area.bottom) - size - margin).coerceAtLeast(area.top)
         sideSearch?.let { v ->
             val lp = v.layoutParams as WindowManager.LayoutParams
             if (lp.x != x || lp.y != y) { lp.x = x; lp.y = y; runCatching { wm.updateViewLayout(v, lp) } }
