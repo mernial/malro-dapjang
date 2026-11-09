@@ -3,7 +3,7 @@
      화면 터치 흉내는 카톡 메뉴를 대신 누르는 기능(플레이판에서 끔, STORE_SAFE)에서만 썼음.
      입력창에 글 넣기·전송 버튼 누르기는 접근성 '동작'(performAction)이라 이 권한이 필요 없음 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowsChanged"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowsChanged|typeViewClicked|typeViewSelected"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagRetrieveInteractiveWindows|flagReportViewIds|flagIncludeNotImportantViews"
     android:canRetrieveWindowContent="true"

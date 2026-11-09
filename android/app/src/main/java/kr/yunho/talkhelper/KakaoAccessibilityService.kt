@@ -88,7 +88,7 @@ class KakaoAccessibilityService : AccessibilityService() {
             if (!ignore) lastPkg = pkg
         }
         handler.removeCallbacks(refresh)
-        handler.postDelayed(refresh, 120)
+        handler.postDelayed(refresh, 60)
         if (pendingSearch != null && event?.packageName == KAKAO) {
             handler.removeCallbacks(fillSearch)
             handler.postDelayed(fillSearch, 300)
@@ -973,7 +973,7 @@ class KakaoAccessibilityService : AccessibilityService() {
         // 카톡이 앞에 있는 동안은 버튼이 숨어 있어도 1초마다 다시 봄 (카톡을 떠나면 멈춤)
         if (kakao || (BuildConfig.STORE_SAFE && bubble != null)) {
             handler.removeCallbacks(refresh)
-            handler.postDelayed(refresh, 600)
+            handler.postDelayed(refresh, 400)
         }
         // 카톡 안인데 대화방·목록이 아니면, 위쪽에 보이는 이름들을 기록 (오픈채팅 목록을 못 알아볼 때 원인 확인용)
         val topNames = if (kakao && !room && !list) topLabels() else ""
