@@ -883,23 +883,54 @@ class KakaoAccessibilityService : AccessibilityService() {
     }
 
     /** 지금 카톡 화면이 대화방 목록('채팅' 탭)인지: 맨 위 제목이 '채팅'. (대화방 안이 아닐 때만 봄) */
+    /**
+     * 지금 카톡 화면이 대화방 목록인지 (대화방 안이 아닐 때만 봄):
+     *  - '채팅' 탭: 위쪽 '채팅' 제목(글자·설명 어느 쪽이든) 또는 아래 탭 줄의 골라진 '채팅' 탭
+     *  - 오픈채팅 목록: 위쪽에 '오픈채팅'(제목이나 '지금' 탭의 골라진 칩)이 있고, '숏폼' 등 다른 칩이 골라져 있지 않음
+     * 친구·쇼핑·더보기 같은 다른 탭에서는 false → 버튼을 숨김
+     */
     private fun inChatList(): Boolean {
         val root = kakaoRoot() ?: return false
         val win = bounds(root)
-        val names = setOf("채팅", "Chats", "채팅 목록", "채팅 탭")
-        // 1) 화면 위쪽(20%) 왼쪽에 '채팅' 제목 (글자나 설명 어느 쪽이든)
-        // 2) 또는 아래 탭 줄에서 '채팅' 탭이 골라져 있음
-        return walk(root) { n ->
+        val chatNames = setOf("채팅", "Chats", "채팅 목록", "채팅 탭")
+        val openNames = setOf("오픈채팅", "OpenChat", "오픈 채팅")
+        var chat = false; var open = false; var otherChip = false
+        walk(root) { n ->
             if (!n.isVisibleToUser) return@walk false
             val l = label(n).removeSuffix(" 탭").trim()
-            if (l !in names && !(n.isSelected && l.startsWith("채팅"))) return@walk false
+            if (l.isEmpty()) return@walk false
             val b = bounds(n)
-            val top = b.top - win.top < win.height() * 0.2 && b.left - win.left < win.width() * 0.6
-            top || n.isSelected
-        } != null
+            val top = b.top - win.top < win.height() * 0.25 && b.left - win.left < win.width() * 0.7
+            val picked = n.isSelected || n.isChecked
+            when {
+                l in chatNames && (top || picked) -> chat = true
+                n.isSelected && l.startsWith("채팅") -> chat = true
+                l in openNames && top -> open = true
+                // '지금' 탭에서 오픈채팅이 아닌 다른 칩(숏폼 등)을 골랐으면 오픈채팅 목록이 아님
+                top && picked && (l == "숏폼" || l.contains("Shorts", ignoreCase = true)) -> otherChip = true
+            }
+            false
+        }
+        return chat || (open && !otherChip)
     }
 
-    /** 떠 있는 버튼의 종류: 대화방에선 🎤(말로 답장·메뉴), 대화방 목록에선 🔎(저장된 모든 대화에서 찾기) */
+    /** 카톡 화면 위쪽에 보이는 이름들 (골라진 것은 [*]) — 진단용 */
+    private fun topLabels(): String {
+        val root = kakaoRoot() ?: return ""
+        val win = bounds(root)
+        val out = LinkedHashSet<String>()
+        walk(root) { n ->
+            if (n.isVisibleToUser) {
+                val l = label(n)
+                val b = bounds(n)
+                if (l.isNotEmpty() && l.length <= 12 && b.top - win.top < win.height() * 0.25) out += l + if (n.isSelected || n.isChecked) "[*]" else ""
+            }
+            out.size >= 10
+        }
+        return out.joinToString(",")
+    }
+
+    /** 떠 있는 버튼의 종류: 대화방(일반·오픈채팅)에선 🎤, 채팅·오픈채팅 목록에선 🔎(저장된 모든 대화에서 찾기), 그 밖에선 숨김 */
     private enum class BubbleKind { MIC, SEARCH }
     private var bubbleKind = BubbleKind.MIC
 
@@ -933,11 +964,15 @@ class KakaoAccessibilityService : AccessibilityService() {
         val show = (room || list) && packageName !in apps && Prefs(this).enabled
         if (show) { showBubble(if (room) BubbleKind.MIC else BubbleKind.SEARCH); avoidKeyboard() } else removeBubble()
         // 플레이판: 카톡을 떠날 때(홈·다른 앱) 그쪽 이벤트는 받지 않으므로, 버튼이 떠 있는 동안 1초마다 다시 확인
-        if (BuildConfig.STORE_SAFE && bubble != null) {
+        // 카톡 안에서 탭(채팅·오픈채팅·쇼핑 등)을 옮기면 창 바뀜 알림이 오지 않는 폰이 많아,
+        // 카톡이 앞에 있는 동안은 버튼이 숨어 있어도 1초마다 다시 봄 (카톡을 떠나면 멈춤)
+        if (kakao || (BuildConfig.STORE_SAFE && bubble != null)) {
             handler.removeCallbacks(refresh)
             handler.postDelayed(refresh, 1000)
         }
-        diag("앱 창 ${wins.size}개 [${apps.joinToString().ifBlank { "없음" }}] · 최근 앱 ${lastPkg.ifBlank { "-" }} · 카톡 ${if (kakao) "인식" else "못 찾음"} · 대화방 ${if (room) "예" else if (list) "목록" else "아니오"} · 버튼 ${if (bubble != null) "표시 중" else "숨김"}")
+        // 카톡 안인데 대화방·목록이 아니면, 위쪽에 보이는 이름들을 기록 (오픈채팅 목록을 못 알아볼 때 원인 확인용)
+        val topNames = if (kakao && !room && !list) topLabels() else ""
+        diag("${if (topNames.isNotEmpty()) "위쪽: $topNames · " else ""}앱 창 ${wins.size}개 [${apps.joinToString().ifBlank { "없음" }}] · 최근 앱 ${lastPkg.ifBlank { "-" }} · 카톡 ${if (kakao) "인식" else "못 찾음"} · 대화방 ${if (room) "예" else if (list) "목록" else "아니오"} · 버튼 ${if (bubble != null) "표시 중" else "숨김"}")
     }
 
     @SuppressLint("ClickableViewAccessibility")
