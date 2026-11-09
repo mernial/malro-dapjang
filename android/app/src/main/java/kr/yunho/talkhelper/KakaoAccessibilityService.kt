@@ -159,8 +159,7 @@ class KakaoAccessibilityService : AccessibilityService() {
      */
     private fun roomPane(root: AccessibilityNodeInfo): Rect {
         val win = bounds(root)
-        val input = walk(root) { it.isEditable && it.isVisibleToUser && bounds(it).centerY() > win.top + win.height() / 2 }
-            ?: return win
+        val input = chatInput(root) ?: return win
         val ib = bounds(input)
         // 입력 칸 왼쪽 '+' 버튼과 오른쪽 이모티콘·# 버튼까지 대화방으로 침
         val l = maxOf(win.left, ib.left - Ui.dp(this, 90))
@@ -825,8 +824,26 @@ class KakaoAccessibilityService : AccessibilityService() {
     /** 지금 카톡 화면이 대화방인지: 화면 아래 절반에 보이는 글 입력 칸이 있으면 대화방 (위쪽 검색 칸은 치지 않음) */
     private fun inChatRoom(): Boolean {
         val root = kakaoRoot() ?: return false
+        return chatInput(root) != null
+    }
+
+    /** 화면에 떠 있는 키보드의 윗선 (없으면 null) */
+    private fun keyboardTop(): Int? = runCatching {
+        windows.filter { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+            .map { Rect().also { r -> it.getBoundsInScreen(r) } }
+            .filter { it.height() > 0 }
+            .minOfOrNull { it.top }
+    }.getOrNull()
+
+    /**
+     * 대화방 아래쪽 메시지 입력 칸. 키보드가 올라오면 카톡이 화면 전체 크기 그대로 입력 칸만 키보드 위로 올리는 폰이 있어
+     * (큰 키보드면 입력 칸이 화면 가운데보다 위로 감), 키보드 위쪽까지만 카톡 화면으로 보고 그 아래 절반에서 찾음
+     */
+    private fun chatInput(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         val win = bounds(root)
-        return walk(root) { it.isEditable && it.isVisibleToUser && bounds(it).centerY() > win.top + win.height() / 2 } != null
+        val bottom = keyboardTop()?.takeIf { it > win.top + win.height() / 4 && it < win.bottom }?.let { minOf(it, win.bottom) } ?: win.bottom
+        val mid = win.top + (bottom - win.top) / 2
+        return walk(root) { it.isEditable && it.isVisibleToUser && bounds(it).centerY() > mid }
     }
 
     /** 지금 카톡 화면이 대화방 목록('채팅' 탭)인지: 맨 위 제목이 '채팅'. (대화방 안이 아닐 때만 봄) */
@@ -871,7 +888,7 @@ class KakaoAccessibilityService : AccessibilityService() {
             handler.postDelayed(leftRoomCheck, 700)
         }
         val show = (room || list) && packageName !in apps && Prefs(this).enabled
-        if (show) showBubble(if (room) BubbleKind.MIC else BubbleKind.SEARCH) else removeBubble()
+        if (show) { showBubble(if (room) BubbleKind.MIC else BubbleKind.SEARCH); avoidKeyboard() } else removeBubble()
         // 플레이판: 카톡을 떠날 때(홈·다른 앱) 그쪽 이벤트는 받지 않으므로, 버튼이 떠 있는 동안 1초마다 다시 확인
         if (BuildConfig.STORE_SAFE && bubble != null) {
             handler.removeCallbacks(refresh)
@@ -966,6 +983,22 @@ class KakaoAccessibilityService : AccessibilityService() {
         }
         runCatching { wm.addView(v, lp); bubble = v; bubbleParams = lp }
             .onFailure { diag("버튼 그리기 실패: ${it.javaClass.simpleName} ${it.message}") }
+    }
+
+    /** 키보드가 올라와 버튼 자리를 덮으면 키보드 바로 위로 잠깐 옮김 (키보드가 내려가면 원래 자리로). 자리는 저장하지 않음 */
+    private fun avoidKeyboard() {
+        val v = bubble ?: return
+        val lp = bubbleParams ?: return
+        val size = lp.height
+        val (_, sh) = screenSize()
+        val saved = Prefs(this).bubbleY.takeIf { it >= 0 } ?: (sh * 0.55).toInt()
+        val kb = keyboardTop()
+        val want = if (kb != null && kb < sh && saved + size > kb - Ui.dp(this, 8)) maxOf(0, kb - size - Ui.dp(this, 12))
+            else saved.coerceIn(0, maxOf(0, sh - size))
+        if (lp.y != want) {
+            lp.y = want
+            runCatching { wm.updateViewLayout(v, lp) }
+        }
     }
 
     /** 지금 화면의 가로·세로 픽셀 */
