@@ -916,16 +916,20 @@ class KakaoAccessibilityService : AccessibilityService() {
         return (chat && !unread) || (open && !otherChip && !unread)
     }
 
-    /** 카톡 화면 위쪽에 보이는 이름들 (골라진 것은 [*]) — 진단용 */
+    /**
+     * 카톡 화면 위쪽에 보이는 탭·칩 이름들 (골라진 것은 [*]) — 진단용.
+     * 대화 글이 섞이지 않게 정해 둔 카톡 메뉴 이름만 적음
+     */
     private fun topLabels(): String {
         val root = kakaoRoot() ?: return ""
         val win = bounds(root)
+        val known = setOf("채팅", "오픈채팅", "오픈 채팅", "지금", "숏폼", "전체", "안읽음", "안 읽음", "통화", "친구", "쇼핑", "더보기", "뷰", "Chats", "OpenChat")
         val out = LinkedHashSet<String>()
         walk(root) { n ->
             if (n.isVisibleToUser) {
-                val l = label(n)
+                val l = label(n).removeSuffix(" 탭").trim()
                 val b = bounds(n)
-                if (l.isNotEmpty() && l.length <= 12 && b.top - win.top < win.height() * 0.25) out += l + if (n.isSelected || n.isChecked) "[*]" else ""
+                if (l in known && b.top - win.top < win.height() * 0.25) out += l + if (n.isSelected || n.isChecked) "[*]" else ""
             }
             out.size >= 10
         }
