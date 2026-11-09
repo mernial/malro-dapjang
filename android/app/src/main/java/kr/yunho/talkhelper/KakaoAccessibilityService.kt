@@ -283,6 +283,28 @@ class KakaoAccessibilityService : AccessibilityService() {
 
     // ───────── 플레이판: 직접 내보낼 때 화면 위에 남는 순서 안내 (카톡을 대신 누르지 않음) ─────────
     private var guide: View? = null
+    private var guideTitleView: TextView? = null
+    private var guideTitles: Pair<String, String>? = null
+    private var guideBody: View? = null
+    private var guideHint: View? = null
+    private var guideFold: TextView? = null
+    private var guideCompact = false
+
+    /**
+     * '찾을 말 넣기' 안내: 대화방 밖(목록·다른 탭)에서는 작은 한 줄로 접고, 대화방에 들어가면 다시 펼침.
+     * 접힌 동안에도 ✕ 로 닫을 수 있음
+     */
+    private fun setGuideCompact(compact: Boolean) {
+        if (guide == null || compact == guideCompact) return
+        guideCompact = compact
+        val (full, short) = guideTitles ?: return
+        guideTitleView?.let { it.text = if (compact) short else full; Ui.iconize(it) }
+        guideBody?.visibility = if (compact) View.GONE else View.VISIBLE
+        guideHint?.visibility = if (compact) View.GONE else View.VISIBLE
+        guideFold?.visibility = if (compact) View.GONE else View.VISIBLE
+        guide?.post { avoidKeyboard() }
+    }
+
     /** 지금 떠 있는 안내 띠가 '찾을 말 넣기' 안내인지 (카톡을 떠나면 닫음. 내보내기 안내는 공유 창에서도 남겨 둠) */
     private var guideIsSearch = false
     private val guideTimeout = Runnable { hideExportGuide() }
@@ -305,7 +327,7 @@ class KakaoAccessibilityService : AccessibilityService() {
      * 반투명한 작은 안내 띠. 손가락으로 위아래로 끌어 옮길 수 있고, '접기'로 작은 단추만 남길 수 있음.
      * 카톡을 대신 누르지 않음 (안내만)
      */
-    private fun showGuide(title: String, body: CharSequence, search: Boolean = false) {
+    private fun showGuide(title: String, body: CharSequence, search: Boolean = false, shortTitle: String? = null) {
         hideExportGuide()
         guideIsSearch = search
         val ctx = this
@@ -321,6 +343,8 @@ class KakaoAccessibilityService : AccessibilityService() {
             gravity = Gravity.CENTER_VERTICAL
         }
         head.addView(TextView(ctx).apply {
+            guideTitleView = this
+            guideTitles = title to (shortTitle ?: title)
             text = title
             setTextColor(Ui.YELLOW)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
@@ -344,6 +368,7 @@ class KakaoAccessibilityService : AccessibilityService() {
             setPadding(0, Ui.dp(ctx, 6), Ui.dp(ctx, 6), 0)
         }
         val fold = chip("접기") {}
+        guideFold = fold
         fold.setOnClickListener {
             val show = bodyView.visibility != View.VISIBLE
             bodyView.visibility = if (show) View.VISIBLE else View.GONE
@@ -354,7 +379,9 @@ class KakaoAccessibilityService : AccessibilityService() {
             android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginStart = Ui.dp(ctx, 6) })
         box.addView(head)
         box.addView(bodyView)
+        guideBody = bodyView
         box.addView(TextView(ctx).apply {
+            guideHint = this
             text = "끌어서 옮길 수 있어요"
             setTextColor(android.graphics.Color.argb(150, 255, 255, 255))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
@@ -405,7 +432,8 @@ class KakaoAccessibilityService : AccessibilityService() {
         handler.removeCallbacks(searchPoll)
         handler.postDelayed(searchPoll, 500)
         val title = if (room != null) "🔍 '$room' 방에 들어가 오른쪽 위 돋보기를 누르세요" else "🔍 대화방 오른쪽 위 돋보기를 누르세요"
-        showGuide(title, "검색 칸이 열리면 '$word'를 넣어 드려요.\n그다음 키보드의 검색(🔍)을 눌러 주세요.", search = true)
+        showGuide(title, "검색 칸이 열리면 '$word'를 넣어 드려요.\n그다음 키보드의 검색(🔍)을 눌러 주세요.", search = true,
+            shortTitle = "🔍 '$word' 찾기" + (room?.let { " · '$it' 방에서" } ?: ""))
     }
 
     /** 카톡 화면이 바뀔 때마다: 위쪽에 새로 열린 빈 글 칸(대화방 검색 칸)이 있으면 찾을 말을 넣음 */
@@ -437,6 +465,8 @@ class KakaoAccessibilityService : AccessibilityService() {
 
     fun hideExportGuide() {
         guideIsSearch = false
+        guideCompact = false
+        guideTitleView = null; guideBody = null; guideHint = null; guideFold = null; guideTitles = null
         handler.removeCallbacks(guideTimeout)
         val had = guide != null
         guide?.let { runCatching { wm.removeView(it) } }
@@ -895,6 +925,11 @@ class KakaoAccessibilityService : AccessibilityService() {
         }
         // '찾을 말 넣기' 안내는 카톡을 떠나면 닫음 (다른 앱·홈 화면에 남지 않게)
         if (!kakao && guideIsSearch) { pendingSearch = null; hideExportGuide() }
+        // 카톡 안: 대화방에서는 펼치고, 채팅 목록에서는 한 줄로 접고, 오픈채팅·쇼핑·더보기 같은 다른 화면에서는 숨김
+        if (kakao && guideIsSearch) {
+            setGuideCompact(!room)
+            guide?.visibility = if (room || list) View.VISIBLE else View.GONE
+        }
         val show = (room || list) && packageName !in apps && Prefs(this).enabled
         if (show) { showBubble(if (room) BubbleKind.MIC else BubbleKind.SEARCH); avoidKeyboard() } else removeBubble()
         // 플레이판: 카톡을 떠날 때(홈·다른 앱) 그쪽 이벤트는 받지 않으므로, 버튼이 떠 있는 동안 1초마다 다시 확인
