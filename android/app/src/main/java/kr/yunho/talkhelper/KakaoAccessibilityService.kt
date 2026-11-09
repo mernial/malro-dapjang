@@ -88,7 +88,7 @@ class KakaoAccessibilityService : AccessibilityService() {
             if (!ignore) lastPkg = pkg
         }
         handler.removeCallbacks(refresh)
-        handler.postDelayed(refresh, 250)
+        handler.postDelayed(refresh, 120)
         if (pendingSearch != null && event?.packageName == KAKAO) {
             handler.removeCallbacks(fillSearch)
             handler.postDelayed(fillSearch, 300)
@@ -970,11 +970,13 @@ class KakaoAccessibilityService : AccessibilityService() {
         // 카톡이 앞에 있는 동안은 버튼이 숨어 있어도 1초마다 다시 봄 (카톡을 떠나면 멈춤)
         if (kakao || (BuildConfig.STORE_SAFE && bubble != null)) {
             handler.removeCallbacks(refresh)
-            handler.postDelayed(refresh, 1000)
+            handler.postDelayed(refresh, 600)
         }
         // 카톡 안인데 대화방·목록이 아니면, 위쪽에 보이는 이름들을 기록 (오픈채팅 목록을 못 알아볼 때 원인 확인용)
         val topNames = if (kakao && !room && !list) topLabels() else ""
-        diag("${if (topNames.isNotEmpty()) "위쪽: $topNames · " else ""}앱 창 ${wins.size}개 [${apps.joinToString().ifBlank { "없음" }}] · 최근 앱 ${lastPkg.ifBlank { "-" }} · 카톡 ${if (kakao) "인식" else "못 찾음"} · 대화방 ${if (room) "예" else if (list) "목록" else "아니오"} · 버튼 ${if (bubble != null) "표시 중" else "숨김"}")
+        // 대화방으로 본 까닭 (목록인데 🎤가 뜰 때 원인 확인용): 카톡 창 크기와 입력 칸 자리
+        val why = if (room) kakaoRoot()?.let { r -> val w = bounds(r); chatInput(r)?.let { i -> val b = bounds(i); "창 ${w.width()}x${w.height()} 입력칸 ${b.left}~${b.right},${b.top} · " } }.orEmpty() else ""
+        diag("$why${if (topNames.isNotEmpty()) "위쪽: $topNames · " else ""}앱 창 ${wins.size}개 [${apps.joinToString().ifBlank { "없음" }}] · 최근 앱 ${lastPkg.ifBlank { "-" }} · 카톡 ${if (kakao) "인식" else "못 찾음"} · 대화방 ${if (room) "예" else if (list) "목록" else "아니오"} · 버튼 ${if (bubble != null) "표시 중" else "숨김"}")
     }
 
     @SuppressLint("ClickableViewAccessibility")
