@@ -1133,7 +1133,9 @@ class KakaoAccessibilityService : AccessibilityService() {
         val size = Ui.dp(this, 52)
         val margin = Ui.dp(this, 14)
         val x = area.right - size - margin
-        val y = area.top + (area.height() * 0.72).toInt()
+        // 목록 칸 아래쪽에 두되, 키보드가 올라와 있으면 키보드 바로 위로 (키보드 자판을 가리지 않게)
+        val kb = keyboardTop()?.takeIf { it < area.bottom }
+        val y = minOf(area.top + (area.height() * 0.72).toInt(), (kb ?: area.bottom) - size - margin).coerceAtLeast(area.top)
         sideSearch?.let { v ->
             val lp = v.layoutParams as WindowManager.LayoutParams
             if (lp.x != x || lp.y != y) { lp.x = x; lp.y = y; runCatching { wm.updateViewLayout(v, lp) } }
