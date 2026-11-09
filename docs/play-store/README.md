@@ -143,7 +143,7 @@ Play Console → 앱 콘텐츠 → **민감한 권한 및 API** → 접근성 AP
 ```
 The app helps users who have difficulty typing (e.g., elderly users) reply in KakaoTalk by voice.
 The AccessibilityService is used only for these user-initiated purposes:
-(1) to show the app's floating button while KakaoTalk is in the foreground (window changes are observed only to show/hide the button:
+(1) to show the app's floating button while KakaoTalk is in the foreground (window changes, taps inside KakaoTalk and the layout of the screen — position of the input box and tab names, not message text — are observed only to show/hide the button:
     a microphone button inside a chat room, and a search button on the chat-list tab),
 (2) when the user taps the microphone button, to read the text currently visible on the KakaoTalk chat screen so the reply fits the conversation,
 (3) after the user dictates a reply and it is shown to them, to type it into the KakaoTalk input box and press its send button.

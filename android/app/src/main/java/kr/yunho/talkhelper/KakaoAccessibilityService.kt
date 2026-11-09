@@ -88,7 +88,7 @@ class KakaoAccessibilityService : AccessibilityService() {
             if (!ignore) lastPkg = pkg
         }
         handler.removeCallbacks(refresh)
-        handler.postDelayed(refresh, 250)
+        handler.postDelayed(refresh, 60)
         if (pendingSearch != null && event?.packageName == KAKAO) {
             handler.removeCallbacks(fillSearch)
             handler.postDelayed(fillSearch, 300)
@@ -885,7 +885,7 @@ class KakaoAccessibilityService : AccessibilityService() {
     /** 지금 카톡 화면이 대화방 목록('채팅' 탭)인지: 맨 위 제목이 '채팅'. (대화방 안이 아닐 때만 봄) */
     /**
      * 지금 카톡 화면이 대화방 목록인지 (대화방 안이 아닐 때만 봄):
-     *  - '채팅' 탭: 위쪽 '채팅' 제목(글자·설명 어느 쪽이든) 또는 아래 탭 줄의 골라진 '채팅' 탭
+     *  - '채팅' 탭: 위쪽 '채팅' 제목(글자·설명 어느 쪽이든) 또는 아래 탭 줄의 골라진 '채팅' 탭 ('안읽음' 칩을 골랐으면 아님)
      *  - 오픈채팅 목록: 위쪽에 '오픈채팅'(제목이나 '지금' 탭의 골라진 칩)이 있고, '숏폼' 등 다른 칩이 골라져 있지 않음
      * 친구·쇼핑·더보기 같은 다른 탭에서는 false → 버튼을 숨김
      */
@@ -894,7 +894,7 @@ class KakaoAccessibilityService : AccessibilityService() {
         val win = bounds(root)
         val chatNames = setOf("채팅", "Chats", "채팅 목록", "채팅 탭")
         val openNames = setOf("오픈채팅", "OpenChat", "오픈 채팅")
-        var chat = false; var open = false; var otherChip = false
+        var chat = false; var open = false; var otherChip = false; var unread = false
         walk(root) { n ->
             if (!n.isVisibleToUser) return@walk false
             val l = label(n).removeSuffix(" 탭").trim()
@@ -908,22 +908,28 @@ class KakaoAccessibilityService : AccessibilityService() {
                 l in openNames && top -> open = true
                 // '지금' 탭에서 오픈채팅이 아닌 다른 칩(숏폼 등)을 골랐으면 오픈채팅 목록이 아님
                 top && picked && (l == "숏폼" || l.contains("Shorts", ignoreCase = true)) -> otherChip = true
+                // 채팅 탭의 '안읽음' 칩을 골랐으면 버튼을 띄우지 않음 (사용자 요청)
+                top && picked && (l.startsWith("안읽음") || l.startsWith("안 읽음") || l.equals("Unread", ignoreCase = true)) -> unread = true
             }
             false
         }
-        return chat || (open && !otherChip)
+        return (chat && !unread) || (open && !otherChip && !unread)
     }
 
-    /** 카톡 화면 위쪽에 보이는 이름들 (골라진 것은 [*]) — 진단용 */
+    /**
+     * 카톡 화면 위쪽에 보이는 탭·칩 이름들 (골라진 것은 [*]) — 진단용.
+     * 대화 글이 섞이지 않게 정해 둔 카톡 메뉴 이름만 적음
+     */
     private fun topLabels(): String {
         val root = kakaoRoot() ?: return ""
         val win = bounds(root)
+        val known = setOf("채팅", "오픈채팅", "오픈 채팅", "지금", "숏폼", "전체", "안읽음", "안 읽음", "통화", "친구", "쇼핑", "더보기", "뷰", "Chats", "OpenChat")
         val out = LinkedHashSet<String>()
         walk(root) { n ->
             if (n.isVisibleToUser) {
-                val l = label(n)
+                val l = label(n).removeSuffix(" 탭").trim()
                 val b = bounds(n)
-                if (l.isNotEmpty() && l.length <= 12 && b.top - win.top < win.height() * 0.25) out += l + if (n.isSelected || n.isChecked) "[*]" else ""
+                if (l in known && b.top - win.top < win.height() * 0.25) out += l + if (n.isSelected || n.isChecked) "[*]" else ""
             }
             out.size >= 10
         }
@@ -963,16 +969,21 @@ class KakaoAccessibilityService : AccessibilityService() {
         }
         val show = (room || list) && packageName !in apps && Prefs(this).enabled
         if (show) { showBubble(if (room) BubbleKind.MIC else BubbleKind.SEARCH); avoidKeyboard() } else removeBubble()
+        // 폴드를 펼쳐 왼쪽 목록·오른쪽 대화방이 함께 보이면: 오른쪽엔 🎤, 왼쪽 목록 쪽엔 작은 🔍 를 하나 더
+        val splitList = if (show && room) splitListArea() else null
+        if (splitList != null) showSideSearch(splitList) else removeSideSearch()
         // 플레이판: 카톡을 떠날 때(홈·다른 앱) 그쪽 이벤트는 받지 않으므로, 버튼이 떠 있는 동안 1초마다 다시 확인
         // 카톡 안에서 탭(채팅·오픈채팅·쇼핑 등)을 옮기면 창 바뀜 알림이 오지 않는 폰이 많아,
         // 카톡이 앞에 있는 동안은 버튼이 숨어 있어도 1초마다 다시 봄 (카톡을 떠나면 멈춤)
         if (kakao || (BuildConfig.STORE_SAFE && bubble != null)) {
             handler.removeCallbacks(refresh)
-            handler.postDelayed(refresh, 1000)
+            handler.postDelayed(refresh, 400)
         }
         // 카톡 안인데 대화방·목록이 아니면, 위쪽에 보이는 이름들을 기록 (오픈채팅 목록을 못 알아볼 때 원인 확인용)
         val topNames = if (kakao && !room && !list) topLabels() else ""
-        diag("${if (topNames.isNotEmpty()) "위쪽: $topNames · " else ""}앱 창 ${wins.size}개 [${apps.joinToString().ifBlank { "없음" }}] · 최근 앱 ${lastPkg.ifBlank { "-" }} · 카톡 ${if (kakao) "인식" else "못 찾음"} · 대화방 ${if (room) "예" else if (list) "목록" else "아니오"} · 버튼 ${if (bubble != null) "표시 중" else "숨김"}")
+        // 대화방으로 본 까닭 (목록인데 🎤가 뜰 때 원인 확인용): 카톡 창 크기와 입력 칸 자리
+        val why = if (room) kakaoRoot()?.let { r -> val w = bounds(r); chatInput(r)?.let { i -> val b = bounds(i); "창 ${w.width()}x${w.height()} 입력칸 ${b.left}~${b.right},${b.top} · " } }.orEmpty() else ""
+        diag("$why${if (topNames.isNotEmpty()) "위쪽: $topNames · " else ""}앱 창 ${wins.size}개 [${apps.joinToString().ifBlank { "없음" }}] · 최근 앱 ${lastPkg.ifBlank { "-" }} · 카톡 ${if (kakao) "인식" else "못 찾음"} · 대화방 ${if (room) "예" else if (list) "목록" else "아니오"} · 버튼 ${if (bubble != null) "표시 중" else "숨김"}")
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -1104,7 +1115,54 @@ class KakaoAccessibilityService : AccessibilityService() {
         }
     }
 
+    // ───────── 폴드 펼침(목록+대화방 한 화면): 왼쪽 목록 쪽 작은 🔍 ─────────
+    private var sideSearch: View? = null
+
+    /** 화면이 목록|대화방으로 나뉘어 있고 왼쪽이 채팅·오픈채팅 목록이면 그 목록 칸 (아니면 null) */
+    private fun splitListArea(): Rect? {
+        val root = kakaoRoot() ?: return null
+        val win = bounds(root)
+        val pane = roomPane(root)
+        if (pane.width() > win.width() * 0.85 || pane.left - win.left < win.width() * 0.25) return null
+        if (!inChatList()) return null
+        return Rect(win.left, win.top, pane.left, win.bottom)
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun showSideSearch(area: Rect) {
+        val size = Ui.dp(this, 52)
+        val margin = Ui.dp(this, 14)
+        val x = area.right - size - margin
+        val y = area.top + (area.height() * 0.72).toInt()
+        sideSearch?.let { v ->
+            val lp = v.layoutParams as WindowManager.LayoutParams
+            if (lp.x != x || lp.y != y) { lp.x = x; lp.y = y; runCatching { wm.updateViewLayout(v, lp) } }
+            return
+        }
+        val v = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_search)
+            imageTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
+            scaleType = android.widget.ImageView.ScaleType.CENTER
+            background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(CHARCOAL_TOP, CHARCOAL_BOTTOM),
+            ).apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setStroke(Ui.dp(this@KakaoAccessibilityService, 2), GOLD) }
+            elevation = Ui.dp(this@KakaoAccessibilityService, 8).toFloat()
+            contentDescription = "저장된 모든 대화에서 찾기"
+            setOnClickListener { openHelper(ask = true, all = true) }
+        }
+        val lp = WindowManager.LayoutParams(size, size, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, PixelFormat.TRANSLUCENT,
+        ).apply { gravity = Gravity.TOP or Gravity.START; this.x = x; this.y = y }
+        runCatching { wm.addView(v, lp); sideSearch = v }
+    }
+
+    private fun removeSideSearch() {
+        sideSearch?.let { runCatching { wm.removeView(it) } }
+        sideSearch = null
+    }
+
     private fun removeBubble() {
+        removeSideSearch()
         closeMenu()
         bubble?.let { runCatching { wm.removeView(it) } }
         bubble = null
