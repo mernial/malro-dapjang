@@ -914,6 +914,22 @@ class KakaoAccessibilityService : AccessibilityService() {
         return chat || (open && !otherChip)
     }
 
+    /** 카톡 화면 위쪽에 보이는 이름들 (골라진 것은 [*]) — 진단용 */
+    private fun topLabels(): String {
+        val root = kakaoRoot() ?: return ""
+        val win = bounds(root)
+        val out = LinkedHashSet<String>()
+        walk(root) { n ->
+            if (n.isVisibleToUser) {
+                val l = label(n)
+                val b = bounds(n)
+                if (l.isNotEmpty() && l.length <= 12 && b.top - win.top < win.height() * 0.25) out += l + if (n.isSelected || n.isChecked) "[*]" else ""
+            }
+            out.size >= 10
+        }
+        return out.joinToString(",")
+    }
+
     /** 떠 있는 버튼의 종류: 대화방(일반·오픈채팅)에선 🎤, 채팅·오픈채팅 목록에선 🔎(저장된 모든 대화에서 찾기), 그 밖에선 숨김 */
     private enum class BubbleKind { MIC, SEARCH }
     private var bubbleKind = BubbleKind.MIC
@@ -948,11 +964,15 @@ class KakaoAccessibilityService : AccessibilityService() {
         val show = (room || list) && packageName !in apps && Prefs(this).enabled
         if (show) { showBubble(if (room) BubbleKind.MIC else BubbleKind.SEARCH); avoidKeyboard() } else removeBubble()
         // 플레이판: 카톡을 떠날 때(홈·다른 앱) 그쪽 이벤트는 받지 않으므로, 버튼이 떠 있는 동안 1초마다 다시 확인
-        if (BuildConfig.STORE_SAFE && bubble != null) {
+        // 카톡 안에서 탭(채팅·오픈채팅·쇼핑 등)을 옮기면 창 바뀜 알림이 오지 않는 폰이 많아,
+        // 카톡이 앞에 있는 동안은 버튼이 숨어 있어도 1초마다 다시 봄 (카톡을 떠나면 멈춤)
+        if (kakao || (BuildConfig.STORE_SAFE && bubble != null)) {
             handler.removeCallbacks(refresh)
             handler.postDelayed(refresh, 1000)
         }
-        diag("앱 창 ${wins.size}개 [${apps.joinToString().ifBlank { "없음" }}] · 최근 앱 ${lastPkg.ifBlank { "-" }} · 카톡 ${if (kakao) "인식" else "못 찾음"} · 대화방 ${if (room) "예" else if (list) "목록" else "아니오"} · 버튼 ${if (bubble != null) "표시 중" else "숨김"}")
+        // 카톡 안인데 대화방·목록이 아니면, 위쪽에 보이는 이름들을 기록 (오픈채팅 목록을 못 알아볼 때 원인 확인용)
+        val topNames = if (kakao && !room && !list) topLabels() else ""
+        diag("${if (topNames.isNotEmpty()) "위쪽: $topNames · " else ""}앱 창 ${wins.size}개 [${apps.joinToString().ifBlank { "없음" }}] · 최근 앱 ${lastPkg.ifBlank { "-" }} · 카톡 ${if (kakao) "인식" else "못 찾음"} · 대화방 ${if (room) "예" else if (list) "목록" else "아니오"} · 버튼 ${if (bubble != null) "표시 중" else "숨김"}")
     }
 
     @SuppressLint("ClickableViewAccessibility")
