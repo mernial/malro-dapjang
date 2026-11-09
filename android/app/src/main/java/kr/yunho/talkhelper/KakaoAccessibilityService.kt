@@ -965,6 +965,9 @@ class KakaoAccessibilityService : AccessibilityService() {
         }
         val show = (room || list) && packageName !in apps && Prefs(this).enabled
         if (show) { showBubble(if (room) BubbleKind.MIC else BubbleKind.SEARCH); avoidKeyboard() } else removeBubble()
+        // 폴드를 펼쳐 왼쪽 목록·오른쪽 대화방이 함께 보이면: 오른쪽엔 🎤, 왼쪽 목록 쪽엔 작은 🔍 를 하나 더
+        val splitList = if (show && room) splitListArea() else null
+        if (splitList != null) showSideSearch(splitList) else removeSideSearch()
         // 플레이판: 카톡을 떠날 때(홈·다른 앱) 그쪽 이벤트는 받지 않으므로, 버튼이 떠 있는 동안 1초마다 다시 확인
         // 카톡 안에서 탭(채팅·오픈채팅·쇼핑 등)을 옮기면 창 바뀜 알림이 오지 않는 폰이 많아,
         // 카톡이 앞에 있는 동안은 버튼이 숨어 있어도 1초마다 다시 봄 (카톡을 떠나면 멈춤)
@@ -1108,7 +1111,54 @@ class KakaoAccessibilityService : AccessibilityService() {
         }
     }
 
+    // ───────── 폴드 펼침(목록+대화방 한 화면): 왼쪽 목록 쪽 작은 🔍 ─────────
+    private var sideSearch: View? = null
+
+    /** 화면이 목록|대화방으로 나뉘어 있고 왼쪽이 채팅·오픈채팅 목록이면 그 목록 칸 (아니면 null) */
+    private fun splitListArea(): Rect? {
+        val root = kakaoRoot() ?: return null
+        val win = bounds(root)
+        val pane = roomPane(root)
+        if (pane.width() > win.width() * 0.85 || pane.left - win.left < win.width() * 0.25) return null
+        if (!inChatList()) return null
+        return Rect(win.left, win.top, pane.left, win.bottom)
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun showSideSearch(area: Rect) {
+        val size = Ui.dp(this, 52)
+        val margin = Ui.dp(this, 14)
+        val x = area.right - size - margin
+        val y = area.top + (area.height() * 0.72).toInt()
+        sideSearch?.let { v ->
+            val lp = v.layoutParams as WindowManager.LayoutParams
+            if (lp.x != x || lp.y != y) { lp.x = x; lp.y = y; runCatching { wm.updateViewLayout(v, lp) } }
+            return
+        }
+        val v = android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_search)
+            imageTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
+            scaleType = android.widget.ImageView.ScaleType.CENTER
+            background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(CHARCOAL_TOP, CHARCOAL_BOTTOM),
+            ).apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setStroke(Ui.dp(this@KakaoAccessibilityService, 2), GOLD) }
+            elevation = Ui.dp(this@KakaoAccessibilityService, 8).toFloat()
+            contentDescription = "저장된 모든 대화에서 찾기"
+            setOnClickListener { openHelper(ask = true, all = true) }
+        }
+        val lp = WindowManager.LayoutParams(size, size, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, PixelFormat.TRANSLUCENT,
+        ).apply { gravity = Gravity.TOP or Gravity.START; this.x = x; this.y = y }
+        runCatching { wm.addView(v, lp); sideSearch = v }
+    }
+
+    private fun removeSideSearch() {
+        sideSearch?.let { runCatching { wm.removeView(it) } }
+        sideSearch = null
+    }
+
     private fun removeBubble() {
+        removeSideSearch()
         closeMenu()
         bubble?.let { runCatching { wm.removeView(it) } }
         bubble = null
