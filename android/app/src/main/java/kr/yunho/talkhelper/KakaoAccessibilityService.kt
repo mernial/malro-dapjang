@@ -885,7 +885,7 @@ class KakaoAccessibilityService : AccessibilityService() {
     /** 지금 카톡 화면이 대화방 목록('채팅' 탭)인지: 맨 위 제목이 '채팅'. (대화방 안이 아닐 때만 봄) */
     /**
      * 지금 카톡 화면이 대화방 목록인지 (대화방 안이 아닐 때만 봄):
-     *  - '채팅' 탭: 위쪽 '채팅' 제목(글자·설명 어느 쪽이든) 또는 아래 탭 줄의 골라진 '채팅' 탭
+     *  - '채팅' 탭: 위쪽 '채팅' 제목(글자·설명 어느 쪽이든) 또는 아래 탭 줄의 골라진 '채팅' 탭 ('안읽음' 칩을 골랐으면 아님)
      *  - 오픈채팅 목록: 위쪽에 '오픈채팅'(제목이나 '지금' 탭의 골라진 칩)이 있고, '숏폼' 등 다른 칩이 골라져 있지 않음
      * 친구·쇼핑·더보기 같은 다른 탭에서는 false → 버튼을 숨김
      */
@@ -894,7 +894,7 @@ class KakaoAccessibilityService : AccessibilityService() {
         val win = bounds(root)
         val chatNames = setOf("채팅", "Chats", "채팅 목록", "채팅 탭")
         val openNames = setOf("오픈채팅", "OpenChat", "오픈 채팅")
-        var chat = false; var open = false; var otherChip = false
+        var chat = false; var open = false; var otherChip = false; var unread = false
         walk(root) { n ->
             if (!n.isVisibleToUser) return@walk false
             val l = label(n).removeSuffix(" 탭").trim()
@@ -908,10 +908,12 @@ class KakaoAccessibilityService : AccessibilityService() {
                 l in openNames && top -> open = true
                 // '지금' 탭에서 오픈채팅이 아닌 다른 칩(숏폼 등)을 골랐으면 오픈채팅 목록이 아님
                 top && picked && (l == "숏폼" || l.contains("Shorts", ignoreCase = true)) -> otherChip = true
+                // 채팅 탭의 '안읽음' 칩을 골랐으면 버튼을 띄우지 않음 (사용자 요청)
+                top && picked && (l.startsWith("안읽음") || l.startsWith("안 읽음") || l.equals("Unread", ignoreCase = true)) -> unread = true
             }
             false
         }
-        return chat || (open && !otherChip)
+        return (chat && !unread) || (open && !otherChip && !unread)
     }
 
     /** 카톡 화면 위쪽에 보이는 이름들 (골라진 것은 [*]) — 진단용 */
