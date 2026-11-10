@@ -45,6 +45,13 @@ B=$(timeout 20 adb shell cat /sdcard/ui.xml | tr '>' '\n' | grep 'class="android
 echo "글 칸: $B"
 if [ -n "$B" ]; then set -- $B; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 3; fi
 timeout 30 adb exec-out screencap -p > shots/keyboard.png
+# 제스처 내비게이션(삼성 폰처럼 아래 막대만)에서도 아래 줄이 안 잘리는지
+timeout 20 adb shell cmd overlay enable com.android.internal.systemui.navbar.gestural; sleep 4
+adb shell input keyevent KEYCODE_BACK; sleep 1
+if [ -n "$B" ]; then set -- $B; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 3; fi
+timeout 30 adb exec-out screencap -p > shots/keyboard_gesture.png
+timeout 10 adb logcat -d -s talkhelper-kb | tail -4
+timeout 20 adb shell cmd overlay enable com.android.internal.systemui.navbar.threebutton; sleep 3
 adb shell input keyevent KEYCODE_BACK; sleep 1; adb shell input keyevent KEYCODE_BACK; sleep 1
 # 중계 서버로 다듬기·찾기 한 번씩 (코드 숨김 뒤에도 되는지)
 adb shell input keyevent KEYCODE_HOME; sleep 1

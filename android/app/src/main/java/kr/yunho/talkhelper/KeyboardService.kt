@@ -35,7 +35,7 @@ import kr.yunho.talkhelper.core.Mode
  *  - 🎤: 말하면 AI 가 고른 말투로 다듬어 **입력칸에 글자로 넣음**. 보내기는 사용자가 직접
  *  - 🔎: 카톡 '대화 내보내기'로 저장해 둔 대화에서 찾아 키보드 안에 답을 보여 줌
  * 다른 앱의 화면을 읽거나 버튼을 누르지 않음. 자판으로 친 글은 어디에도 보내지 않음.
- * 폴드처럼 넓은 화면(600dp 이상)에서는 두벌식을 양손 자판(가운데 비움)으로, 천지인은 가운데에 알맞은 폭으로.
+ * 자판 배열은 삼성 키보드와 같게 (넓은 폴드 화면에서도 가운데를 비우지 않음).
  * 폴드를 펴고 접으면 안드로이드가 자판을 새로 만들게 하므로 그때 크기를 다시 맞춤.
  */
 class KeyboardService : InputMethodService() {
@@ -92,11 +92,15 @@ class KeyboardService : InputMethodService() {
     private fun dp(v: Int) = Ui.dp(this, v)
     private val screenWdp get() = resources.configuration.screenWidthDp
     private val screenHdp get() = resources.configuration.screenHeightDp
-    /** 넓은 화면 (폴드 펼침·태블릿·가로) */
-    private val wide get() = screenWdp >= 600
     /** 키 높이: 화면 높이에 맞춰 (너무 작거나 크지 않게) */
     private val keyH get() = dp((screenHdp * 0.062f).toInt().coerceIn(42, 56))
     private val keyTextSp get() = if (screenHdp < 640) 18f else 21f
+
+    @SuppressLint("DiscouragedApi", "InternalInsetResource")
+    private fun sysDimen(name: String): Int = runCatching {
+        val id = resources.getIdentifier(name, "dimen", "android")
+        if (id != 0) resources.getDimensionPixelSize(id) else 0
+    }.getOrDefault(0)
 
     // ───────── 화면 만들기 ─────────
 
@@ -146,11 +150,22 @@ class KeyboardService : InputMethodService() {
         // 안드로이드 15+ 는 키보드도 내비게이션 막대 밑까지 그림 → 막대 높이만큼 띄움
         val base = r.paddingBottom
         r.setOnApplyWindowInsetsListener { v, insets ->
-            val bottom = if (android.os.Build.VERSION.SDK_INT >= 30)
-                insets.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom
-            else @Suppress("DEPRECATION") insets.systemWindowInsetBottom
+            val bottom = if (android.os.Build.VERSION.SDK_INT >= 30) {
+                val nav = insets.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom
+                // 제스처 막대만 있는 폰(삼성 등)은 막대 높이가 작게 알려져도, 그 자리에 '키보드 내리기 ∨' 줄(약 48dp)이 그려짐 → 그만큼 띄움
+                val imeBar = if (nav > 0) sysDimen("navigation_bar_frame_height") else 0
+                maxOf(nav, imeBar,
+                    insets.getInsets(android.view.WindowInsets.Type.tappableElement()).bottom,
+                    insets.getInsets(android.view.WindowInsets.Type.mandatorySystemGestures()).bottom)
+            } else @Suppress("DEPRECATION") insets.systemWindowInsetBottom
+            android.util.Log.i("talkhelper-kb", "bottom inset=$bottom")
             v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, base + bottom)
             insets
+        }
+        // 아래 내비게이션 막대를 어두운 띠 대신 키보드 바탕색으로
+        window.window?.let { w ->
+            if (android.os.Build.VERSION.SDK_INT >= 29) w.isNavigationBarContrastEnforced = false
+            @Suppress("DEPRECATION") w.navigationBarColor = KB_BG
         }
         paintTone()
         showKeys()
@@ -237,18 +252,6 @@ class KeyboardService : InputMethodService() {
         items.forEach { (v, w) -> addView(v, keyLp(w)) }
     }
 
-    /** 넓은 화면: 키 줄을 왼쪽·오른쪽 반으로 나눠 가운데를 비움 (폴드에서 양손 엄지로) */
-    private fun splitRow(left: List<Pair<View, Float>>, right: List<Pair<View, Float>>, half: Float): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        val lw = left.sumOf { it.second.toDouble() }.toFloat()
-        val rw = right.sumOf { it.second.toDouble() }.toFloat()
-        left.forEach { (v, w) -> addView(v, keyLp(w)) }
-        if (lw < half) addView(View(context), keyLp(half - lw))
-        addView(View(context), keyLp(half * 0.5f))   // 가운데 빈 곳
-        if (rw < half) addView(View(context), keyLp(half - rw))
-        right.forEach { (v, w) -> addView(v, keyLp(w)) }
-    }
-
     private fun column(rows: List<View>, maxWidthDp: Int? = null): View {
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         rows.forEach { col.addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)) }
@@ -276,25 +279,13 @@ class KeyboardService : InputMethodService() {
         val shiftKey = key(if (shift) "⬆" else "⇧", special = true) { shift = !shift; showKeys() } to 1.5f
         val back = key("⌫", special = true, repeat = true) { backspace() } to 1.5f
         val bottom = listOf(
-            key("!#1", special = true) { toSymbols() } to 1.3f,
-            key(if (ko) "영" else "한", special = true) { if (ko) toEnglish() else toKorean() } to 1.1f,
-            key("⌨", special = true) { otherKeyboard() } to 1f,
-            key(",", special = true) { commitPlain(",") } to 0.9f,
-            key("띄어쓰기") { commitPlain(" ") } to 3.6f,
-            key(".", special = true) { commitPlain(".") } to 0.9f,
-            key("↵", special = true) { enter() } to 1.6f,
+            key("!#1", special = true) { toSymbols() } to 1.5f,
+            key("한/영", special = true) { if (ko) toEnglish() else toKorean() } to 1.2f,
+            key(",", special = true) { commitPlain(",") } to 1f,
+            key("띄어쓰기") { commitPlain(" ") } to 4.1f,
+            key(".", special = true) { commitPlain(".") } to 1f,
+            key("↵", special = true) { enter() } to 1.7f,
         )
-        if (wide) {
-            // 폴드 펼침: 양손 자판 (글자 키는 반씩 나누고, 맨 아래 줄은 가운데 넓게)
-            val h1 = r1.size / 2; val h2 = (r2.size + 1) / 2; val h3 = r3.size / 2
-            val half = 5.5f
-            return column(listOf(
-                splitRow(r1.take(h1), r1.drop(h1), half),
-                splitRow(listOf(gap(0.5f)) + r2.take(h2), r2.drop(h2), half),
-                splitRow(listOf(shiftKey) + r3.take(h3), r3.drop(h3) + listOf(back), half),
-                row(bottom),
-            ))
-        }
         return column(listOf(
             row(r1),
             row(listOf(gap(0.5f)) + r2 + listOf(gap(0.5f))),
@@ -308,18 +299,18 @@ class KeyboardService : InputMethodService() {
         fun v(label: String, k: Char) = key(label) { lastCjiKey = null; hangul.cjiVowel(k); render() } to 1f
         fun c(label: String, cycle: String) = key(label) { cjiConsonant(label, cycle) } to 1f
         val rows = listOf(
-            row(listOf(v("ㅣ", 'I'), v("ㆍ", 'D'), v("ㅡ", 'E'), key("⌫", special = true, repeat = true) { backspace() } to 1f)),
+            row(listOf(v("ㅣ", 'I'), v("•", 'D'), v("ㅡ", 'E'), key("⌫", special = true, repeat = true) { backspace() } to 1f)),
             row(listOf(c("ㄱㅋ", "ㄱㅋㄲ"), c("ㄴㄹ", "ㄴㄹ"), c("ㄷㅌ", "ㄷㅌㄸ"), key("↵", special = true) { enter() } to 1f)),
-            row(listOf(c("ㅂㅍ", "ㅂㅍㅃ"), c("ㅅㅎ", "ㅅㅎㅆ"), c("ㅈㅊ", "ㅈㅊㅉ"), key(".,?!", special = true) { cyclePunct() } to 1f)),
+            row(listOf(c("ㅂㅍ", "ㅂㅍㅃ"), c("ㅅㅎ", "ㅅㅎㅆ"), c("ㅈㅊ", "ㅈㅊㅉ"), key("!#1", special = true) { toSymbols() } to 1f)),
+            // 휴대폰 숫자판처럼: ㅇㅁ 은 가운데(0 자리), 왼쪽 문장부호, 오른쪽 띄어쓰기
             row(listOf(
-                key("!#1", special = true) { toSymbols() } to 0.75f,
-                key("영", special = true) { toEnglish() } to 0.6f,
-                key("⌨", special = true) { otherKeyboard() } to 0.65f,
+                key(".,?!") { cyclePunct() } to 1f,
                 c("ㅇㅁ", "ㅇㅁ"),
                 key("띄어쓰기") { commitPlain(" ") } to 1f,
+                key("한/영", special = true) { toEnglish() } to 1f,
             )),
         )
-        return column(rows, maxWidthDp = 460)
+        return column(rows)
     }
 
     private fun symbols(): View {
@@ -332,7 +323,7 @@ class KeyboardService : InputMethodService() {
             key("⌫", special = true, repeat = true) { backspace() } to 1.4f,
             key("↵", special = true) { enter() } to 1.4f,
         ))
-        return column(listOf(line("1234567890"), line("-/:;()₩&@\""), line(".,?!'~^*+="), bottom), maxWidthDp = if (wide) 640 else null)
+        return column(listOf(line("1234567890"), line("-/:;()₩&@\""), line(".,?!'~^*+="), bottom), )
     }
 
     // ───────── 글자 넣기 ─────────
@@ -409,14 +400,6 @@ class KeyboardService : InputMethodService() {
         ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
         lastCjiKey = null
         inserted = null
-    }
-
-    private fun otherKeyboard() {
-        stopRecognizer()
-        finishComposing()
-        // 바로 전에 쓰던 키보드로 (안 되면 키보드 고르기 창)
-        val switched = runCatching { switchToPreviousInputMethod() }.getOrDefault(false)
-        if (!switched) (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showInputMethodPicker()
     }
 
     private fun switchLayout() {

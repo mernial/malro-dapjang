@@ -428,7 +428,7 @@ class MainActivity : Activity() {
         val on = keyboardEnabled(); val chosen = keyboardChosen()
         val box = Ui.vbox(ctx, 18, Ui.MINE)
         box.add(Ui.text(ctx, "⌨ 말로 답장 키보드", 22f, bold = true), 0)
-        box.add(Ui.text(ctx, "카톡 입력칸을 누르면 뜨는 키보드에서 🎤를 누르고 말하면, 다듬은 글이 입력칸에 들어가요. 보내기는 직접 누르세요.", 15f), 6)
+        box.add(Ui.text(ctx, "평소처럼 글도 치고, 위의 🎤 말로 답장을 누르고 말하면 다듬은 글이 입력칸에 들어가요. 보내기는 직접 누르세요.", 15f), 6)
         box.add(Ui.text(ctx,
             "${if (on) "✅" else "1️⃣"} 키보드 켜기   ${if (chosen) "✅" else "2️⃣"} 키보드 고르기", 16f, bold = true), 10)
         if (!on) box.add(Ui.button(ctx, "👉 1. 키보드 켜기", Ui.BROWN, Ui.YELLOW, sp = 18f) {
@@ -438,7 +438,12 @@ class MainActivity : Activity() {
         else if (!chosen) box.add(Ui.button(ctx, "👉 2. 이 키보드 고르기", Ui.BROWN, Ui.YELLOW, sp = 18f) {
             (getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showInputMethodPicker()
         }, 10)
-        else box.add(Ui.text(ctx, "준비됐어요. 다른 키보드로 바꾸려면 키보드의 '⌨ 바꾸기'를 누르세요.", 14f, color = Ui.MUTED), 8)
+        else {
+            box.add(Ui.text(ctx, "준비됐어요. 이제 글을 쓸 때마다 말로 답장 키보드가 떠요.", 15f, color = Ui.GREEN), 8)
+            box.add(Ui.button(ctx, "다른 키보드로 바꾸기", Ui.CARD, Ui.BROWN, sp = 15f) {
+                (getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showInputMethodPicker()
+            }, 8)
+        }
         body.add(box, 16)
     }
 
