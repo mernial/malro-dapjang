@@ -275,6 +275,8 @@ class KeyboardService : InputMethodService() {
 
     private fun row(items: List<Pair<View, Float>>): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
+        // 글자 기준선 맞춤을 끔: 그림(😊·🔎) 키만 위로 올라가 줄이 어긋나던 것
+        isBaselineAligned = false
         items.forEach { (v, w) -> addView(v, keyLp(w)) }
     }
 
@@ -360,7 +362,8 @@ class KeyboardService : InputMethodService() {
 
     /** 이모티콘 판: 최근 쓴 것 + 무리별, 아래 줄은 돌아가기·지우기·띄어쓰기·줄바꿈 */
     private fun emojis(): View {
-        val cols = if (wide) 12 else 8
+        // 칸 하나 약 56dp 로 (넓은 화면에서 이모티콘 사이가 너무 벌어지지 않게)
+        val cols = ((screenWdp - 16) / 56).coerceAtLeast(7)
         val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(4), 0, dp(4), 0) }
         fun group(title: String, list: List<String>) {
             if (list.isEmpty()) return
@@ -385,18 +388,25 @@ class KeyboardService : InputMethodService() {
         EMOJI_GROUPS.forEach { (t, l) -> group(t, l.split(' ')) }
         val scroll = ScrollView(this).apply { addView(grid) }
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        col.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, keyH * 3 + dp(18)))
-        col.addView(row(listOf(
-            key(if (emojiFrom == Layer.EN) "ABC" else "가", special = true) { layer = if (emojiFrom == Layer.EMOJI) Layer.KO else emojiFrom; showKeys() } to 1.5f,
-            key("띄어쓰기") { commitPlain(" ") } to 4f,
-            key("⌫", special = true, repeat = true) { backspace() } to 1.5f,
-            enterKey() to 1.5f,
-        )))
+        col.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, keyH * 4 - dp(4)))
+        // 아래 줄은 작게: 높이 44dp, 넓은 화면에선 가운데 520dp 안에
+        val bottom = row(listOf(
+            key(if (emojiFrom == Layer.EN) "ABC" else "가", special = true) { layer = if (emojiFrom == Layer.EMOJI) Layer.KO else emojiFrom; showKeys() } to 1.3f,
+            key("띄어쓰기") { commitPlain(" ") } to 3f,
+            key("⌫", special = true, repeat = true) { backspace() } to 1.3f,
+            enterKey() to 1.3f,
+        ))
+        for (i in 0 until bottom.childCount) bottom.getChildAt(i).layoutParams.height = dp(44)
+        col.addView(column(listOf(bottom), maxWidthDp = 520))
         return col
     }
 
     private fun symbols(): View {
-        fun line(s: String) = row(s.map { ch -> key("$ch") { commitPlain("$ch") } to 1f })
+        // 넓은 화면에선 한글 자판처럼 가운데를 띄움
+        fun line(s: String): LinearLayout {
+            val ks = s.map { ch -> key("$ch") { commitPlain("$ch") } to 1f }
+            return row(ks.take(5) + mid() + ks.drop(5))
+        }
         val bottom = row(listOf(
             key("가", special = true) { toKorean() } to 1.4f,
             key("%", special = true) { commitPlain("%") } to 0.9f,
