@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 직접 설치판(github)에만 들어가는 것: 앱 안 업데이트 -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<!-- 직접 설치판(github): 2026-11-10부터 배포 중단. 이 판은 플레이 스토어판으로 옮기라는 안내만 함.
+     카카오가 불허한 카톡 자동 조작(접근성)과 알림으로 답장은 빼서, 업데이트하는 순간 멈춤 -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
@@ -8,5 +10,7 @@
         <receiver
             android:name=".InstallResultReceiver"
             android:exported="false" />
+        <service android:name=".KakaoAccessibilityService" tools:node="remove" />
+        <service android:name=".NotifyReplyService" tools:node="remove" />
     </application>
 </manifest>
