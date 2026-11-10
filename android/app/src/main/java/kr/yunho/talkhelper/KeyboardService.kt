@@ -449,8 +449,44 @@ class KeyboardService : InputMethodService() {
                 Ui.iconize(this)
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(6) })
         }
+        // 🚩 이상한 AI 결과 알리기 (구글 플레이 AI 생성 콘텐츠 정책)
+        inserted?.let { ai ->
+            line.addView(TextView(this).apply {
+                text = "🚩 이상해요"
+                setTextColor(Ui.MUTED)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                background = Ui.rounded(this@KeyboardService, Ui.CARD, 16, Ui.LINE)
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+                contentDescription = "이상한 결과 알리기"
+                setOnClickListener { askReport(ai) }
+                Ui.iconize(this)
+            })
+        }
         scroll.addView(line)
         return scroll
+    }
+
+    /** 🚩 누르면 키보드 안에서 한 번 더 묻고, '알리기'면 운영자에게 보냄 (앱이 몰래 보내지 않음) */
+    private fun askReport(aiText: String, spoken: String = lastSpoken) {
+        showInfo("🚩 이 글이 이상하거나 불쾌했나요? 말씀하신 내용과 AI가 만든 글을 운영자에게 알려요.")
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        fun b(label: String, primary: Boolean, onClick: () -> Unit) = TextView(this).apply {
+            text = label; gravity = Gravity.CENTER
+            setTextColor(if (primary) Ui.CARD else Ui.BROWN)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            background = Ui.rounded(this@KeyboardService, if (primary) Ui.BROWN else Ui.CARD, 14, if (primary) null else Ui.LINE)
+            setOnClickListener { onClick() }
+        }.also { row.addView(it, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(6) }) }
+        b("알리기", true) {
+            prefs.addAiReport(spoken, aiText, "")
+            showInfo("보내는 중…")
+            Bg.run({ AiReport.send("", spoken, aiText, BuildConfig.VERSION_NAME) }) { r ->
+                showInfo(if (r.getOrDefault(false)) "알려 주셔서 고마워요. 운영자에게 전달했어요." else "접수했어요. 지금은 전달하지 못해 이 휴대폰에 기록해 두었어요.")
+            }
+        }
+        b("취소", false) { hideInfo() }
+        infoRow.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
     }
 
     private fun showInfo(text: String, tones: Boolean = false, color: Int = Ui.BROWN) {
@@ -661,6 +697,10 @@ class KeyboardService : InputMethodService() {
             this.text = Ui.answer(text)
         }
         box.addView(ScrollView(this).apply { addView(t) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, keyH * 3))
+        box.add(Ui.text(this, "🚩 이상한 답 알리기", 14f, color = Ui.MUTED).apply {
+            setPadding(0, dp(8), 0, dp(4))
+            setOnClickListener { showKeys(); askReport(text, "찾기: $question") }
+        }, 4)
         box.add(Ui.text(this, "닫고 자판으로", 16f, bold = true, color = Ui.YELLOW).apply {
             gravity = Gravity.CENTER; minHeight = dp(46)
             background = Ui.rounded(this@KeyboardService, Ui.BROWN, 14)

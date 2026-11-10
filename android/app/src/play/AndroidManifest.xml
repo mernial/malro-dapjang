@@ -3,6 +3,8 @@
      카톡 알림으로 답장(알림 접근)을 뺌. 말로 답장은 키보드(KeyboardService)로만 씀. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
+    <!-- 알림으로 답장을 뺐으므로 알림 표시 권한도 필요 없음 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" tools:node="remove" />
     <application>
         <service android:name=".KakaoAccessibilityService" tools:node="remove" />
         <service android:name=".NotifyReplyService" tools:node="remove" />
