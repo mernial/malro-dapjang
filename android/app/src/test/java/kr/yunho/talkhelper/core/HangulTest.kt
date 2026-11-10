@@ -83,4 +83,32 @@ class HangulTest {
         assertEquals("앟", cji("ㅇ", "I", "D", "ㅅ", ">ㅅㅎ"))
         assertEquals("감사", cji("ㄱ", "I", "D", "ㅇ", ">ㅇㅁ", "ㅅ", "I", "D"))
     }
+
+    @Test
+    fun cheonjiinDoubleFinalByCycling() {
+        // 많이: ㅁ ㅣㆍ ㄴ ㅅ(→ㅎ 거듭) ㅇ ㅣ (루비로사 2026-11-10: '만ㅎ이' 로 나왔음)
+        assertEquals("많이", cji("ㅁ", "I", "D", "ㄴ", "ㅅ", ">ㅅㅎ", "ㅇ", "I"))
+        assertEquals("않", cji("ㅇ", "I", "D", "ㄴ", "ㅅ", ">ㅅㅎ"))
+        // 한 번 더 누르면(ㅎ→ㅆ) 다시 나뉨, 또 누르면(ㅆ→ㅅ) 만ㅅ
+        assertEquals("만ㅆ", cji("ㅁ", "I", "D", "ㄴ", "ㅅ", ">ㅅㅎ", ">ㅎㅆ"))
+        assertEquals("만ㅅ", cji("ㅁ", "I", "D", "ㄴ", "ㅅ", ">ㅅㅎ", ">ㅎㅆ", ">ㅆㅅ"))
+        // 삶: ㄹ 받침 + ㅇ(→ㅁ)
+        assertEquals("삶", cji("ㅅ", "I", "D", "ㄴ", ">ㄴㄹ", "ㅇ", ">ㅇㅁ"))
+        // 핥: ㄹ 받침 + ㄷ(→ㅌ)
+        assertEquals("핥", cji("ㅎ", "I", "D", "ㄴ", ">ㄴㄹ", "ㄷ", ">ㄷㅌ"))
+        // 겹받침이 안 되면 그대로 새 글자: 만세
+        assertEquals("만세", cji("ㅁ", "I", "D", "ㄴ", "ㅅ", "D", "I", "I"))
+        // 같+ㄸ 거듭: 갇 → 같 → 가ㄸ → 갇
+        assertEquals("가ㄸ", cji("ㄱ", "I", "D", "ㄷ", ">ㄷㅌ", ">ㅌㄸ"))
+        assertEquals("갇", cji("ㄱ", "I", "D", "ㄷ", ">ㄷㅌ", ">ㅌㄸ", ">ㄸㄷ"))
+    }
+
+    @Test
+    fun heldSyllableBackspace() {
+        val h = Hangul()
+        h.consonant('ㅁ'); h.vowel('ㅏ'); h.consonant('ㄴ'); h.consonant('ㅅ')
+        assertEquals("만ㅅ", h.takeCommitted() + h.composing)
+        h.backspace(); assertEquals("만", h.composing)
+        h.backspace(); assertEquals("마", h.composing)
+    }
 }

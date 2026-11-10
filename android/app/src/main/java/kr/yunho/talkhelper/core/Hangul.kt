@@ -16,19 +16,31 @@ class Hangul {
     private var cur = S()
     private val committed = StringBuilder()
 
+    /**
+     * 받침이 있는 글자 뒤에 겹받침이 안 되는 자음을 넣으면 그 글자를 바로 확정하지 않고 잠깐 붙잡아 둠.
+     * 천지인에서 같은 키를 거듭 눌러 자음이 바뀌면(ㅅ→ㅎ) 그때 겹받침으로 합침 (만+ㅅ+ㅅ → 많, 루비로사 2026-11-10)
+     */
+    private var hold: S? = null
+
     /** 지금 조합 중인 글자 (없으면 빈 글) */
-    val composing: String get() = render(cur)
-    val isComposing: Boolean get() = cur != S()
+    val composing: String get() = (hold?.let { render(it) } ?: "") + render(cur)
+    val isComposing: Boolean get() = hold != null || cur != S()
+
+    private fun flushHold() { hold?.let { committed.append(render(it)) }; hold = null }
 
     /** 다 만들어져 확정된 글자들 (가져가면 비워짐) */
     fun takeCommitted(): String = committed.toString().also { committed.clear() }
 
     /** 조합을 그만둠 (지금 글자는 화면에 이미 있으므로 버림) */
-    fun clear() { cur = S(); committed.clear() }
+    fun clear() { cur = S(); hold = null; committed.clear() }
 
-    private fun newSyllable(s: S) { committed.append(render(cur)); cur = s }
+    private fun newSyllable(s: S) { flushHold(); committed.append(render(cur)); cur = s }
+
+    /** 지금 글자([s])를 붙잡아 두고 [c] 로 새 글자를 시작 */
+    private fun holdAndStart(s: S, c: Char) { flushHold(); hold = s; cur = S(cho = c) }
 
     fun consonant(c: Char) {
+        flushHold()
         val s = cur
         when {
             s.cho == null && s.jung == null -> cur = S(cho = c)
@@ -37,7 +49,7 @@ class Hangul {
             s.jong == null -> if (c in JONG_OK) cur = s.copy(jong = c, strokes = "") else newSyllable(S(cho = c))
             else -> {
                 val comb = JONG_COMB["${s.jong}$c"]
-                if (comb != null) cur = s.copy(jong = comb) else newSyllable(S(cho = c))
+                if (comb != null) cur = s.copy(jong = comb) else holdAndStart(s, c)
             }
         }
     }
@@ -45,6 +57,7 @@ class Hangul {
     fun vowel(v: Char) = vowelInternal(v, "")
 
     private fun vowelInternal(v: Char, strokes: String) {
+        flushHold()
         val s = cur
         when {
             s.jung == null -> cur = s.copy(jung = v, strokes = strokes)
@@ -65,6 +78,7 @@ class Hangul {
 
     /** 천지인 모음 키: 'I' = ㅣ, 'D' = ㆍ, 'E' = ㅡ */
     fun cjiVowel(k: Char) {
+        flushHold()
         val s = cur
         if (s.jung != null && s.jong == null && s.strokes.isNotEmpty()) {
             val ns = s.strokes + k
@@ -90,17 +104,28 @@ class Hangul {
         when {
             s.jong == from -> {
                 if (to in JONG_OK) cur = s.copy(jong = to)
-                else { cur = s.copy(jong = null); newSyllable(S(cho = to)) }
+                else holdAndStart(s.copy(jong = null), to)
                 return true
             }
             s.jong != null && JONG_SPLIT[s.jong]?.second == from -> {
                 val first = JONG_SPLIT[s.jong]!!.first
                 val comb = JONG_COMB["$first$to"]
                 if (comb != null) cur = s.copy(jong = comb)
-                else { cur = s.copy(jong = first); newSyllable(S(cho = to)) }
+                else holdAndStart(s.copy(jong = first), to)
                 return true
             }
-            s.cho == from && s.jung == null -> { cur = s.copy(cho = to); return true }
+            s.cho == from && s.jung == null -> {
+                // 붙잡아 둔 앞 글자에 받침(겹받침)으로 들어갈 수 있으면 합침
+                val h = hold
+                if (h != null) {
+                    val merged = when {
+                        h.jong == null -> if (to in JONG_OK) h.copy(jong = to) else null
+                        else -> JONG_COMB["${h.jong}$to"]?.let { h.copy(jong = it) }
+                    }
+                    if (merged != null) { hold = null; cur = merged; return true }
+                }
+                cur = s.copy(cho = to); return true
+            }
         }
         return false
     }
@@ -109,6 +134,9 @@ class Hangul {
     fun backspace(): Boolean {
         val s = cur
         if (!isComposing) return false
+        val h = hold
+        if (h != null && cur.jung == null && cur.jong == null) { cur = h; hold = null; return true }
+        if (h != null && cur == S()) { cur = h; hold = null }
         cur = when {
             s.jong != null -> s.copy(jong = JONG_SPLIT[s.jong]?.first)
             s.jung != null && s.strokes.length > 1 -> {
