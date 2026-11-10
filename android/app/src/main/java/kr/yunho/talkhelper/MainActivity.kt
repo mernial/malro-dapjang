@@ -135,12 +135,14 @@ class MainActivity : Activity() {
         updateBanner()
 
         // 중계 서버가 있으면 설정 코드 단계 없이 두 단계로 끝남
-        val steps = listOfNotNull(accessibilityOn(), micOn(), if (ClaudeProvider.relayAvailable) null else p.apiKey.isNotBlank())
+        // 플레이판: 카톡 위 버튼(접근성) 없이 키보드로만 → 1) 키보드 켜고 고르기 2) 마이크
+        val steps = if (BuildConfig.STORE_SAFE) listOf(keyboardEnabled() && keyboardChosen(), micOn())
+            else listOfNotNull(accessibilityOn(), micOn(), if (ClaudeProvider.relayAvailable) null else p.apiKey.isNotBlank())
         val current = steps.indexOfFirst { !it }
         if (current >= 0 && !showAdvanced) {
             body.add(Ui.text(this, "준비 ${current + 1} / ${steps.size}", 18f, bold = true, color = Ui.MUTED), 8)
             when (current) {
-                0 -> stepAccessibility()
+                0 -> if (BuildConfig.STORE_SAFE) stepKeyboard() else stepAccessibility()
                 1 -> stepMic()
                 2 -> stepSetupCode()
             }
@@ -208,6 +210,24 @@ class MainActivity : Activity() {
         box.add(Ui.text(this, desc, 19f), 12)
         body.add(box, 14)
         return box
+    }
+
+    // ───────── 1단계 (플레이판): 키보드 켜고 고르기 ─────────
+
+    private fun stepKeyboard() {
+        val on = keyboardEnabled()
+        val box = bigCard(
+            "말로 답장 키보드 켜기",
+            if (!on) "카톡에서 글을 쓸 때 이 키보드를 쓰면, 🎤를 누르고 말하기만 하면 다듬은 글이 입력칸에 들어가요.\n\n아래 노란 버튼을 누르고 목록에서 '${getString(R.string.keyboard_name)}'을 켠 뒤, 뒤로 가기(◁)로 돌아오세요."
+            else "거의 다 됐어요.\n\n아래 노란 버튼을 누르고 '${getString(R.string.keyboard_name)}'을 고르세요."
+        )
+        box.add(Ui.button(this, if (!on) "👉  1. 키보드 켜기" else "👉  2. 이 키보드 고르기", sp = 24f) {
+            if (!on) {
+                Toast.makeText(this, "목록에서 '${getString(R.string.keyboard_name)}'을 켜 주세요", Toast.LENGTH_LONG).show()
+                runCatching { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) }
+            } else (getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showInputMethodPicker()
+        }.apply { minHeight = Ui.dp(this@MainActivity, 88) }, 18)
+        box.add(Ui.text(this, "키보드는 입력한 글을 저장하거나 밖으로 보내지 않아요. 🎤로 말한 내용만 다듬을 때 AI로 보내요.", 14f, color = Ui.MUTED), 12)
     }
 
     // ───────── 1단계: 접근성 ─────────
@@ -330,6 +350,7 @@ class MainActivity : Activity() {
         val p = Prefs(this)
 
         keyboardCard()
+        if (BuildConfig.STORE_SAFE) { storeHowTo(); return }
 
         // 켜기 / 끄기: 흰 카드 + 직접 그린 큰 스위치 (기본 스위치를 키우면 잘려 보여서)
         val ctx = this
@@ -412,6 +433,55 @@ class MainActivity : Activity() {
         body.add(View(this), 40)
     }
 
+    /** 플레이판 완료 화면: 키보드 쓰는 법 + 말투 예시 */
+    private fun storeHowTo() {
+        val ctx = this
+        val how = Ui.vbox(ctx, 16, Ui.THEM)
+        how.add(Ui.text(ctx, "키보드 쓰는 법", 17f, bold = true), 0)
+        fun item(chip: String, what: String) {
+            val it = Ui.vbox(ctx)
+            it.addView(Ui.text(ctx, chip, 15f, bold = true, color = Ui.YELLOW).apply {
+                background = Ui.rounded(ctx, Ui.BROWN, 14)
+                val ph = Ui.dp(ctx, 12); val pv = Ui.dp(ctx, 5); setPadding(ph, pv, ph, pv)
+                Ui.iconize(this)
+            }, android.widget.LinearLayout.LayoutParams(android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
+            it.add(Ui.text(ctx, what, 17f).apply { setPadding(Ui.dp(ctx, 4), 0, 0, 0) }, 6)
+            how.add(it, 14)
+        }
+        item("🎤 말로 답장", "누르고 편하게 말하면, 다듬은 글이 입력칸에 들어가요. 확인하고 보내기는 직접 누르세요.")
+        item("말투 ▾", "정중하게·다정하게 같은 말투를 골라요. 방금 넣은 글도 그 말투로 바뀌어요.")
+        item("🔎 찾기", "카톡 대화방 ☰ → 설정 → '대화 내용 내보내기' → '말로 답장'으로 보내 둔 대화에서 찾아 줘요.")
+        item("⇄ 천지인", "두벌식·천지인 자판을 바꿔요.")
+        body.add(how, 16)
+
+        val ex = Ui.vbox(ctx, 16, Ui.CARD)
+        ex.add(Ui.text(ctx, "말투에 따라 이렇게 바뀌어요", 17f, bold = true), 0)
+        ex.add(Ui.text(ctx, "🎤 \"알았어 고마워\"", 18f, bold = true).apply {
+            background = Ui.rounded(ctx, Ui.THEM, 14)
+            val ph = Ui.dp(ctx, 14); val pv = Ui.dp(ctx, 10); setPadding(ph, pv, ph, pv)
+        }, 12)
+        for ((m, out) in listOf(
+            kr.yunho.talkhelper.core.Mode.POLITE to "네, 알겠어요. 고마워요.",
+            kr.yunho.talkhelper.core.Mode.FRIENDLY to "알았어, 고마워!",
+            kr.yunho.talkhelper.core.Mode.BUSINESS to "네, 확인했습니다. 감사합니다.",
+        )) {
+            val row = Ui.hbox(ctx)
+            row.addView(Ui.text(ctx, "${m.emoji} ${m.label}", 14f, bold = true).apply {
+                background = Ui.rounded(ctx, Ui.CARD, 14, Ui.LINE)
+                gravity = android.view.Gravity.CENTER
+                val pp = Ui.dp(ctx, 8); setPadding(pp, pp, pp, pp)
+            }, android.widget.LinearLayout.LayoutParams(Ui.dp(ctx, 124), android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
+            row.addView(Ui.text(ctx, out, 16f, bold = true).apply {
+                background = Ui.rounded(ctx, Ui.MINE, 14)
+                val ph = Ui.dp(ctx, 12); val pv = Ui.dp(ctx, 9); setPadding(ph, pv, ph, pv)
+            }, android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = Ui.dp(ctx, 8) })
+            ex.add(row, 10)
+        }
+        ex.add(Ui.text(ctx, "🤗 자녀에게 · 🪞 내 말투도 있어요. 키보드 위 '말투 ▾'에서 고르세요.", 14f, color = Ui.MUTED), 12)
+        body.add(ex, 16)
+        body.add(View(this), 40)
+    }
+
     // ───────── 말로 답장 키보드 ─────────
 
     private fun keyboardEnabled(): Boolean = runCatching {
@@ -468,10 +538,12 @@ class MainActivity : Activity() {
 
         body.add(Ui.text(this, "현재 상태", 16f, bold = true, color = Ui.MUTED), 14)
         body.add(Ui.text(this,
-            "${if (accessibilityOn()) "✅" else "❌"} 카톡 위 버튼   ${if (micOn()) "✅" else "❌"} 마이크   ${if (!BuildConfig.STORE_SAFE && p.apiKey.isNotBlank()) "✅ API 키" else if (ClaudeProvider.relayAvailable) "✅ AI 서버" else "❌ API 키"}",
+            "${if (BuildConfig.STORE_SAFE) (if (keyboardEnabled() && keyboardChosen()) "✅" else "❌") + " 키보드" else (if (accessibilityOn()) "✅" else "❌") + " 카톡 위 버튼"}   ${if (micOn()) "✅" else "❌"} 마이크   ${if (!BuildConfig.STORE_SAFE && p.apiKey.isNotBlank()) "✅ API 키" else if (ClaudeProvider.relayAvailable) "✅ AI 서버" else "❌ API 키"}",
             16f), 4)
         val row = Ui.hbox(this)
-        row.add(Ui.button(this, "접근성 설정", Ui.CARD, sp = 15f) { openAccessibilitySettings() })
+        if (BuildConfig.STORE_SAFE) row.add(Ui.button(this, "키보드 설정", Ui.CARD, sp = 15f) {
+            runCatching { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) }
+        }) else row.add(Ui.button(this, "접근성 설정", Ui.CARD, sp = 15f) { openAccessibilitySettings() })
         row.add(Ui.button(this, "앱 정보", Ui.CARD, sp = 15f) {
             startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
         })
@@ -493,7 +565,7 @@ class MainActivity : Activity() {
             text = label; isChecked = on; textSize = 17f * p.textScale; setTextColor(Ui.BROWN)
         }
         val pressSend = check("입력창에 넣은 뒤 전송 버튼까지 누르기", p.autoPressSend)
-        body.add(pressSend, 12)
+        if (!BuildConfig.STORE_SAFE) body.add(pressSend, 12)
 
 
         body.add(Ui.button(this, "저장", sp = 22f) {
@@ -506,20 +578,7 @@ class MainActivity : Activity() {
             render()
         }, 18)
         body.add(Ui.button(this, "돌아가기", Ui.CARD, sp = 16f) { showAdvanced = false; render() }, 8)
-        // '알림으로 답장' 예비 기능 (접근성 없이)
-        body.add(Ui.text(this, "🔔 알림으로 답장 (예비 기능)", 16f, bold = true), 20)
-        body.add(Ui.text(this,
-            "카톡 메시지 알림 아래에 '🎤 말로 답장'을 띄우고, 다듬은 답장을 카톡 알림의 답장 칸으로 보냅니다. 카톡 화면을 읽거나 누르지 않아요." +
-                (if (p.notifyReply) "\n지금: 켜짐 · 알림 접근 ${if (NotifyReplyService.allowed(this)) "허용됨 ✅" else "허용 안 됨 ❌ (아래 버튼)"}" else "\n지금: 꺼짐"),
-            13f, color = Ui.MUTED), 4)
-        val notifyRow = Ui.hbox(this)
-        notifyRow.add(Ui.button(this, if (p.notifyReply) "끄기" else "켜기", Ui.CARD, sp = 15f) {
-            if (p.notifyReply) { p.notifyReply = false; render() } else confirmNotifyReply()
-        })
-        if (p.notifyReply) notifyRow.add(Ui.button(this, "알림 접근 설정", Ui.CARD, sp = 15f) {
-            runCatching { startActivity(NotifyReplyService.settingsIntent(this)) }
-        })
-        body.add(notifyRow, 6)
+        if (!BuildConfig.STORE_SAFE) notifyReplySection(p)
 
         // 운영자용: 사용자들의 사용 횟수·요금 (서버 비밀번호 ADMIN_KEY 필요, 웹 페이지로 열림)
         body.add(Ui.button(this, "📊 사용 현황 (운영자)", Ui.CARD, sp = 15f) {
@@ -529,17 +588,7 @@ class MainActivity : Activity() {
             startActivity(Intent(this, AskActivity::class.java))
         }, 20)
         if (!BuildConfig.STORE_SAFE && p.apiKey.isNotBlank()) body.add(Ui.button(this, "👨‍👩‍👧 가족에게 설정 보내기", Ui.CARD, sp = 15f) { shareSetup() }, 8)
-        // 도우미 버튼이 안 보일 때 원인 확인용
-        body.add(Ui.text(this, "도우미 버튼 상태", 14f, bold = true, color = Ui.MUTED), 24)
-        body.add(Ui.text(this,
-            (if (KakaoAccessibilityService.instance != null) "접근성 서비스: 연결됨\n" else "접근성 서비스: 연결 안 됨 (접근성을 껐다 켜 주세요)\n") +
-                p.bubbleDiag.ifBlank { "기록 없음 (카톡을 한 번 열었다가 돌아와 보세요)" },
-            13f, color = Ui.MUTED).apply { setTextIsSelectable(true) }, 4)
-        body.add(Ui.button(this, "도우미 버튼 위치 초기화", Ui.CARD, sp = 15f) {
-            p.bubbleX = -1; p.bubbleY = -1
-            KakaoAccessibilityService.instance?.redrawBubble()
-            Toast.makeText(this, "버튼을 오른쪽 가운데로 되돌렸어요. 카톡을 다시 열어 보세요.", Toast.LENGTH_LONG).show()
-        }, 6)
+        if (!BuildConfig.STORE_SAFE) helperDiag(p)
         // 요금 정하기용 사용량 (휴대폰 안에만 셈)
         body.add(Ui.text(this, "이번 달 사용량", 14f, bold = true, color = Ui.MUTED), 24)
         body.add(Ui.text(this,
@@ -555,6 +604,39 @@ class MainActivity : Activity() {
             body.add(Ui.text(this, it, 11f, color = Ui.MUTED).apply { setTextIsSelectable(true) }, 4)
         }
         body.add(Ui.button(this, "🗑 저장한 대화·기록 모두 지우기", Ui.CARD, Ui.RED, sp = 15f) { confirmClearAll() }, 24)
+    }
+
+    /** '알림으로 답장' 예비 기능 (직접 설치판만 — 플레이판은 카카오 안내로 뺌) */
+    private fun notifyReplySection(p: Prefs) {
+        // '알림으로 답장' 예비 기능 (접근성 없이)
+        body.add(Ui.text(this, "🔔 알림으로 답장 (예비 기능)", 16f, bold = true), 20)
+        body.add(Ui.text(this,
+            "카톡 메시지 알림 아래에 '🎤 말로 답장'을 띄우고, 다듬은 답장을 카톡 알림의 답장 칸으로 보냅니다. 카톡 화면을 읽거나 누르지 않아요." +
+                (if (p.notifyReply) "\n지금: 켜짐 · 알림 접근 ${if (NotifyReplyService.allowed(this)) "허용됨 ✅" else "허용 안 됨 ❌ (아래 버튼)"}" else "\n지금: 꺼짐"),
+            13f, color = Ui.MUTED), 4)
+        val notifyRow = Ui.hbox(this)
+        notifyRow.add(Ui.button(this, if (p.notifyReply) "끄기" else "켜기", Ui.CARD, sp = 15f) {
+            if (p.notifyReply) { p.notifyReply = false; render() } else confirmNotifyReply()
+        })
+        if (p.notifyReply) notifyRow.add(Ui.button(this, "알림 접근 설정", Ui.CARD, sp = 15f) {
+            runCatching { startActivity(NotifyReplyService.settingsIntent(this)) }
+        })
+        body.add(notifyRow, 6)
+    }
+
+    /** 도우미 버튼(접근성) 상태 (직접 설치판만) */
+    private fun helperDiag(p: Prefs) {
+        // 도우미 버튼이 안 보일 때 원인 확인용
+        body.add(Ui.text(this, "도우미 버튼 상태", 14f, bold = true, color = Ui.MUTED), 24)
+        body.add(Ui.text(this,
+            (if (KakaoAccessibilityService.instance != null) "접근성 서비스: 연결됨\n" else "접근성 서비스: 연결 안 됨 (접근성을 껐다 켜 주세요)\n") +
+                p.bubbleDiag.ifBlank { "기록 없음 (카톡을 한 번 열었다가 돌아와 보세요)" },
+            13f, color = Ui.MUTED).apply { setTextIsSelectable(true) }, 4)
+        body.add(Ui.button(this, "도우미 버튼 위치 초기화", Ui.CARD, sp = 15f) {
+            p.bubbleX = -1; p.bubbleY = -1
+            KakaoAccessibilityService.instance?.redrawBubble()
+            Toast.makeText(this, "버튼을 오른쪽 가운데로 되돌렸어요. 카톡을 다시 열어 보세요.", Toast.LENGTH_LONG).show()
+        }, 6)
     }
 
     private fun sendLog() {
