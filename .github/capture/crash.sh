@@ -51,7 +51,30 @@ adb shell input keyevent KEYCODE_BACK; sleep 1
 if [ -n "$B" ]; then set -- $B; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 3; fi
 timeout 30 adb exec-out screencap -p > shots/keyboard_gesture.png
 timeout 10 adb logcat -d -s talkhelper-kb | tail -4
+# 천지인으로 바꿔서도 아래 줄이 안 잘리는지 (위 줄의 '⇄ 천지인' 단추를 눌러 바꿈)
+timeout 20 adb shell uiautomator dump /sdcard/kb.xml >/dev/null 2>&1
+K=$(timeout 20 adb shell cat /sdcard/kb.xml | tr '>' '\n' | grep '천지인' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')
+echo "천지인 단추: $K"
+if [ -n "$K" ]; then set -- $K; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 3; fi
+timeout 30 adb exec-out screencap -p > shots/keyboard_cji.png
 timeout 20 adb shell cmd overlay enable com.android.internal.systemui.navbar.threebutton; sleep 3
+# 키보드까지 준비된 첫 화면 (새 디자인 확인): 위·아래로 한 장씩, 설정 화면 한 장
+adb shell input keyevent KEYCODE_BACK; sleep 1; adb shell input keyevent KEYCODE_HOME; sleep 1
+timeout 30 adb shell am start -n $PKG/.MainActivity; sleep 4
+timeout 30 adb exec-out screencap -p > shots/main_ready.png
+adb shell input swipe 540 1800 540 500 400; sleep 2
+timeout 30 adb exec-out screencap -p > shots/main_ready2.png
+adb shell input swipe 540 500 540 1800 400; sleep 2
+timeout 20 adb shell uiautomator dump /sdcard/m.xml >/dev/null 2>&1
+G=$(timeout 20 adb shell cat /sdcard/m.xml | tr '>' '\n' | grep 'content-desc="설정"' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')
+echo "설정 단추: $G"
+if [ -n "$G" ]; then set -- $G; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 3; timeout 30 adb exec-out screencap -p > shots/settings.png; fi
+# 설정 맨 아래 '업데이트 소식'을 눌러 안내문 사진
+adb shell input swipe 540 1800 540 400 400; sleep 2
+timeout 20 adb shell uiautomator dump /sdcard/s.xml >/dev/null 2>&1
+N=$(timeout 20 adb shell cat /sdcard/s.xml | tr '>' '\n' | grep 'text="업데이트 소식"' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')
+echo "업데이트 소식: $N"
+if [ -n "$N" ]; then set -- $N; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 3; timeout 30 adb exec-out screencap -p > shots/news.png; fi
 adb shell input keyevent KEYCODE_BACK; sleep 1; adb shell input keyevent KEYCODE_BACK; sleep 1
 # 중계 서버로 다듬기·찾기 한 번씩 (코드 숨김 뒤에도 되는지)
 adb shell input keyevent KEYCODE_HOME; sleep 1

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 플레이 스토어판: 카카오 안내(2026-11-10, 비공식 자동 조작 불허)에 따라 카톡 위 떠 있는 버튼(접근성)과
+     카톡 알림으로 답장(알림 접근)을 뺌. 말로 답장은 키보드(KeyboardService)로만 씀. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <service android:name=".KakaoAccessibilityService" tools:node="remove" />
+        <service android:name=".NotifyReplyService" tools:node="remove" />
+    </application>
+</manifest>
