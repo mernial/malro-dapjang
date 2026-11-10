@@ -149,6 +149,11 @@ class KeyboardService : InputMethodService() {
 
         // 안드로이드 15+ 는 키보드도 내비게이션 막대 밑까지 그림 → 막대 높이만큼 띄움
         val base = r.paddingBottom
+        // 안드로이드 15+ 는 키보드 창이 화면 맨 아래까지 내려감. 처음 크기를 잴 때부터 아래 막대 자리를 비워 둬야
+        // 창 높이가 모자라 맨 아래 줄이 잘리지 않음 (나중에 알려 주는 값만 쓰면 자판을 바꿀 때 잘렸음)
+        val guess = if (android.os.Build.VERSION.SDK_INT >= 35)
+            maxOf(sysDimen("navigation_bar_frame_height"), sysDimen("navigation_bar_height")) else 0
+        r.setPadding(r.paddingLeft, r.paddingTop, r.paddingRight, base + guess)
         r.setOnApplyWindowInsetsListener { v, insets ->
             val bottom = if (android.os.Build.VERSION.SDK_INT >= 30) {
                 val nav = insets.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom
@@ -159,7 +164,11 @@ class KeyboardService : InputMethodService() {
                     insets.getInsets(android.view.WindowInsets.Type.mandatorySystemGestures()).bottom)
             } else @Suppress("DEPRECATION") insets.systemWindowInsetBottom
             android.util.Log.i("talkhelper-kb", "bottom inset=$bottom")
-            v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, base + bottom)
+            val want = base + maxOf(bottom, if (bottom > 0) guess else 0)
+            if (v.paddingBottom != want) {
+                v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, want)
+                v.post { window.window?.decorView?.requestLayout() }
+            }
             insets
         }
         // 아래 내비게이션 막대를 어두운 띠 대신 키보드 바탕색으로

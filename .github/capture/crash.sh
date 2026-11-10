@@ -51,6 +51,12 @@ adb shell input keyevent KEYCODE_BACK; sleep 1
 if [ -n "$B" ]; then set -- $B; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 3; fi
 timeout 30 adb exec-out screencap -p > shots/keyboard_gesture.png
 timeout 10 adb logcat -d -s talkhelper-kb | tail -4
+# 천지인으로 바꿔서도 아래 줄이 안 잘리는지 (위 줄의 '⇄ 천지인' 단추를 눌러 바꿈)
+timeout 20 adb shell uiautomator dump /sdcard/kb.xml >/dev/null 2>&1
+K=$(timeout 20 adb shell cat /sdcard/kb.xml | tr '>' '\n' | grep '천지인' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')
+echo "천지인 단추: $K"
+if [ -n "$K" ]; then set -- $K; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 3; fi
+timeout 30 adb exec-out screencap -p > shots/keyboard_cji.png
 timeout 20 adb shell cmd overlay enable com.android.internal.systemui.navbar.threebutton; sleep 3
 adb shell input keyevent KEYCODE_BACK; sleep 1; adb shell input keyevent KEYCODE_BACK; sleep 1
 # 중계 서버로 다듬기·찾기 한 번씩 (코드 숨김 뒤에도 되는지)
