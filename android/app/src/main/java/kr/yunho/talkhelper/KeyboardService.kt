@@ -329,11 +329,11 @@ class KeyboardService : InputMethodService() {
         val rows = listOf(
             row(listOf(v("ㅣ", 'I'), v("•", 'D'), v("ㅡ", 'E'), key("⌫", special = true, repeat = true) { backspace() } to 1f)),
             row(listOf(c("ㄱㅋ", "ㄱㅋㄲ"), c("ㄴㄹ", "ㄴㄹ"), c("ㄷㅌ", "ㄷㅌㄸ"), enterKey() to 1f)),
-            row(listOf(c("ㅂㅍ", "ㅂㅍㅃ"), c("ㅅㅎ", "ㅅㅎㅆ"), c("ㅈㅊ", "ㅈㅊㅉ"),
-                key("!#1", special = true) { toSymbols() } to 0.5f, key("한/영", special = true) { toEnglish() } to 0.5f)),
-            // 휴대폰 숫자판처럼: ㅇㅁ 은 가운데(0 자리), 왼쪽 문장부호, 오른쪽 띄어쓰기
+            row(listOf(c("ㅂㅍ", "ㅂㅍㅃ"), c("ㅅㅎ", "ㅅㅎㅆ"), c("ㅈㅊ", "ㅈㅊㅉ"), key(".,?!", special = true) { cyclePunct() } to 1f)),
+            // 휴대폰 숫자판처럼: ㅇㅁ 은 가운데(0 자리), 오른쪽 띄어쓰기
             row(listOf(
-                key(".,?!") { cyclePunct() } to 1f,
+                // 문장부호는 위(ㅈㅊ 옆)로, 여기는 기호·한영 (신부님 요청 2026-11-10)
+                key("!#1", special = true) { toSymbols() } to 0.5f, key("한/영", special = true) { toEnglish() } to 0.5f,
                 c("ㅇㅁ", "ㅇㅁ"),
                 key("띄어쓰기") { commitPlain(" ") } to 1f,
                 // 삼성 천지인처럼 오른쪽 맨 아래는 이모티콘
