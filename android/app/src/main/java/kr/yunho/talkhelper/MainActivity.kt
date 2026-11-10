@@ -425,29 +425,37 @@ class MainActivity : Activity() {
     // ───────── 업데이트 소식 (앱을 열면 한 번) ─────────
 
     /** 새 소식을 낼 때 이 값을 바꾸면 모두에게 한 번 다시 뜸 */
-    private val NEWS_ID = "2026-11-10-keyboard"
+    private val NEWS_ID = "2026-11-10-keyboard-2"
 
     /** 이번에 바뀐 것 (제목, 설명). 플레이판은 카톡 위 버튼이 없어졌다는 안내가 맨 앞 */
     private fun newsItems(): List<Pair<String, String>> = listOfNotNull(
         if (BuildConfig.STORE_SAFE) "카톡 위 🎤 버튼 대신 키보드로" to
             "카카오 안내에 따라 카톡 화면 위에 떠 있던 🎤 버튼을 없앴어요. 이제 '말로 답장 키보드' 위의 🎤 말로 답장을 누르고 말하면, 다듬은 글이 입력칸에 들어가요. 확인하고 보내기는 직접 누르세요." else null,
         "글자도 치는 키보드" to
-            "두벌식(삼성 키보드와 같은 배열)과 천지인 자판이 들어갔어요. 키보드 위 '⇄ 천지인 / 두벌식'으로 바꿔요. 폴드를 펴도 자판이 나뉘지 않아요.",
-        "키보드 위 단축키 줄" to
-            "🎤 말로 답장 · 🔎 찾기 · 말투 · 자판 바꾸기가 한 줄에 있어요.",
-        "아래 줄 가림 고침" to
-            "키보드 맨 아래 줄이 화면 아래 막대에 가리거나 잘리던 것을 고쳤어요.",
-        "키보드 바꾸기" to
-            "다른 키보드로 돌아가려면 앱 첫 화면의 '키보드 변경'이나 설정 → 키보드 바꾸기를 누르세요.",
+            "두벌식과 천지인 자판이 들어갔어요. 키보드 위 '⇄ 천지인 / 두벌식'으로 바꿔요. 키마다 테두리가 있어 잘못 누르는 일이 줄어요.",
+        "쉬어 가며 말해도 돼요" to
+            "말하다 잠깐 멈춰도 받아쓰기가 끊기지 않아요. 다 말하면 '듣는 중 · 누르면 끝'을 누르거나 3초쯤 기다리세요.",
+        "말투는 한 번 고르면 그대로" to
+            "글을 넣을 때마다 말투 줄이 뜨지 않아요. 바꾸고 싶을 때만 위 '말투 ▾'를 누르세요.",
+        "꾹 눌러 자리 바꾸기" to
+            "맨 위 단추(말로 답장·찾기·말투·자판)와 말투 칩을 꾹 누른 채 끌어서 원하는 자리로 옮길 수 있어요.",
+        "😊 이모티콘 · 띄어쓰기 두 번 = 마침표" to
+            "키보드에 😊 칸이 생겼어요. 띄어쓰기를 빠르게 두 번 누르면 마침표가 찍혀요.",
+        "검색칸에서 🔍" to
+            "카톡 대화 검색처럼 찾는 칸에서는 줄바꿈 칸이 노란 🔍로 바뀌어 바로 검색돼요.",
+        "폴드에서 쓰기 편하게" to
+            "폴드를 펴면 두벌식은 자음·모음 사이를 띄워 양손으로, 천지인은 ◀ ▶ 단추로 왼쪽·가운데·오른쪽에 둘 수 있어요.",
+        "아래 줄 가림 고침 · 부드러운 소리" to
+            "키보드 맨 아래 줄이 화면 아래 막대에 가리던 것을 고쳤어요. 듣기 시작·끝 소리를 부드러운 낮은 벨 소리로 바꿨어요.",
         "첫 화면이 깔끔해졌어요" to
-            "지금 상태·말투·사용 방법만 보이게 정리했어요. 말투를 누르면 바로 바뀐 예시가 보여요. 오른쪽 위 설정 단추에서 내 이름·키보드·대화 찾기를 할 수 있어요.",
+            "지금 상태·말투·사용 방법만 보이게 정리했어요. 다른 키보드로 돌아가려면 첫 화면의 '키보드 변경'을 누르세요.",
     )
 
     private fun maybeShowNews() {
         val sp = getSharedPreferences("settings", Context.MODE_PRIVATE)
         if (sp.getString("newsSeen", "") == NEWS_ID) return
         // 처음 설치한 분에게는 '바뀐 것'이 의미가 없으므로 보여 주지 않고 본 것으로
-        val usedBefore = sp.getBoolean("disclosureAccepted", false) || sp.getBoolean("micAsked", false) || sp.contains("bubbleX")
+        val usedBefore = sp.getBoolean("disclosureAccepted", false) || sp.getBoolean("micAsked", false) || sp.contains("bubbleX") || sp.contains("newsSeen")
         sp.edit().putString("newsSeen", NEWS_ID).apply()
         if (usedBefore) body.post { showNews() }
     }
