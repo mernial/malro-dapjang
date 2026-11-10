@@ -30,6 +30,8 @@ import kr.yunho.talkhelper.core.SetupCode
 class MainActivity : Activity() {
 
     companion object {
+        /** 키보드의 ⚙ 단추로 열 때: 바로 설정 화면 */
+        const val EXTRA_SETTINGS = "openSettings"
         /** 접근성 API 사용에 대한 눈에 띄는 공개 (Play 정책) */
         const val DISCLOSURE = """이 앱은 '접근성' 권한을 다음 용도로만 사용합니다.
 
@@ -65,8 +67,17 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
+
     override fun onResume() {
         super.onResume()
+        if (intent?.getBooleanExtra(EXTRA_SETTINGS, false) == true) {
+            intent.removeExtra(EXTRA_SETTINGS)
+            showSettings = true; showHelp = false; showAdvanced = false
+        }
         render()
         maybeShowNews()
         // 새 버전 확인 (조용히, 실패해도 무시)

@@ -160,6 +160,8 @@ class KeyboardService : InputMethodService() {
             "search" to { tool("search", "🔎 찾기", 1f) { startVoice(search = true) } to 1f },
             "tone" to { tool("tone", "", 1.3f) { toggleToneRow() }.also { toneButton = it } to 1.3f },
             "layout" to { tool("layout", if (prefs.keyboardLayout == "cji") "⇄ 두벌식" else "⇄ 천지인", 1.1f) { switchLayout() } to 1.1f },
+            // ⚙ 키보드 설정: 말로 답장 앱의 설정 화면 (키보드 바꾸기·내 이름 등)
+            "settings" to { tool("settings", "⚙", 0.5f) { openAppSettings() }.apply { contentDescription = "키보드 설정" } to 0.5f },
         )
         for (k in toolOrder()) {
             val (v, w) = tools.getValue(k)()
@@ -697,6 +699,16 @@ class KeyboardService : InputMethodService() {
         infoRow.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
     }
 
+    private fun openAppSettings() {
+        stopRecognizer()
+        finishComposing()
+        runCatching {
+            startActivity(Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                .putExtra(MainActivity.EXTRA_SETTINGS, true))
+        }
+    }
+
     private fun toolOrder(): List<String> {
         val saved = getSharedPreferences("settings", MODE_PRIVATE).getString("toolOrder", "").orEmpty().split(',').filter { it in TOOL_KEYS }
         return saved + TOOL_KEYS.filter { it !in saved }
@@ -991,7 +1003,7 @@ class KeyboardService : InputMethodService() {
             "신앙" to "🙏 ✝️ ⛪ 📿 🕊️ 🕯️ 📖 🔔 👼 🌹 ☦️ 🎄",
             "축하·일상" to "🎂 🎁 🎊 🌸 🌷 💐 ☕ 🍚 🍰 🍎 🏠 🚗 ☀️ 🌧️ ❄️ 🌙",
         )
-        private val TOOL_KEYS = listOf("voice", "search", "tone", "layout")
+        private val TOOL_KEYS = listOf("voice", "search", "tone", "layout", "settings")
         private val KEY_EDGE = android.graphics.Color.parseColor("#CDBFAF")
         private val KO_ROWS = listOf("ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ", "ㅁㄴㅇㄹㅎㅗㅓㅏㅣ", "ㅋㅌㅊㅍㅠㅜㅡ")
         private val KO_SHIFT = mapOf('ㅂ' to 'ㅃ', 'ㅈ' to 'ㅉ', 'ㄷ' to 'ㄸ', 'ㄱ' to 'ㄲ', 'ㅅ' to 'ㅆ', 'ㅐ' to 'ㅒ', 'ㅔ' to 'ㅖ')
