@@ -764,8 +764,8 @@ class KeyboardService : InputMethodService() {
     private fun showListeningPanel(search: Boolean) {
         content.removeAllViews()
         val box = Ui.vbox(this, 14, Ui.CARD)
-        box.add(Ui.text(this, if (search) "🔎 무엇을 찾을까요?" else "🎤 편하게 말하세요", 19f, bold = true).apply { gravity = Gravity.CENTER; Ui.iconize(this) }, 0)
-        box.add(Ui.text(this, if (search) "예) 모임 날짜 언제로 정했지?" else "쉬어 가며 말해도 돼요. 다 말하면 아래를 누르거나 3초쯤 기다리세요", 15f, color = Ui.MUTED).apply { gravity = Gravity.CENTER; tag = "heard" }, 6)
+        box.add(Ui.text(this, "잠깐만요…", 19f, bold = true).apply { gravity = Gravity.CENTER; tag = "readyTitle" }, 0)
+        box.add(Ui.text(this, "‘띵’ 소리가 나면 말씀하세요", 15f, color = Ui.MUTED).apply { gravity = Gravity.CENTER; tag = "heard" }, 6)
         box.add(Ui.text(this, "🎙️ 듣는 중 · 누르면 끝", 18f, bold = true, color = Ui.CARD).apply {
             gravity = Gravity.CENTER
             minHeight = dp(56)
@@ -798,11 +798,33 @@ class KeyboardService : InputMethodService() {
         searchMode = search
         hideInfo()
         showListeningPanel(search)
-        Sounds.listenStart(this)
-        Sounds.buzz(this, 70)
+        // 인식기를 바로 켜고, 정말 들을 준비가 된 순간(onReadyForSpeech)에 신호음·진동으로 '말하세요'를 알림.
+        // 예전엔 신호음 뒤 0.7초를 기다렸다 켜서, 신호음을 듣자마자 한 앞 낱말이 잘렸음 (신부님 2026-11-10)
+        waitingReady = true
+        listen()
+    }
+
+    /** 첫 토막에서 인식기가 들을 준비가 됐는지 기다리는 중 */
+    private var waitingReady = false
+    private val readyFallback = Runnable { if (listening && waitingReady) onReady() }
+
+    private fun onReady() {
+        if (!waitingReady) return
+        waitingReady = false
+        Bg.main.removeCallbacks(readyFallback)
+        // 인식기 '띵'이 끝난 뒤 소리를 되돌리고 우리 부드러운 신호음
+        Bg.main.removeCallbacks(unmuteTask)
+        Bg.main.postDelayed({
+            unmuteBeep()
+            if (!listening) return@postDelayed
+            Sounds.listenStart(this)
+            Sounds.buzz(this, 70)
+            heardView()?.takeIf { heard.isBlank() && partial.isBlank() }?.text = if (searchMode) "예) 모임 날짜 언제로 정했지?" else "쉬어 가며 말해도 돼요. 다 말하면 아래를 누르거나 4초쯤 기다리세요"
+            content.findViewWithTag<TextView>("readyTitle")?.let {
+                it.text = if (searchMode) "🔎 무엇을 찾을까요?" else "🎤 편하게 말하세요"; Ui.iconize(it)
+            }
+        }, 150)
         Bg.main.removeCallbacks(pulse); Bg.main.postDelayed(pulse, 3000)
-        // 우리 신호음이 다 울린 뒤에 음성 인식을 켬 (인식기 자체의 '띵' 소리와 겹치지 않게)
-        Bg.main.postDelayed({ if (listening) listen() }, 700)
     }
 
     private fun newRecognizer(): SpeechRecognizer {
@@ -821,13 +843,18 @@ class KeyboardService : InputMethodService() {
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ko-KR")
             .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
-            .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
+            // 한 토막을 길게 들어 다시 켜는 횟수를 줄임 (다시 켜는 사이의 말이 빠지고, 짧게 나누면 앞뒤 말로 맞히는 힘이 약해짐)
+            .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
+            .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
+            .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 15000L)
+            .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         // 구글 음성 인식은 켤 때마다 자기 '띵' 소리를 냄 → 이어 듣기로 여러 번 켜면 소리가 겹쳐 들렸음.
         // 켜는 순간만 잠깐 미디어·알림 소리를 끄고 0.6초 뒤 되돌림 (우리 부드러운 신호음만 들리게)
         muteBeep()
         runCatching { r.startListening(i) }.onFailure { unmuteBeep(); stopRecognizer(); showKeys(); showInfo("음성 인식을 시작하지 못했어요.", color = Ui.RED) }
-        Bg.main.removeCallbacks(unmuteTask); Bg.main.postDelayed(unmuteTask, 600)
+        Bg.main.removeCallbacks(unmuteTask)
+        if (waitingReady) Bg.main.postDelayed(readyFallback, 2000)   // 준비 알림이 안 오는 휴대폰
+        else Bg.main.postDelayed(unmuteTask, 600)
     }
 
     private var beepMuted = false
@@ -849,19 +876,21 @@ class KeyboardService : InputMethodService() {
     private var listenStartedAt = 0L
     private var lastHeardAt = 0L
 
-    /** 한 토막이 끝난 뒤 이어서 듣기. 3.5초 넘게 조용하면 그때까지 한 말로 다듬고, 8초 동안 아무 말도 없으면 멈춤 */
+    /** 한 토막이 끝난 뒤 이어서 듣기. 4초 넘게 조용하면 그때까지 한 말로 다듬고, 8초 동안 아무 말도 없으면 멈춤 */
     private fun keepListening() {
         val now = System.currentTimeMillis()
         val spoken = heard.isNotBlank()
         when {
-            spoken && now - lastHeardAt >= 3500 -> finishSpeech()
-            !spoken && now - listenStartedAt >= 8000 -> { stopRecognizer(); showKeys(); showInfo("말씀을 듣지 못했어요. 다시 눌러 주세요.") }
-            else -> Bg.main.postDelayed({ if (listening) listen() }, 120)
+            spoken && now - lastHeardAt >= 4000 -> finishSpeech()
+            !spoken && now - listenStartedAt >= 10000 -> { stopRecognizer(); showKeys(); showInfo("말씀을 듣지 못했어요. 다시 눌러 주세요.") }
+            else -> Bg.main.post { if (listening) listen() }   // 기다리지 않고 바로 다시 들음 (그 사이 말이 빠지지 않게)
         }
     }
 
     private fun stopRecognizer() {
         listening = false
+        waitingReady = false
+        Bg.main.removeCallbacks(readyFallback)
         Bg.main.removeCallbacks(pulse)
         // 인식기를 끌 때 나는 소리도 막고, 그 뒤 끝 신호음 전에 되돌림
         muteBeep()
@@ -887,8 +916,8 @@ class KeyboardService : InputMethodService() {
     }
 
     private val listener = object : RecognitionListener {
-        override fun onReadyForSpeech(params: Bundle?) {}
-        override fun onBeginningOfSpeech() {}
+        override fun onReadyForSpeech(params: Bundle?) { if (listening) onReady() }
+        override fun onBeginningOfSpeech() { if (listening && waitingReady) onReady() }
         override fun onRmsChanged(rmsdB: Float) {}
         override fun onBufferReceived(buffer: ByteArray?) {}
         override fun onEndOfSpeech() {}
@@ -907,7 +936,7 @@ class KeyboardService : InputMethodService() {
             partial = ""
             heardView()?.let { v -> heard.toString().trim().takeIf { it.isNotBlank() }?.let { v.text = "“$it”"; v.setTextColor(Ui.BROWN) } }
             // 음성 인식은 말이 잠깐만 끊겨도 한 토막을 끝냄 → 바로 다듬지 않고 이어서 들음.
-            // 끝: '듣는 중 · 누르면 끝' 누르기, "~라고 보내 줘", 또는 3.5초 넘게 조용함. 찾기는 한 문장이면 끝
+            // 끝: '듣는 중 · 누르면 끝' 누르기, "~라고 보내 줘", 또는 4초 넘게 조용함. 찾기는 한 문장이면 끝
             when {
                 searchMode && heard.isNotBlank() -> finishSpeech()
                 EndSignal.isEnd(heard.toString()) -> finishSpeech()
