@@ -48,7 +48,7 @@ object Ui {
         "🗑" to R.drawable.ic_trash, "📱" to R.drawable.ic_phone, "🔄" to R.drawable.ic_refresh, "👀" to R.drawable.ic_eye,
         "🔊" to R.drawable.ic_volume, "☰" to R.drawable.ic_menu,
         // 말투
-        "🙏" to R.drawable.ic_star, "😊" to R.drawable.ic_smile, "💼" to R.drawable.ic_briefcase,
+        "🙏" to R.drawable.ic_pray, "😊" to R.drawable.ic_smile, "💼" to R.drawable.ic_briefcase,
         "🤗" to R.drawable.ic_heart, "🪞" to R.drawable.ic_user,
     )
 
