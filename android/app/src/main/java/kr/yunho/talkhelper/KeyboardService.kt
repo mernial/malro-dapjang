@@ -342,7 +342,28 @@ class KeyboardService : InputMethodService() {
                 emojiKey() to 1f,
             )),
         )
-        return column(rows)
+        if (!wide) return column(rows)
+        // 폴드처럼 넓은 화면: 천지인을 한쪽으로 모아 한 손으로 (빈 쪽의 화살표 단추로 왼쪽↔오른쪽)
+        val sp = getSharedPreferences("settings", MODE_PRIVATE)
+        val right = sp.getString("cjiSide", "right") != "left"
+        val keys = column(rows)
+        val pane = FrameLayout(this)
+        pane.addView(TextView(this).apply {
+            text = if (right) "◀\n왼쪽으로" else "▶\n오른쪽으로"
+            gravity = Gravity.CENTER
+            setTextColor(Ui.BROWN)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            background = Ui.rounded(this@KeyboardService, Ui.CARD, 20, KEY_EDGE)
+            setPadding(dp(18), dp(14), dp(18), dp(14))
+            contentDescription = if (right) "자판을 왼쪽으로 옮기기" else "자판을 오른쪽으로 옮기기"
+            setOnClickListener { sp.edit().putString("cjiSide", if (right) "left" else "right").apply(); showKeys() }
+        }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
+        val box = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
+        val keysLp = LinearLayout.LayoutParams(dp(minOf(480, screenWdp / 2)), ViewGroup.LayoutParams.WRAP_CONTENT)
+        val paneLp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
+        if (right) { box.addView(pane, paneLp); box.addView(keys, keysLp) } else { box.addView(keys, keysLp); box.addView(pane, paneLp) }
+        return box
     }
 
     // ───────── 이모티콘 ─────────
