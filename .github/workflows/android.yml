@@ -70,15 +70,16 @@ jobs:
           cp app/build/outputs/apk/github/debug/app-github-debug.apk talk-helper.apk
           cp app/build/outputs/bundle/playRelease/app-play-release.aab talk-helper-play.aab
           # 앱이 새 버전을 확인하는 파일
-          NOTES=$(git log -1 --pretty=%s)
+          # 직접 설치판은 배포 중단(2026-11-10): 예전 앱의 '새 버전' 띠에 옮기기 안내가 보이게
+          NOTES="이제 플레이 스토어판으로 옮겨요. 업데이트한 뒤 화면의 안내를 따라 주세요."
           SIGNED=$([ -n "$SIGNING_STORE_FILE" ] && echo true || echo false)
           python3 -c 'import json,sys; print(json.dumps({"versionCode": int(sys.argv[1]), "versionName": "1."+sys.argv[1], "notes": sys.argv[2][:120], "signed": sys.argv[3]=="true"}, ensure_ascii=False))' \
             "$APP_VERSION" "$NOTES" "$SIGNED" > version.json
           cat version.json
           if ! gh release view talk-helper --repo "$REPO" >/dev/null 2>&1; then
             gh release create talk-helper --repo "$REPO" --target "$GITHUB_SHA" \
-              --title "카톡 도우미 설치 파일" \
-              --notes "휴대폰에서 아래 talk-helper.apk 를 눌러 받아 설치하세요. 설치 방법은 android/README.md 를 보세요."
+              --title "말로 답장 (직접 설치판 배포 중단)" \
+              --notes "직접 설치판은 배포를 멈췄습니다. 플레이 스토어의 '말로 답장'을 설치하세요."
           fi
           # GitHub 서버가 잠깐 오류(500/502)를 내는 일이 있어 최대 4번 다시 시도
           upload() { for n in 1 2 3 4; do gh release upload talk-helper "$@" --repo "$REPO" --clobber && return 0; echo "올리기 실패 ($n/4), 20초 뒤 다시"; sleep 20; done; return 1; }

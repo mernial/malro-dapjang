@@ -23,6 +23,8 @@ const val REPORT_EMAIL = "mernial@naver.com"
 const val REPORT_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSerUu112Bk8P8_o_QDLUWPRoxvM-Yz0XDcHAOF-zC3I7yIcBA/formResponse"
 val REPORT_FORM_FIELDS = listOf("entry.535092123", "entry.1325222288", "entry.812589239", "entry.986025835")
 
+/** 플레이 비공개 테스트 참여 링크 (직접 설치판 사용자를 옮길 때) */
+const val PLAY_TESTING_URL = "https://play.google.com/apps/testing/kr.yunho.talkhelper"
 const val PRIVACY_URL = "https://mernial.github.io/catholic-shorts/talk-helper-privacy.html"
 
 /** 🚩 알림을 구글 설문지로 보냄 (블로킹, 백그라운드에서). 설문지가 없거나 실패하면 false */

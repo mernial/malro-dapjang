@@ -68,6 +68,9 @@ timeout 20 adb shell uiautomator dump /sdcard/w.xml >/dev/null 2>&1
 W=$(timeout 20 adb shell cat /sdcard/w.xml | tr '>' '\n' | grep 'class="android.widget.EditText"' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')
 if [ -n "$W" ]; then set -- $W; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 3; fi
 timeout 30 adb exec-out screencap -p > shots/keyboard_wide.png
+timeout 10 adb shell input tap 1940 1074; sleep 3   # 위 줄 ⇄ → 천지인 (한쪽으로 모인 모양)
+timeout 30 adb exec-out screencap -p > shots/keyboard_wide_cji.png
+timeout 10 adb shell input tap 1940 1074; sleep 2   # 다시 두벌식
 adb shell input keyevent KEYCODE_BACK; sleep 1; adb shell input keyevent KEYCODE_BACK; sleep 1
 adb shell wm size reset; adb shell wm density reset; sleep 4
 # 키보드까지 준비된 첫 화면 (새 디자인 확인): 위·아래로 한 장씩, 설정 화면 한 장

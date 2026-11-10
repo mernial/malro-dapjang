@@ -193,8 +193,15 @@ class KeyboardService : InputMethodService() {
         if (::toneButton.isInitialized) paintTone()
         // 숫자만 받는 칸이면 숫자 자판, 아니면 한글 자판부터
         val cls = (info?.inputType ?: 0) and EditorInfo.TYPE_MASK_CLASS
+        // 입력칸이 원하는 줄바꿈 칸 모양 (검색칸이면 🔍 검색, 보내기 칸이면 '보내기' …)
+        val opts = info?.imeOptions ?: 0
+        val multi = (info?.inputType ?: 0) and EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE != 0
+        val act = opts and EditorInfo.IME_MASK_ACTION
+        val newAction = if (opts and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0 || multi) EditorInfo.IME_ACTION_NONE else act
+        val actionChanged = newAction != editorAction
+        editorAction = newAction
         val want = if (cls == EditorInfo.TYPE_CLASS_NUMBER || cls == EditorInfo.TYPE_CLASS_PHONE) Layer.SYM else if (layer == Layer.SYM) Layer.KO else layer
-        if (want != layer || !restarting) { layer = want; shift = false; if (::content.isInitialized && !listening) showKeys() }
+        if (want != layer || !restarting || actionChanged) { layer = want; shift = false; if (::content.isInitialized && !listening) showKeys() }
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
@@ -268,6 +275,8 @@ class KeyboardService : InputMethodService() {
 
     private fun row(items: List<Pair<View, Float>>): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
+        // 글자 기준선 맞춤을 끔: 그림(😊·🔎) 키만 위로 올라가 줄이 어긋나던 것
+        isBaselineAligned = false
         items.forEach { (v, w) -> addView(v, keyLp(w)) }
     }
 
@@ -302,9 +311,9 @@ class KeyboardService : InputMethodService() {
             key("한/영", special = true) { if (ko) toEnglish() else toKorean() } to 1.2f,
             emojiKey() to 1f,
             key(",", special = true) { commitPlain(",") } to 0.9f,
-            key("띄어쓰기") { commitPlain(" ") } to 3.4f,
+            key("띄어쓰기") { space() } to 3.4f,
             key(".", special = true) { commitPlain(".") } to 1f,
-            key("↵", special = true) { enter() } to 1.7f,
+            enterKey() to 1.7f,
         )
         return column(listOf(
             // 폴드처럼 넓으면 왼쪽(자음)·오른쪽(모음) 사이를 조금 띄움. 모든 줄에 같은 폭이라 키 줄이 어긋나지 않음
@@ -321,19 +330,46 @@ class KeyboardService : InputMethodService() {
         fun c(label: String, cycle: String) = key(label) { cjiConsonant(label, cycle) } to 1f
         val rows = listOf(
             row(listOf(v("ㅣ", 'I'), v("•", 'D'), v("ㅡ", 'E'), key("⌫", special = true, repeat = true) { backspace() } to 1f)),
-            row(listOf(c("ㄱㅋ", "ㄱㅋㄲ"), c("ㄴㄹ", "ㄴㄹ"), c("ㄷㅌ", "ㄷㅌㄸ"), key("↵", special = true) { enter() } to 1f)),
-            row(listOf(c("ㅂㅍ", "ㅂㅍㅃ"), c("ㅅㅎ", "ㅅㅎㅆ"), c("ㅈㅊ", "ㅈㅊㅉ"),
-                key("!#1", special = true) { toSymbols() } to 0.5f, key("한/영", special = true) { toEnglish() } to 0.5f)),
-            // 휴대폰 숫자판처럼: ㅇㅁ 은 가운데(0 자리), 왼쪽 문장부호, 오른쪽 띄어쓰기
+            row(listOf(c("ㄱㅋ", "ㄱㅋㄲ"), c("ㄴㄹ", "ㄴㄹ"), c("ㄷㅌ", "ㄷㅌㄸ"), enterKey() to 1f)),
+            row(listOf(c("ㅂㅍ", "ㅂㅍㅃ"), c("ㅅㅎ", "ㅅㅎㅆ"), c("ㅈㅊ", "ㅈㅊㅉ"), key(".,?!", special = true) { cyclePunct() } to 1f)),
+            // 휴대폰 숫자판처럼: ㅇㅁ 은 가운데(0 자리), 오른쪽 띄어쓰기
             row(listOf(
-                key(".,?!") { cyclePunct() } to 1f,
+                // 문장부호는 위(ㅈㅊ 옆)로, 여기는 기호·한영 (신부님 요청 2026-11-10)
+                key("!#1", special = true) { toSymbols() } to 0.5f, key("한/영", special = true) { toEnglish() } to 0.5f,
                 c("ㅇㅁ", "ㅇㅁ"),
-                key("띄어쓰기") { commitPlain(" ") } to 1f,
+                key("띄어쓰기") { space() } to 1f,
                 // 삼성 천지인처럼 오른쪽 맨 아래는 이모티콘
                 emojiKey() to 1f,
             )),
         )
-        return column(rows)
+        if (!wide) return column(rows)
+        // 폴드처럼 넓은 화면: 천지인을 왼쪽·가운데·오른쪽 중 한곳에 모음 (비어 있는 쪽의 화살표 단추로 한 칸씩 옮김, 위치 기억)
+        val sp = getSharedPreferences("settings", MODE_PRIVATE)
+        val sides = listOf("left", "center", "right")
+        val side = sp.getString("cjiSide", "center").takeIf { it in sides } ?: "center"
+        val idx = sides.indexOf(side)
+        fun pane(toLeft: Boolean): View = FrameLayout(this).apply {
+            val target = sides[idx + if (toLeft) -1 else 1]
+            addView(TextView(this@KeyboardService).apply {
+                text = if (toLeft) "◀\n왼쪽으로" else "▶\n오른쪽으로"
+                gravity = Gravity.CENTER
+                setTextColor(Ui.BROWN)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                background = Ui.rounded(this@KeyboardService, Ui.CARD, 20, KEY_EDGE)
+                setPadding(dp(18), dp(14), dp(18), dp(14))
+                contentDescription = if (toLeft) "자판을 왼쪽으로 옮기기" else "자판을 오른쪽으로 옮기기"
+                setOnClickListener { sp.edit().putString("cjiSide", target).apply(); showKeys() }
+            }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
+        }
+        val keys = column(rows)
+        val box = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
+        val keysLp = LinearLayout.LayoutParams(dp(minOf(480, screenWdp / 2)), ViewGroup.LayoutParams.WRAP_CONTENT)
+        fun paneLp() = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
+        if (idx > 0) box.addView(pane(toLeft = true), paneLp())
+        box.addView(keys, keysLp)
+        if (idx < 2) box.addView(pane(toLeft = false), paneLp())
+        return box
     }
 
     // ───────── 이모티콘 ─────────
@@ -353,7 +389,8 @@ class KeyboardService : InputMethodService() {
 
     /** 이모티콘 판: 최근 쓴 것 + 무리별, 아래 줄은 돌아가기·지우기·띄어쓰기·줄바꿈 */
     private fun emojis(): View {
-        val cols = if (wide) 12 else 8
+        // 칸 하나 약 56dp 로 (넓은 화면에서 이모티콘 사이가 너무 벌어지지 않게)
+        val cols = ((screenWdp - 16) / 40).coerceAtLeast(8)
         val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(4), 0, dp(4), 0) }
         fun group(title: String, list: List<String>) {
             if (list.isEmpty()) return
@@ -366,11 +403,11 @@ class KeyboardService : InputMethodService() {
                 line.forEach { e ->
                     r.addView(TextView(this).apply {
                         text = e; gravity = Gravity.CENTER
-                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 26f)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
                         setOnClickListener { Sounds.buzz(this@KeyboardService, 8, 40); useEmoji(e) }
-                    }, LinearLayout.LayoutParams(0, dp(48), 1f))
+                    }, LinearLayout.LayoutParams(0, dp(42), 1f))
                 }
-                repeat(cols - line.size) { r.addView(View(this), LinearLayout.LayoutParams(0, dp(48), 1f)) }
+                repeat(cols - line.size) { r.addView(View(this), LinearLayout.LayoutParams(0, dp(42), 1f)) }
                 grid.addView(r)
             }
         }
@@ -378,25 +415,32 @@ class KeyboardService : InputMethodService() {
         EMOJI_GROUPS.forEach { (t, l) -> group(t, l.split(' ')) }
         val scroll = ScrollView(this).apply { addView(grid) }
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        col.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, keyH * 3 + dp(18)))
-        col.addView(row(listOf(
-            key(if (emojiFrom == Layer.EN) "ABC" else "가", special = true) { layer = if (emojiFrom == Layer.EMOJI) Layer.KO else emojiFrom; showKeys() } to 1.5f,
-            key("띄어쓰기") { commitPlain(" ") } to 4f,
-            key("⌫", special = true, repeat = true) { backspace() } to 1.5f,
-            key("↵", special = true) { enter() } to 1.5f,
-        )))
+        col.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, keyH * 4 - dp(4)))
+        // 아래 줄은 작게: 높이 44dp, 넓은 화면에선 가운데 520dp 안에
+        val bottom = row(listOf(
+            key(if (emojiFrom == Layer.EN) "ABC" else "가", special = true) { layer = if (emojiFrom == Layer.EMOJI) Layer.KO else emojiFrom; showKeys() } to 1.3f,
+            key("띄어쓰기") { space() } to 3f,
+            key("⌫", special = true, repeat = true) { backspace() } to 1.3f,
+            enterKey() to 1.3f,
+        ))
+        for (i in 0 until bottom.childCount) bottom.getChildAt(i).layoutParams.height = dp(44)
+        col.addView(column(listOf(bottom), maxWidthDp = 520))
         return col
     }
 
     private fun symbols(): View {
-        fun line(s: String) = row(s.map { ch -> key("$ch") { commitPlain("$ch") } to 1f })
+        // 넓은 화면에선 한글 자판처럼 가운데를 띄움
+        fun line(s: String): LinearLayout {
+            val ks = s.map { ch -> key("$ch") { commitPlain("$ch") } to 1f }
+            return row(ks.take(5) + mid() + ks.drop(5))
+        }
         val bottom = row(listOf(
             key("가", special = true) { toKorean() } to 1.4f,
             key("%", special = true) { commitPlain("%") } to 0.9f,
             key("#", special = true) { commitPlain("#") } to 0.9f,
-            key("띄어쓰기") { commitPlain(" ") } to 3f,
+            key("띄어쓰기") { space() } to 3f,
             key("⌫", special = true, repeat = true) { backspace() } to 1.4f,
-            key("↵", special = true) { enter() } to 1.4f,
+            enterKey() to 1.4f,
         ))
         return column(listOf(line("1234567890"), line("-/:;()₩&@\""), line(".,?!'~^*+="), bottom), )
     }
@@ -459,6 +503,24 @@ class KeyboardService : InputMethodService() {
         inserted = null
     }
 
+    /** 띄어쓰기. 글자 뒤에서 1초 안에 두 번 누르면 마침표 + 띄어쓰기 (삼성·아이폰 키보드처럼) */
+    private var lastSpaceAt = 0L
+    private fun space() {
+        val now = System.currentTimeMillis()
+        val ic = currentInputConnection
+        if (ic != null && !hangul.isComposing && now - lastSpaceAt < 1000) {
+            val before = ic.getTextBeforeCursor(2, 0)?.toString().orEmpty()
+            if (before.length == 2 && before[1] == ' ' && (before[0].isLetterOrDigit())) {
+                ic.deleteSurroundingText(1, 0)
+                ic.commitText(". ", 1)
+                lastSpaceAt = 0L; lastCjiKey = null; inserted = null
+                return
+            }
+        }
+        commitPlain(" ")
+        lastSpaceAt = now
+    }
+
     private fun backspace() {
         val ic = currentInputConnection ?: return
         lastCjiKey = null
@@ -468,9 +530,32 @@ class KeyboardService : InputMethodService() {
         if (!sel.isNullOrEmpty()) ic.commitText("", 1) else ic.deleteSurroundingText(1, 0)
     }
 
+    /** 지금 입력칸의 줄바꿈 칸 동작 (IME_ACTION_*). NONE 이면 그냥 줄바꿈 */
+    private var editorAction = EditorInfo.IME_ACTION_NONE
+
+    /** 줄바꿈 칸: 검색칸이면 🔍, 보내기·이동·다음·완료 칸이면 그 글자, 아니면 ↵ */
+    private fun enterKey(): TextView {
+        val (label, desc) = when (editorAction) {
+            EditorInfo.IME_ACTION_SEARCH -> "🔎" to "검색"
+            EditorInfo.IME_ACTION_SEND -> "보내기" to "보내기"
+            EditorInfo.IME_ACTION_GO -> "이동" to "이동"
+            EditorInfo.IME_ACTION_NEXT -> "다음" to "다음 칸"
+            EditorInfo.IME_ACTION_DONE -> "완료" to "완료"
+            else -> "↵" to "줄바꿈"
+        }
+        return key(label, special = true) { enter() }.apply {
+            contentDescription = desc
+            if (editorAction == EditorInfo.IME_ACTION_SEARCH) background = Ui.rounded(this@KeyboardService, Ui.YELLOW, 8, KEY_EDGE)
+        }
+    }
+
     private fun enter() {
         finishComposing()
         val ic = currentInputConnection ?: return
+        val act = editorAction
+        if (act != EditorInfo.IME_ACTION_NONE && act != EditorInfo.IME_ACTION_UNSPECIFIED && ic.performEditorAction(act)) {
+            lastCjiKey = null; inserted = null; return
+        }
         ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
         ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
         lastCjiKey = null
@@ -495,16 +580,43 @@ class KeyboardService : InputMethodService() {
     /** 말투 고르기 줄 (단축키 줄 아래에 펼침, 다시 누르면 닫힘) */
     private fun toggleToneRow() {
         if (infoRow.visibility == View.VISIBLE && infoRow.tag == "tones") { hideInfo(); return }
-        showInfo(if (inserted != null) "말투를 누르면 방금 넣은 글이 그 말투로 바뀌어요" else "🎤로 말할 때 쓸 말투를 고르세요", tones = true)
+        showInfo(if (inserted != null) "말투를 누르면 방금 넣은 글이 그 말투로 바뀌어요" else "🎤로 말할 때 쓸 말투를 고르세요 · 꾹 눌러 끌면 자리 바꾸기", tones = true)
     }
 
     private fun toneChips(): View {
         val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         val line = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        for (m in Mode.values()) {
+        // 말투 순서는 사용자가 정한 대로 (꾹 눌러 끌어서 옮김, 카톡 버튼 메뉴와 같은 저장값 toneOrder)
+        val order = orderedModes()
+        for (m in order) {
             val on = m == mode
             line.addView(TextView(this).apply {
                 text = "${m.emoji} ${m.label}"
+                // 꾹 누르면 끌어서 다른 칩 위에 놓아 자리 바꾸기
+                setOnLongClickListener { v ->
+                    Sounds.buzz(this@KeyboardService, 30)
+                    v.startDragAndDrop(android.content.ClipData.newPlainText("tone", m.name), View.DragShadowBuilder(v), m, 0)
+                    true
+                }
+                setOnDragListener { v, e ->
+                    when (e.action) {
+                        android.view.DragEvent.ACTION_DRAG_STARTED -> e.localState is Mode
+                        android.view.DragEvent.ACTION_DRAG_ENTERED -> { v.alpha = 0.45f; true }
+                        android.view.DragEvent.ACTION_DRAG_EXITED, android.view.DragEvent.ACTION_DRAG_ENDED -> { v.alpha = 1f; true }
+                        android.view.DragEvent.ACTION_DROP -> {
+                            val from = e.localState as? Mode
+                            if (from != null && from != m) {
+                                val list = orderedModes().toMutableList()
+                                list.remove(from)
+                                list.add(list.indexOf(m).let { if (order.indexOf(from) < order.indexOf(m)) it + 1 else it }, from)
+                                prefs.toneOrder = list.map { it.name }
+                                Bg.main.post { refreshToneChips() }
+                            }
+                            true
+                        }
+                        else -> true
+                    }
+                }
                 setTextColor(if (on) Ui.YELLOW else Ui.BROWN)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -554,6 +666,20 @@ class KeyboardService : InputMethodService() {
         infoRow.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
     }
 
+    private fun orderedModes(): List<Mode> {
+        val all = Mode.values().toList()
+        val saved = prefs.toneOrder.mapNotNull { k -> all.firstOrNull { it.name == k } }
+        return saved + all.filter { it !in saved }
+    }
+
+    /** 말투 칩 줄만 새로 그림 (순서를 바꾼 뒤) */
+    private fun refreshToneChips() {
+        if (infoRow.tag != "tones" || infoRow.childCount < 2) return
+        val idx = infoRow.indexOfChild(infoRow.getChildAt(1))
+        infoRow.removeViewAt(idx)
+        infoRow.addView(toneChips(), idx, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(4) })
+    }
+
     private fun showInfo(text: String, tones: Boolean = false, color: Int = Ui.BROWN) {
         infoText.text = text
         infoText.setTextColor(color)
@@ -583,7 +709,7 @@ class KeyboardService : InputMethodService() {
         content.removeAllViews()
         val box = Ui.vbox(this, 14, Ui.CARD)
         box.add(Ui.text(this, if (search) "🔎 무엇을 찾을까요?" else "🎤 편하게 말하세요", 19f, bold = true).apply { gravity = Gravity.CENTER; Ui.iconize(this) }, 0)
-        box.add(Ui.text(this, if (search) "예) 모임 날짜 언제로 정했지?" else "다 말하고 잠시 멈추면 다듬어서 입력칸에 넣어요", 15f, color = Ui.MUTED).apply { gravity = Gravity.CENTER; tag = "heard" }, 6)
+        box.add(Ui.text(this, if (search) "예) 모임 날짜 언제로 정했지?" else "쉬어 가며 말해도 돼요. 다 말하면 아래를 누르거나 3초쯤 기다리세요", 15f, color = Ui.MUTED).apply { gravity = Gravity.CENTER; tag = "heard" }, 6)
         box.add(Ui.text(this, "🎙️ 듣는 중 · 누르면 끝", 18f, bold = true, color = Ui.CARD).apply {
             gravity = Gravity.CENTER
             minHeight = dp(56)
@@ -611,6 +737,7 @@ class KeyboardService : InputMethodService() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) { showInfo("이 휴대폰에서 음성 인식을 쓸 수 없어요.", color = Ui.RED); return }
         if (ClaudeProvider.get(this) == null) { showInfo("아직 준비가 안 됐어요. 앱을 열어 설정을 마쳐 주세요.", color = Ui.RED); return }
         heard.clear(); partial = ""
+        listenStartedAt = System.currentTimeMillis(); lastHeardAt = listenStartedAt
         listening = true
         searchMode = search
         hideInfo()
@@ -640,6 +767,20 @@ class KeyboardService : InputMethodService() {
             .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
             .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
         runCatching { r.startListening(i) }.onFailure { stopRecognizer(); showKeys(); showInfo("음성 인식을 시작하지 못했어요.", color = Ui.RED) }
+    }
+
+    private var listenStartedAt = 0L
+    private var lastHeardAt = 0L
+
+    /** 한 토막이 끝난 뒤 이어서 듣기. 3.5초 넘게 조용하면 그때까지 한 말로 다듬고, 8초 동안 아무 말도 없으면 멈춤 */
+    private fun keepListening() {
+        val now = System.currentTimeMillis()
+        val spoken = heard.isNotBlank()
+        when {
+            spoken && now - lastHeardAt >= 3500 -> finishSpeech()
+            !spoken && now - listenStartedAt >= 8000 -> { stopRecognizer(); showKeys(); showInfo("말씀을 듣지 못했어요. 다시 눌러 주세요.") }
+            else -> Bg.main.postDelayed({ if (listening) listen() }, 120)
+        }
     }
 
     private fun stopRecognizer() {
@@ -674,19 +815,32 @@ class KeyboardService : InputMethodService() {
         override fun onPartialResults(b: Bundle?) {
             if (!listening) return
             partial = b?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+            if (partial.isNotBlank()) lastHeardAt = System.currentTimeMillis()
             val now = (heard.toString() + " " + partial).trim()
             if (now.isNotBlank()) heardView()?.let { it.text = "“$now”"; it.setTextColor(Ui.BROWN) }
         }
         override fun onResults(b: Bundle?) {
             if (!listening) return
             val best = b?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-            if (best.isNotBlank()) heard.append(' ').append(best)
+            if (best.isNotBlank()) { heard.append(' ').append(best); lastHeardAt = System.currentTimeMillis() }
             partial = ""
-            // 말이 끝나(잠시 조용해지)면 바로 다듬음. "~라고 보내 줘"는 떼어 냄
-            finishSpeech()
+            heardView()?.let { v -> heard.toString().trim().takeIf { it.isNotBlank() }?.let { v.text = "“$it”"; v.setTextColor(Ui.BROWN) } }
+            // 음성 인식은 말이 잠깐만 끊겨도 한 토막을 끝냄 → 바로 다듬지 않고 이어서 들음.
+            // 끝: '듣는 중 · 누르면 끝' 누르기, "~라고 보내 줘", 또는 3.5초 넘게 조용함. 찾기는 한 문장이면 끝
+            when {
+                searchMode && heard.isNotBlank() -> finishSpeech()
+                EndSignal.isEnd(heard.toString()) -> finishSpeech()
+                else -> keepListening()
+            }
         }
         override fun onError(error: Int) {
             if (!listening) return
+            if (error != SpeechRecognizer.ERROR_NETWORK && error != SpeechRecognizer.ERROR_NETWORK_TIMEOUT && error != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                // 말이 없어서 끝난 것(조용함·못 알아들음)이면 계속 들음
+                if (partial.isNotBlank()) { heard.append(' ').append(partial); partial = "" }
+                if (searchMode && heard.isNotBlank()) { finishSpeech(); return }
+                keepListening(); return
+            }
             if (heard.isNotBlank() || partial.isNotBlank()) { finishSpeech(); return }
             stopRecognizer()
             showKeys()

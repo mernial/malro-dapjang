@@ -133,6 +133,8 @@ class MainActivity : Activity() {
         body.removeAllViews()
         // 제목을 길게 누르면 숨겨 둔 '자세한 설정' (API 키·고급·문제 확인, 운영자용)
         header()
+        // 직접 설치판(github)은 배포를 멈춤 → 플레이 스토어판으로 옮기는 안내만
+        if (BuildConfig.SELF_UPDATE) { moveToPlay(); footer(); return }
         updateBanner()
 
         // 중계 서버가 있으면 설정 코드 단계 없이 두 단계로 끝남
@@ -364,6 +366,32 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this)
             .setMessage("설정을 받았어요! 🎉\n\n이제 받은 카톡 메시지는 지워 주세요.")
             .setPositiveButton("확인", null).show()
+    }
+
+    // ───────── 직접 설치판 → 플레이 스토어판으로 옮기기 ─────────
+
+    private fun moveToPlay() {
+        val ctx = this
+        val card = Kit.card(ctx, 20)
+        card.addView(Ui.text(ctx, "말로 답장이 플레이 스토어로 옮겨 갔어요", 22f, bold = true))
+        card.add(Ui.text(ctx, "이 앱(직접 설치판)은 이제 쓸 수 없어요. 카카오 안내에 따라 카톡 위 버튼을 없애고, 플레이 스토어의 새 '말로 답장'(키보드 방식)으로 바뀌었어요.\n\n아래 세 단계만 차례로 해 주세요.", 16f), 10)
+        fun step(n: Int, title: String, desc: String, button: String, onClick: () -> Unit) {
+            card.add(Ui.text(ctx, "$n. $title", 18f, bold = true), 20)
+            card.add(Ui.text(ctx, desc, 14f, color = Ui.MUTED), 4)
+            card.add(Kit.primaryButton(ctx, button, onClick), 10)
+        }
+        step(1, "테스트 참여하기", "링크가 열리면 '테스터 되기'를 누르세요. (안 되면 아래 메일로 Gmail 주소를 알려 주세요)", "👉 참여 링크 열기") {
+            runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PLAY_TESTING_URL))) }
+        }
+        step(2, "이 앱 지우기", "두 앱은 같이 깔 수 없어서 먼저 지워야 해요. 저장해 둔 대화는 지워지니, 새 앱에서 다시 내보내 주세요.", "🗑 이 앱 지우기") {
+            runCatching { startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:$packageName"))) }
+                .onFailure { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) }
+        }
+        step(3, "플레이 스토어에서 설치", "플레이 스토어에서 '말로 답장'을 찾아 설치하세요. 설치한 뒤 키보드 켜기·마이크 허용만 하면 돼요.", "📱 플레이 스토어 열기") {
+            runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))) }
+                .onFailure { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$packageName"))) }
+        }
+        body.add(card, 20)
     }
 
     // ───────── 완료: 첫 화면 ─────────
