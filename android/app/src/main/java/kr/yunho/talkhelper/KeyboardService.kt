@@ -876,7 +876,20 @@ class KeyboardService : InputMethodService() {
         }
         ic.commitText(text, 1)
         inserted = text
-        showInfo("✅ 넣었어요. 확인하고 직접 보내세요. 다른 말투로 바꾸려면:", tones = true)
+        // 말투 줄은 매번 띄우지 않음 (신부님 요청 2026-11-10): 짧은 안내만 잠깐, 말투를 바꾸려면 위 '말투 ▾'
+        showInfo("✅ 넣었어요. 확인하고 직접 보내세요. 말투를 바꾸려면 위 '말투 ▾'")
+        infoRow.tag = "done"
+        val ai = text
+        infoRow.addView(TextView(this).apply {
+            this.text = "🚩 이상해요"
+            setTextColor(Ui.MUTED)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setPadding(dp(6), dp(2), dp(6), dp(4))
+            contentDescription = "이상한 결과 알리기"
+            setOnClickListener { askReport(ai) }
+            Ui.iconize(this)
+        })
+        Bg.main.postDelayed({ if (infoRow.tag == "done") hideInfo() }, 6000)
     }
 
     /** 🔎 카톡 '대화 내보내기'로 저장해 둔 대화에서 찾기 (화면은 읽지 않음) */
