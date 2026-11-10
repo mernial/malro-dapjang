@@ -8,9 +8,9 @@
 | 무엇 | 어디 |
 |---|---|
 | 업로드할 앱 파일 (AAB) | https://github.com/mernial/malro-dapjang/releases/download/talk-helper/talk-helper-play.aab |
-| 앱 아이콘 512×512 | `docs/play-store/icon-512.png` |
+| 앱 아이콘 512×512 | `docs/play-store/icon-512.png` (2026-11-10 새 디자인: 크림·갈색 동그라미·노란 소리 막대, 앱 아이콘과 같음) |
 | 그래픽 이미지 1024×500 | `docs/play-store/feature-1024x500.png` |
-| 휴대폰 스크린샷 | `docs/play-store/screenshots/` — 1장(그림). **실제 앱 화면을 2~3장 더 찍어 넣으세요** (최소 2장) |
+| 휴대폰 스크린샷 1080×1920 | `docs/play-store/screenshots/01~04.png` (말하면 입력칸에 · 말투 · 두벌식/천지인 · 두 단계 시작). 에뮬레이터 사진(`ui-shots`의 keyboard_gesture·keyboard_cji·main_ready·main)으로 `make-store.mjs`가 만듦 — 같은 폴더에 NanumSquareRound R/B/EB woff2 와 shots.json 을 두고 `node make-store.mjs <출력 폴더>` |
 | 개인정보처리방침 | `talk-helper-privacy.html` (아래 '개인정보처리방침 주소' 참고) |
 
 ---

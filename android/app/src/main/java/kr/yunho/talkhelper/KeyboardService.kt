@@ -51,7 +51,7 @@ class KeyboardService : InputMethodService() {
     private lateinit var content: FrameLayout
 
     /** 자판 종류: 한글(두벌식/천지인) · 영어 · 숫자·기호 */
-    private enum class Layer { KO, EN, SYM }
+    private enum class Layer { KO, EN, SYM, EMOJI }
     private var layer = Layer.KO
     private var shift = false
 
@@ -93,6 +93,8 @@ class KeyboardService : InputMethodService() {
     private val screenWdp get() = resources.configuration.screenWidthDp
     private val screenHdp get() = resources.configuration.screenHeightDp
     /** 키 높이: 화면 높이에 맞춰 (너무 작거나 크지 않게) */
+    /** 넓은 화면 (폴드 펼침·태블릿): 자음·모음 사이를 띄우고 키 간격을 넓힘 */
+    private val wide get() = screenWdp >= 600
     private val keyH get() = dp((screenHdp * 0.062f).toInt().coerceIn(42, 56))
     private val keyTextSp get() = if (screenHdp < 640) 18f else 21f
 
@@ -226,6 +228,7 @@ class KeyboardService : InputMethodService() {
             Layer.KO -> if (prefs.keyboardLayout == "cji") cheonjiin() else qwerty(KO_ROWS, KO_SHIFT)
             Layer.EN -> qwerty(EN_ROWS, null)
             Layer.SYM -> symbols()
+            Layer.EMOJI -> emojis()
         }
         content.addView(keys)
     }
@@ -238,7 +241,8 @@ class KeyboardService : InputMethodService() {
         maxLines = 1
         setTextColor(Ui.BROWN)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, if (label.length > 2) keyTextSp - 5 else keyTextSp)
-        background = Ui.rounded(this@KeyboardService, if (special) KEY_SPECIAL else Ui.CARD, 8)
+        // 얇은 테두리로 키 경계를 또렷하게 (옆 키를 잘못 누르는 일 줄이기)
+        background = Ui.rounded(this@KeyboardService, if (special) KEY_SPECIAL else Ui.CARD, 8, KEY_EDGE)
         elevation = dp(1).toFloat()
         Ui.iconize(this)
         if (repeat) {
@@ -254,8 +258,13 @@ class KeyboardService : InputMethodService() {
         } else setOnClickListener { Sounds.buzz(this@KeyboardService, 8, 40); onClick() }
     }
 
-    private fun keyLp(w: Float) = LinearLayout.LayoutParams(0, keyH, w).apply { setMargins(dp(2), dp(3), dp(2), dp(3)) }
+    private fun keyLp(w: Float) = LinearLayout.LayoutParams(0, keyH, w).apply {
+        val h = if (wide) dp(5) else dp(2); val v = if (wide) dp(4) else dp(3)
+        setMargins(h, v, h, v)
+    }
     private fun gap(w: Float): Pair<View, Float> = View(this) to w
+    /** 넓은 화면에서 자음·모음 사이 빈칸 (좁은 화면은 없음) */
+    private fun mid(): List<Pair<View, Float>> = if (wide) listOf(gap(0.9f)) else emptyList()
 
     private fun row(items: List<Pair<View, Float>>): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
@@ -291,15 +300,17 @@ class KeyboardService : InputMethodService() {
         val bottom = listOf(
             key("!#1", special = true) { toSymbols() } to 1.5f,
             key("한/영", special = true) { if (ko) toEnglish() else toKorean() } to 1.2f,
-            key(",", special = true) { commitPlain(",") } to 1f,
-            key("띄어쓰기") { commitPlain(" ") } to 4.1f,
+            emojiKey() to 1f,
+            key(",", special = true) { commitPlain(",") } to 0.9f,
+            key("띄어쓰기") { commitPlain(" ") } to 3.4f,
             key(".", special = true) { commitPlain(".") } to 1f,
             key("↵", special = true) { enter() } to 1.7f,
         )
         return column(listOf(
-            row(r1),
-            row(listOf(gap(0.5f)) + r2 + listOf(gap(0.5f))),
-            row(listOf(shiftKey) + r3 + listOf(back)),
+            // 폴드처럼 넓으면 왼쪽(자음)·오른쪽(모음) 사이를 조금 띄움. 모든 줄에 같은 폭이라 키 줄이 어긋나지 않음
+            row(r1.take(5) + mid() + r1.drop(5)),
+            row(listOf(gap(0.5f)) + r2.take(5) + mid() + r2.drop(5) + listOf(gap(0.5f))),
+            row(listOf(shiftKey) + r3.take(4) + mid() + r3.drop(4) + listOf(back)),
             row(bottom),
         ))
     }
@@ -311,16 +322,70 @@ class KeyboardService : InputMethodService() {
         val rows = listOf(
             row(listOf(v("ㅣ", 'I'), v("•", 'D'), v("ㅡ", 'E'), key("⌫", special = true, repeat = true) { backspace() } to 1f)),
             row(listOf(c("ㄱㅋ", "ㄱㅋㄲ"), c("ㄴㄹ", "ㄴㄹ"), c("ㄷㅌ", "ㄷㅌㄸ"), key("↵", special = true) { enter() } to 1f)),
-            row(listOf(c("ㅂㅍ", "ㅂㅍㅃ"), c("ㅅㅎ", "ㅅㅎㅆ"), c("ㅈㅊ", "ㅈㅊㅉ"), key("!#1", special = true) { toSymbols() } to 1f)),
+            row(listOf(c("ㅂㅍ", "ㅂㅍㅃ"), c("ㅅㅎ", "ㅅㅎㅆ"), c("ㅈㅊ", "ㅈㅊㅉ"),
+                key("!#1", special = true) { toSymbols() } to 0.5f, key("한/영", special = true) { toEnglish() } to 0.5f)),
             // 휴대폰 숫자판처럼: ㅇㅁ 은 가운데(0 자리), 왼쪽 문장부호, 오른쪽 띄어쓰기
             row(listOf(
                 key(".,?!") { cyclePunct() } to 1f,
                 c("ㅇㅁ", "ㅇㅁ"),
                 key("띄어쓰기") { commitPlain(" ") } to 1f,
-                key("한/영", special = true) { toEnglish() } to 1f,
+                // 삼성 천지인처럼 오른쪽 맨 아래는 이모티콘
+                emojiKey() to 1f,
             )),
         )
         return column(rows)
+    }
+
+    // ───────── 이모티콘 ─────────
+
+    private var emojiFrom = Layer.KO
+    private fun emojiKey(): TextView = key("😊", special = true) { finishComposing(); emojiFrom = layer; layer = Layer.EMOJI; showKeys() }
+        .apply { contentDescription = "이모티콘" }
+
+    private fun recentEmojis(): List<String> =
+        getSharedPreferences("settings", MODE_PRIVATE).getString("recentEmoji", "").orEmpty().split(' ').filter { it.isNotBlank() }
+
+    private fun useEmoji(e: String) {
+        commitPlain(e)
+        val list = (listOf(e) + recentEmojis().filter { it != e }).take(16)
+        getSharedPreferences("settings", MODE_PRIVATE).edit().putString("recentEmoji", list.joinToString(" ")).apply()
+    }
+
+    /** 이모티콘 판: 최근 쓴 것 + 무리별, 아래 줄은 돌아가기·지우기·띄어쓰기·줄바꿈 */
+    private fun emojis(): View {
+        val cols = if (wide) 12 else 8
+        val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(4), 0, dp(4), 0) }
+        fun group(title: String, list: List<String>) {
+            if (list.isEmpty()) return
+            grid.addView(TextView(this).apply {
+                text = title; setTextColor(Ui.MUTED); setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                setPadding(dp(4), dp(8), 0, dp(2))
+            })
+            list.chunked(cols).forEach { line ->
+                val r = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                line.forEach { e ->
+                    r.addView(TextView(this).apply {
+                        text = e; gravity = Gravity.CENTER
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 26f)
+                        setOnClickListener { Sounds.buzz(this@KeyboardService, 8, 40); useEmoji(e) }
+                    }, LinearLayout.LayoutParams(0, dp(48), 1f))
+                }
+                repeat(cols - line.size) { r.addView(View(this), LinearLayout.LayoutParams(0, dp(48), 1f)) }
+                grid.addView(r)
+            }
+        }
+        group("최근", recentEmojis())
+        EMOJI_GROUPS.forEach { (t, l) -> group(t, l.split(' ')) }
+        val scroll = ScrollView(this).apply { addView(grid) }
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, keyH * 3 + dp(18)))
+        col.addView(row(listOf(
+            key(if (emojiFrom == Layer.EN) "ABC" else "가", special = true) { layer = if (emojiFrom == Layer.EMOJI) Layer.KO else emojiFrom; showKeys() } to 1.5f,
+            key("띄어쓰기") { commitPlain(" ") } to 4f,
+            key("⌫", special = true, repeat = true) { backspace() } to 1.5f,
+            key("↵", special = true) { enter() } to 1.5f,
+        )))
+        return col
     }
 
     private fun symbols(): View {
@@ -712,6 +777,15 @@ class KeyboardService : InputMethodService() {
     companion object {
         private val KB_BG = android.graphics.Color.parseColor("#E9E4DC")
         private val KEY_SPECIAL = android.graphics.Color.parseColor("#D6CFC4")
+        private val EMOJI_GROUPS = listOf(
+            "자주 쓰는" to "😊 😂 🥰 😍 👍 🙏 ❤️ 👏 🎉 😭 😅 🤗 😢 🙂 😆 💕",
+            "표정" to "😀 😃 😄 😁 😉 😌 🥹 😇 🤔 😮 😲 😳 🥲 😔 😞 😣 😤 😡 😴 🤒 😷 🤭 🫢 😎",
+            "손·몸" to "👋 🙌 👐 🤝 ✌️ 👌 🤞 💪 👆 👉 ✋ 🙆 🙇 🙋 🫶 ✊",
+            "마음" to "❤️ 🧡 💛 💚 💙 💜 🤍 💖 💗 💝 💞 💌 ✨ 🌟 ⭐ 💯",
+            "신앙" to "🙏 ✝️ ⛪ 📿 🕊️ 🕯️ 📖 🔔 👼 🌹 ☦️ 🎄",
+            "축하·일상" to "🎂 🎁 🎊 🌸 🌷 💐 ☕ 🍚 🍰 🍎 🏠 🚗 ☀️ 🌧️ ❄️ 🌙",
+        )
+        private val KEY_EDGE = android.graphics.Color.parseColor("#CDBFAF")
         private val KO_ROWS = listOf("ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ", "ㅁㄴㅇㄹㅎㅗㅓㅏㅣ", "ㅋㅌㅊㅍㅠㅜㅡ")
         private val KO_SHIFT = mapOf('ㅂ' to 'ㅃ', 'ㅈ' to 'ㅉ', 'ㄷ' to 'ㄸ', 'ㄱ' to 'ㄲ', 'ㅅ' to 'ㅆ', 'ㅐ' to 'ㅒ', 'ㅔ' to 'ㅖ')
         private val EN_ROWS = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
