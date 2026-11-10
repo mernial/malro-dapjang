@@ -126,8 +126,6 @@ class KeyboardService : InputMethodService() {
         tool("🔎 찾기", 1f) { startVoice(search = true) }
         toneButton = tool("", 1.3f) { toggleToneRow() }
         tool(if (prefs.keyboardLayout == "cji") "⇄ 두벌식" else "⇄ 천지인", 1.1f) { switchLayout() }
-        // 다른 키보드(삼성 키보드 등)로 바꾸기
-        tool("⌨", 0.5f) { otherKeyboard() }.apply { contentDescription = "다른 키보드로 바꾸기" }
         r.addView(toolbar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         // 2) 알림 줄 (넣었어요·말투 고르기·오류)
@@ -391,14 +389,6 @@ class KeyboardService : InputMethodService() {
         ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
         lastCjiKey = null
         inserted = null
-    }
-
-    private fun otherKeyboard() {
-        stopRecognizer()
-        finishComposing()
-        // 바로 전에 쓰던 키보드로 (안 되면 키보드 고르기 창)
-        val switched = runCatching { switchToPreviousInputMethod() }.getOrDefault(false)
-        if (!switched) (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showInputMethodPicker()
     }
 
     private fun switchLayout() {
