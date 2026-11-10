@@ -837,7 +837,7 @@ class KeyboardService : InputMethodService() {
         if (searchMode) { searchMode = false; searchAll(spoken); return }
         lastSpoken = spoken
         cache.clear()
-        inserted = null
+        // 방금 넣은 글이 그대로 있으면(보내지 않음) 새로 말한 내용으로 바꿔 넣음 — put() 이 지우고 넣음 (신부님 요청 2026-11-10)
         rewrite(mode)
     }
 
@@ -908,7 +908,10 @@ class KeyboardService : InputMethodService() {
         val ic = currentInputConnection ?: return
         inserted?.let { old ->
             val before = ic.getTextBeforeCursor(old.length, 0)?.toString()
-            if (before == old) ic.deleteSurroundingText(old.length, 0)
+            if (before == old) {
+                // 커서 뒤에 다른 글이 없을 때만 (사용자가 고쳐 쓰는 중인 글은 건드리지 않음)
+                ic.deleteSurroundingText(old.length, 0)
+            }
         }
         ic.commitText(text, 1)
         inserted = text
