@@ -274,6 +274,24 @@ class KeyboardService : InputMethodService() {
             Layer.EMOJI -> emojis()
         }
         content.addView(keys)
+        // 누른 키가 살짝 커질 때 옆·위로 잘리지 않게
+        unclip(keys); content.clipChildren = false; content.clipToPadding = false
+    }
+
+    private fun unclip(v: View) {
+        if (v !is ViewGroup) return
+        v.clipChildren = false; v.clipToPadding = false
+        for (i in 0 until v.childCount) unclip(v.getChildAt(i))
+    }
+
+    /** 누르는 동안 키가 살짝 커짐 → 지금 어느 키를 누르는지 알기 쉽게 (신부님 요청 2026-11-10) */
+    private fun pop(v: View, down: Boolean) {
+        v.animate().cancel()
+        if (down) {
+            v.animate().scaleX(1.18f).scaleY(1.18f).translationZ(dp(6).toFloat()).setDuration(60).start()
+        } else {
+            v.animate().scaleX(1f).scaleY(1f).translationZ(0f).setDuration(110).setStartDelay(40).start()
+        }
     }
 
     /** 키 하나 */
@@ -293,12 +311,21 @@ class KeyboardService : InputMethodService() {
             val rep = object : Runnable { override fun run() { onClick(); Bg.main.postDelayed(this, 70) } }
             setOnTouchListener { v, e ->
                 when (e.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> { v.isPressed = true; Sounds.buzz(this@KeyboardService, 8, 40); onClick(); Bg.main.postDelayed(rep, 450) }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { v.isPressed = false; Bg.main.removeCallbacks(rep) }
+                    MotionEvent.ACTION_DOWN -> { v.isPressed = true; pop(v, true); Sounds.buzz(this@KeyboardService, 8, 40); onClick(); Bg.main.postDelayed(rep, 450) }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { v.isPressed = false; pop(v, false); Bg.main.removeCallbacks(rep) }
                 }
                 true
             }
-        } else setOnClickListener { Sounds.buzz(this@KeyboardService, 8, 40); onClick() }
+        } else {
+            setOnTouchListener { v, e ->
+                when (e.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> pop(v, true)
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> pop(v, false)
+                }
+                false   // 누르기(click)는 그대로
+            }
+            setOnClickListener { Sounds.buzz(this@KeyboardService, 8, 40); onClick() }
+        }
     }
 
     private fun keyLp(w: Float) = LinearLayout.LayoutParams(0, keyH, w).apply {
