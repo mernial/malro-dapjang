@@ -289,14 +289,15 @@ class KeyboardService : InputMethodService() {
         fun v(label: String, k: Char) = key(label) { lastCjiKey = null; hangul.cjiVowel(k); render() } to 1f
         fun c(label: String, cycle: String) = key(label) { cjiConsonant(label, cycle) } to 1f
         val rows = listOf(
-            row(listOf(v("ㅣ", 'I'), v("ㆍ", 'D'), v("ㅡ", 'E'), key("⌫", special = true, repeat = true) { backspace() } to 1f)),
+            row(listOf(v("ㅣ", 'I'), v("•", 'D'), v("ㅡ", 'E'), key("⌫", special = true, repeat = true) { backspace() } to 1f)),
             row(listOf(c("ㄱㅋ", "ㄱㅋㄲ"), c("ㄴㄹ", "ㄴㄹ"), c("ㄷㅌ", "ㄷㅌㄸ"), key("↵", special = true) { enter() } to 1f)),
-            row(listOf(c("ㅂㅍ", "ㅂㅍㅃ"), c("ㅅㅎ", "ㅅㅎㅆ"), c("ㅈㅊ", "ㅈㅊㅉ"), key(".,?!", special = true) { cyclePunct() } to 1f)),
+            row(listOf(c("ㅂㅍ", "ㅂㅍㅃ"), c("ㅅㅎ", "ㅅㅎㅆ"), c("ㅈㅊ", "ㅈㅊㅉ"), key("!#1", special = true) { toSymbols() } to 1f)),
+            // 휴대폰 숫자판처럼: ㅇㅁ 은 가운데(0 자리), 왼쪽 문장부호, 오른쪽 띄어쓰기
             row(listOf(
-                key("!#1", special = true) { toSymbols() } to 1f,
-                key("한/영", special = true) { toEnglish() } to 1f,
+                key(".,?!") { cyclePunct() } to 1f,
                 c("ㅇㅁ", "ㅇㅁ"),
                 key("띄어쓰기") { commitPlain(" ") } to 1f,
+                key("한/영", special = true) { toEnglish() } to 1f,
             )),
         )
         return column(rows)
