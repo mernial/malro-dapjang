@@ -580,16 +580,43 @@ class KeyboardService : InputMethodService() {
     /** 말투 고르기 줄 (단축키 줄 아래에 펼침, 다시 누르면 닫힘) */
     private fun toggleToneRow() {
         if (infoRow.visibility == View.VISIBLE && infoRow.tag == "tones") { hideInfo(); return }
-        showInfo(if (inserted != null) "말투를 누르면 방금 넣은 글이 그 말투로 바뀌어요" else "🎤로 말할 때 쓸 말투를 고르세요", tones = true)
+        showInfo(if (inserted != null) "말투를 누르면 방금 넣은 글이 그 말투로 바뀌어요" else "🎤로 말할 때 쓸 말투를 고르세요 · 꾹 눌러 끌면 자리 바꾸기", tones = true)
     }
 
     private fun toneChips(): View {
         val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         val line = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        for (m in Mode.values()) {
+        // 말투 순서는 사용자가 정한 대로 (꾹 눌러 끌어서 옮김, 카톡 버튼 메뉴와 같은 저장값 toneOrder)
+        val order = orderedModes()
+        for (m in order) {
             val on = m == mode
             line.addView(TextView(this).apply {
                 text = "${m.emoji} ${m.label}"
+                // 꾹 누르면 끌어서 다른 칩 위에 놓아 자리 바꾸기
+                setOnLongClickListener { v ->
+                    Sounds.buzz(this@KeyboardService, 30)
+                    v.startDragAndDrop(android.content.ClipData.newPlainText("tone", m.name), View.DragShadowBuilder(v), m, 0)
+                    true
+                }
+                setOnDragListener { v, e ->
+                    when (e.action) {
+                        android.view.DragEvent.ACTION_DRAG_STARTED -> e.localState is Mode
+                        android.view.DragEvent.ACTION_DRAG_ENTERED -> { v.alpha = 0.45f; true }
+                        android.view.DragEvent.ACTION_DRAG_EXITED, android.view.DragEvent.ACTION_DRAG_ENDED -> { v.alpha = 1f; true }
+                        android.view.DragEvent.ACTION_DROP -> {
+                            val from = e.localState as? Mode
+                            if (from != null && from != m) {
+                                val list = orderedModes().toMutableList()
+                                list.remove(from)
+                                list.add(list.indexOf(m).let { if (order.indexOf(from) < order.indexOf(m)) it + 1 else it }, from)
+                                prefs.toneOrder = list.map { it.name }
+                                Bg.main.post { refreshToneChips() }
+                            }
+                            true
+                        }
+                        else -> true
+                    }
+                }
                 setTextColor(if (on) Ui.YELLOW else Ui.BROWN)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -637,6 +664,20 @@ class KeyboardService : InputMethodService() {
         }
         b("취소", false) { hideInfo() }
         infoRow.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
+    }
+
+    private fun orderedModes(): List<Mode> {
+        val all = Mode.values().toList()
+        val saved = prefs.toneOrder.mapNotNull { k -> all.firstOrNull { it.name == k } }
+        return saved + all.filter { it !in saved }
+    }
+
+    /** 말투 칩 줄만 새로 그림 (순서를 바꾼 뒤) */
+    private fun refreshToneChips() {
+        if (infoRow.tag != "tones" || infoRow.childCount < 2) return
+        val idx = infoRow.indexOfChild(infoRow.getChildAt(1))
+        infoRow.removeViewAt(idx)
+        infoRow.addView(toneChips(), idx, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(4) })
     }
 
     private fun showInfo(text: String, tones: Boolean = false, color: Int = Ui.BROWN) {
