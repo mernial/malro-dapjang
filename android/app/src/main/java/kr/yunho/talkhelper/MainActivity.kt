@@ -68,6 +68,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         render()
+        maybeShowNews()
         // 새 버전 확인 (조용히, 실패해도 무시)
         Bg.run({ Updater.check(this) }) { r ->
             r.getOrNull().let { if (it != update) { update = it; render() } }
@@ -393,6 +394,51 @@ class MainActivity : Activity() {
         body.add(row, 4)
     }
 
+    // ───────── 업데이트 소식 (앱을 열면 한 번) ─────────
+
+    /** 새 소식을 낼 때 이 값을 바꾸면 모두에게 한 번 다시 뜸 */
+    private val NEWS_ID = "2026-11-10-keyboard"
+
+    /** 이번에 바뀐 것 (제목, 설명). 플레이판은 카톡 위 버튼이 없어졌다는 안내가 맨 앞 */
+    private fun newsItems(): List<Pair<String, String>> = listOfNotNull(
+        if (BuildConfig.STORE_SAFE) "카톡 위 🎤 버튼 대신 키보드로" to
+            "카카오 안내에 따라 카톡 화면 위에 떠 있던 🎤 버튼을 없앴어요. 이제 '말로 답장 키보드' 위의 🎤 말로 답장을 누르고 말하면, 다듬은 글이 입력칸에 들어가요. 확인하고 보내기는 직접 누르세요." else null,
+        "글자도 치는 키보드" to
+            "두벌식(삼성 키보드와 같은 배열)과 천지인 자판이 들어갔어요. 키보드 위 '⇄ 천지인 / 두벌식'으로 바꿔요. 폴드를 펴도 자판이 나뉘지 않아요.",
+        "키보드 위 단축키 줄" to
+            "🎤 말로 답장 · 🔎 찾기 · 말투 · 자판 바꾸기가 한 줄에 있어요.",
+        "아래 줄 가림 고침" to
+            "키보드 맨 아래 줄이 화면 아래 막대에 가리거나 잘리던 것을 고쳤어요.",
+        "키보드 바꾸기" to
+            "다른 키보드로 돌아가려면 앱 첫 화면의 '키보드 변경'이나 설정 → 키보드 바꾸기를 누르세요.",
+        "첫 화면이 깔끔해졌어요" to
+            "지금 상태·말투·사용 방법만 보이게 정리했어요. 말투를 누르면 바로 바뀐 예시가 보여요. 오른쪽 위 설정 단추에서 내 이름·키보드·대화 찾기를 할 수 있어요.",
+    )
+
+    private fun maybeShowNews() {
+        val sp = getSharedPreferences("settings", Context.MODE_PRIVATE)
+        if (sp.getString("newsSeen", "") == NEWS_ID) return
+        // 처음 설치한 분에게는 '바뀐 것'이 의미가 없으므로 보여 주지 않고 본 것으로
+        val usedBefore = sp.getBoolean("disclosureAccepted", false) || sp.getBoolean("micAsked", false) || sp.contains("bubbleX")
+        sp.edit().putString("newsSeen", NEWS_ID).apply()
+        if (usedBefore) body.post { showNews() }
+    }
+
+    private fun showNews() {
+        val ctx = this
+        val col = Ui.vbox(ctx, 22)
+        col.addView(Ui.text(ctx, "🔔 업데이트 소식", 22f, bold = true))
+        col.add(Ui.text(ctx, "2026년 11월 10일 · 버전 ${BuildConfig.VERSION_NAME}", 13f, color = Ui.MUTED), 4)
+        newsItems().forEachIndexed { i, (t, d) ->
+            col.add(Ui.text(ctx, "${i + 1}. $t", 17f, bold = true), if (i == 0) 18 else 16)
+            col.add(Ui.text(ctx, d, 15f, color = Ui.MUTED), 4)
+        }
+        val dlg = AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(col) }).create()
+        col.add(Kit.primaryButton(ctx, "확인했어요") { dlg.dismiss() }, 22)
+        dlg.window?.setBackgroundDrawable(Ui.rounded(ctx, Ui.CARD, 22))
+        dlg.show()
+    }
+
     /** 다른 화면(설정·도움말) 위: ‹ 돌아가기 + 제목 */
     private fun subHeader(title: String, back: () -> Unit) {
         val ctx = this
@@ -590,6 +636,8 @@ class MainActivity : Activity() {
         etc.addView(Kit.navRow(ctx, R.drawable.ic_search, "대화에서 찾기", "내보낸 대화 보기·찾기") {
             startActivity(Intent(this, AskActivity::class.java))
         })
+        with(Kit) { etc.addDivider(10) }
+        etc.addView(Kit.navRow(ctx, R.drawable.ic_bell, "업데이트 소식", "이번에 바뀐 것 다시 보기") { showNews() })
         with(Kit) { etc.addDivider(10) }
         etc.addView(Kit.navRow(ctx, R.drawable.ic_trash, "저장한 대화·기록 지우기", "설정은 그대로 남아요") { confirmClearAll() })
         body.add(etc, 24)
