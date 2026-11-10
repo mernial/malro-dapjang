@@ -145,6 +145,15 @@ class KeyboardService : InputMethodService() {
 
         paint()
         resetMic()
+        // 안드로이드 15+ 는 키보드도 화면 맨 아래(내비게이션 막대 밑)까지 그림 → 아래 줄이 가리지 않게 막대 높이만큼 띄움
+        val base = root.paddingBottom
+        root.setOnApplyWindowInsetsListener { v, insets ->
+            val bottom = if (android.os.Build.VERSION.SDK_INT >= 30)
+                insets.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom
+            else @Suppress("DEPRECATION") insets.systemWindowInsetBottom
+            v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, base + bottom)
+            insets
+        }
         return root
     }
 
