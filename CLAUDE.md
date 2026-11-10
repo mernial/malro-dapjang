@@ -32,5 +32,6 @@
 - 진짜 앱 확인(Play Integrity): 서버·앱 코드는 들어감, 지금 `log`. 켜는 순서는 `docs/relay-server.md`.
 - 플레이판(`STORE_SAFE`)은 카톡 자동 조작(내보내기 누르기·대화방 넘기기)과 '바로 보내기'를 끔. 찾기는 그 방에서 내보낸 대화를 씀(`Rooms`, 고유 번호·방 이름·말한 사람 저장). 방을 못 알아보면 저장된 모든 대화에서 찾음(`ChatSearch.excerptMany`, 서버 `scope: "all"`). 대화방 목록에선 🔎 버튼(모든 대화에서 찾기).
 - 말투는 방마다 기억(`Prefs.modeFor/setModeFor`, 열쇠는 `RoomMatch.norm(방 이름)`). 동그라미 메뉴는 두 단계(말투 폴더 → 다섯 말투), 안내 띠·설명 알약을 피해 놓음(`MenuLayout.place(avoid)`).
+- **첫 화면 디자인(2026-11-10, 따뜻한 미니멀)**: 공통 부품 `Kit.kt`(흰 카드·상태 줄·칩·스위치 줄·이동 줄), 팔레트 `Ui`(배경 #F8F7F3·글 #432725·강조 #F8D978·선 #D8C9B9). 첫 화면 = 머리줄(설정 아이콘 → `userSettings`, 제목 길게 = 운영자 `advanced`) → 상태 카드(실제 설정값: 카톡 버튼(github만)·키보드) → 답장 말투 칩+미리 보기 → 보내는 방식(github만) → 읽어 주기·사용 방법(`help`) → 작은 바닥글. 에뮬레이터 사진 `main_ready*.png`·`settings.png`.
 - 듣기 신호 소리는 `res/raw/listen_*.ogg`(직접 합성, `Sounds.kt`).
 - **카카오 2차 답변(2026-11-10): 비공식 프로그램·자동 조작 불허 → 키보드(IME) 방식으로 전환 중.** `KeyboardService.kt`(전체 자판 두벌식/천지인/영어/숫자 — 조합은 `core/Hangul.kt`, 위 단축키 줄 🎤 말로 답장·🔎 찾기·말투·⇄ 자판 바꾸기, 배열은 삼성 키보드와 같게(폴드에서도 나누지 않음). 보내기는 사용자가 직접). **2단계 완료(2026-11-10): 플레이판은 `src/play/AndroidManifest.xml`로 접근성(`KakaoAccessibilityService`)·알림으로 답장(`NotifyReplyService`)을 뺌**, 첫 화면은 키보드 켜기·고르기 → 마이크 두 단계(`stepKeyboard`·`storeHowTo`). 직접 설치판(github)은 그대로. 3차 문의 글 `docs/kakao-inquiry.md`.

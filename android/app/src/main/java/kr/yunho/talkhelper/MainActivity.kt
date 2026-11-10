@@ -442,10 +442,14 @@ class MainActivity : Activity() {
         }
         val kbOn = keyboardEnabled(); val kbChosen = keyboardChosen()
         when {
-            kbOn && kbChosen -> status.addView(Kit.statusRow(ctx, R.drawable.ic_keyboard, "말로 답장 키보드",
-                "설정 완료 · 사용 가능", Kit.State.OK,
-                if (store) "글을 쓸 때 위의 🎤 말로 답장을 누르세요." else null,
-                Kit.smallButton(ctx, "키보드 변경") { pickKeyboard() }))
+            kbOn && kbChosen -> {
+                status.addView(Kit.statusRow(ctx, R.drawable.ic_keyboard, "말로 답장 키보드",
+                    "설정 완료 · 사용 가능", Kit.State.OK,
+                    if (store) "글을 쓸 때 키보드 위 🎤 말로 답장을 누르세요." else null))
+                status.addView(Kit.smallButton(ctx, "키보드 변경") { pickKeyboard() }, LinearLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { marginStart = Ui.dp(ctx, 38); topMargin = Ui.dp(ctx, 10) })
+            }
             else -> {
                 status.addView(Kit.statusRow(ctx, R.drawable.ic_keyboard,
                     if (store) "키보드 설정이 필요해요" else "말로 답장 키보드",
@@ -473,7 +477,8 @@ class MainActivity : Activity() {
             preview.text = toneExample(p.mode)
         }
         val modes = kr.yunho.talkhelper.core.Mode.values().toList()
-        for (line in listOf(modes.take(3), modes.drop(3))) {
+        // 한 줄에 두 개씩 (큰 글씨에서도 잘리지 않게)
+        for (line in modes.chunked(2)) {
             val row = Ui.hbox(ctx)
             for (m in line) {
                 val c = Kit.chip(ctx, "${m.emoji} ${m.label}").apply {
@@ -483,7 +488,7 @@ class MainActivity : Activity() {
                 chips[m] = c
                 row.add(c)
             }
-            if (line.size < 3) row.add(View(ctx))   // 두 번째 줄도 같은 칸 너비
+            if (line.size < 2) row.add(View(ctx))   // 마지막 줄도 같은 칸 너비
             toneCard.add(row, if (line.first() == modes.first()) 0 else 8)
         }
         val box = Ui.vbox(ctx, 14).apply {
@@ -507,7 +512,7 @@ class MainActivity : Activity() {
         more.addView(Kit.toggleRow(ctx, R.drawable.ic_volume, "찾은 내용 읽어 주기", "찾은 문장을 소리로 들려줘요.", p.readAnswers) { on -> p.readAnswers = on })
         with(Kit) { more.addDivider(10) }
         more.addView(Kit.navRow(ctx, R.drawable.ic_help, "사용 방법",
-            if (store) "🎤 말로 답장 → 말하기 → 확인하고 보내기" else "마이크 누르기 → 말하기 → 답장 보내기") { showHelp = true; render() })
+            if (store) "🎤 누르기 → 말하기 → 보내기" else "마이크 누르기 → 말하기 → 보내기") { showHelp = true; render() })
         body.add(more, 24)
     }
 
