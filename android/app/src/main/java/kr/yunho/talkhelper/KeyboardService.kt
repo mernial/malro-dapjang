@@ -311,7 +311,7 @@ class KeyboardService : InputMethodService() {
             key("한/영", special = true) { if (ko) toEnglish() else toKorean() } to 1.2f,
             emojiKey() to 1f,
             key(",", special = true) { commitPlain(",") } to 0.9f,
-            key("띄어쓰기") { commitPlain(" ") } to 3.4f,
+            key("띄어쓰기") { space() } to 3.4f,
             key(".", special = true) { commitPlain(".") } to 1f,
             enterKey() to 1.7f,
         )
@@ -337,7 +337,7 @@ class KeyboardService : InputMethodService() {
                 // 문장부호는 위(ㅈㅊ 옆)로, 여기는 기호·한영 (신부님 요청 2026-11-10)
                 key("!#1", special = true) { toSymbols() } to 0.5f, key("한/영", special = true) { toEnglish() } to 0.5f,
                 c("ㅇㅁ", "ㅇㅁ"),
-                key("띄어쓰기") { commitPlain(" ") } to 1f,
+                key("띄어쓰기") { space() } to 1f,
                 // 삼성 천지인처럼 오른쪽 맨 아래는 이모티콘
                 emojiKey() to 1f,
             )),
@@ -390,7 +390,7 @@ class KeyboardService : InputMethodService() {
     /** 이모티콘 판: 최근 쓴 것 + 무리별, 아래 줄은 돌아가기·지우기·띄어쓰기·줄바꿈 */
     private fun emojis(): View {
         // 칸 하나 약 56dp 로 (넓은 화면에서 이모티콘 사이가 너무 벌어지지 않게)
-        val cols = ((screenWdp - 16) / 56).coerceAtLeast(7)
+        val cols = ((screenWdp - 16) / 40).coerceAtLeast(8)
         val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(4), 0, dp(4), 0) }
         fun group(title: String, list: List<String>) {
             if (list.isEmpty()) return
@@ -403,11 +403,11 @@ class KeyboardService : InputMethodService() {
                 line.forEach { e ->
                     r.addView(TextView(this).apply {
                         text = e; gravity = Gravity.CENTER
-                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 26f)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
                         setOnClickListener { Sounds.buzz(this@KeyboardService, 8, 40); useEmoji(e) }
-                    }, LinearLayout.LayoutParams(0, dp(48), 1f))
+                    }, LinearLayout.LayoutParams(0, dp(42), 1f))
                 }
-                repeat(cols - line.size) { r.addView(View(this), LinearLayout.LayoutParams(0, dp(48), 1f)) }
+                repeat(cols - line.size) { r.addView(View(this), LinearLayout.LayoutParams(0, dp(42), 1f)) }
                 grid.addView(r)
             }
         }
@@ -419,7 +419,7 @@ class KeyboardService : InputMethodService() {
         // 아래 줄은 작게: 높이 44dp, 넓은 화면에선 가운데 520dp 안에
         val bottom = row(listOf(
             key(if (emojiFrom == Layer.EN) "ABC" else "가", special = true) { layer = if (emojiFrom == Layer.EMOJI) Layer.KO else emojiFrom; showKeys() } to 1.3f,
-            key("띄어쓰기") { commitPlain(" ") } to 3f,
+            key("띄어쓰기") { space() } to 3f,
             key("⌫", special = true, repeat = true) { backspace() } to 1.3f,
             enterKey() to 1.3f,
         ))
@@ -438,7 +438,7 @@ class KeyboardService : InputMethodService() {
             key("가", special = true) { toKorean() } to 1.4f,
             key("%", special = true) { commitPlain("%") } to 0.9f,
             key("#", special = true) { commitPlain("#") } to 0.9f,
-            key("띄어쓰기") { commitPlain(" ") } to 3f,
+            key("띄어쓰기") { space() } to 3f,
             key("⌫", special = true, repeat = true) { backspace() } to 1.4f,
             enterKey() to 1.4f,
         ))
@@ -501,6 +501,24 @@ class KeyboardService : InputMethodService() {
         currentInputConnection?.commitText(s, 1)
         lastCjiKey = null
         inserted = null
+    }
+
+    /** 띄어쓰기. 글자 뒤에서 1초 안에 두 번 누르면 마침표 + 띄어쓰기 (삼성·아이폰 키보드처럼) */
+    private var lastSpaceAt = 0L
+    private fun space() {
+        val now = System.currentTimeMillis()
+        val ic = currentInputConnection
+        if (ic != null && !hangul.isComposing && now - lastSpaceAt < 1000) {
+            val before = ic.getTextBeforeCursor(2, 0)?.toString().orEmpty()
+            if (before.length == 2 && before[1] == ' ' && (before[0].isLetterOrDigit())) {
+                ic.deleteSurroundingText(1, 0)
+                ic.commitText(". ", 1)
+                lastSpaceAt = 0L; lastCjiKey = null; inserted = null
+                return
+            }
+        }
+        commitPlain(" ")
+        lastSpaceAt = now
     }
 
     private fun backspace() {
