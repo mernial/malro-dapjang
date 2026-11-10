@@ -81,6 +81,20 @@
             </intent-filter>
         </service>
 
+        <!-- 말로 답장 키보드: 말하면 다듬어 입력칸에 넣음 (보내기는 사용자가 직접) -->
+        <service
+            android:name=".KeyboardService"
+            android:exported="true"
+            android:label="@string/keyboard_name"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/method" />
+        </service>
+
         <!-- 카톡 위 떠 있는 버튼 + 카톡 입력창에 글을 넣고 전송 -->
         <service
             android:name=".KakaoAccessibilityService"

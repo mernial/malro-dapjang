@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- '말로 답장 키보드': 말하면 다듬어 입력칸에 넣는 음성 키보드 -->
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="kr.yunho.talkhelper.MainActivity"
+    android:supportsSwitchingToNextInputMethod="true">
+    <subtype
+        android:label="@string/keyboard_name"
+        android:imeSubtypeLocale="ko_KR"
+        android:imeSubtypeMode="voice" />
+</input-method>
