@@ -233,11 +233,13 @@ class KeyboardService : InputMethodService() {
         val newAction = if (opts and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0 || multi) EditorInfo.IME_ACTION_NONE else act
         val actionChanged = newAction != editorAction
         editorAction = newAction
-        val want = if (cls == EditorInfo.TYPE_CLASS_NUMBER || cls == EditorInfo.TYPE_CLASS_PHONE) Layer.SYM else if (layer == Layer.SYM) Layer.KO else layer
+        val want = if (cls == EditorInfo.TYPE_CLASS_NUMBER || cls == EditorInfo.TYPE_CLASS_PHONE) Layer.SYM else if (layer == Layer.SYM) Layer.KO else if (layer == Layer.EMOJI) (if (emojiFrom == Layer.EN) Layer.EN else Layer.KO) else layer
         if (want != layer || !restarting || actionChanged) { layer = want; shift = false; if (::content.isInitialized && !listening) showKeys() }
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
+        // 키보드가 내려가면 이모티콘·기호 판은 닫아 둠 → 다음에 열면 늘 글자 자판부터 (루비로사 2026-11-10)
+        if (layer == Layer.EMOJI || layer == Layer.SYM) { layer = if (emojiFrom == Layer.EN && layer == Layer.EMOJI) Layer.EN else Layer.KO; shift = false; if (::content.isInitialized) showKeys() }
         stopRecognizer()
         hangul.clear()
         super.onFinishInputView(finishingInput)
