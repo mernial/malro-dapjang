@@ -267,6 +267,7 @@ class KeyboardService : InputMethodService() {
     private fun showKeys() {
         if (!::content.isInitialized) return
         content.removeAllViews()
+        if (hwKeyboard()) { content.addView(hwHint()); return }
         val keys = when (layer) {
             Layer.KO -> if (prefs.keyboardLayout == "cji") cheonjiin() else qwerty(KO_ROWS, KO_SHIFT)
             Layer.EN -> qwerty(EN_ROWS, null)
@@ -276,6 +277,79 @@ class KeyboardService : InputMethodService() {
         content.addView(keys)
         // 누른 키가 살짝 커질 때 옆·위로 잘리지 않게
         unclip(keys); content.clipChildren = false; content.clipToPadding = false
+    }
+
+    // ───────── 블루투스(실물) 키보드 ─────────
+    // 실물 키보드를 붙이면 안드로이드가 화면 키보드를 숨겨 🎤 줄까지 사라지고, 한글도 안 쳐졌음 (신부님 2026-11-10)
+    // → 화면에는 🎤 줄과 안내 한 줄만 두고, 실물 키 입력을 두벌식 한글로 조합함
+
+    /** 실물 키보드에서 지금 한글로 치는지 (한/영 키 · Shift+Space · 오른쪽 Alt 로 바꿈) */
+    private var hwKorean = true
+
+    private fun hwKeyboard(): Boolean {
+        val c = resources.configuration
+        return c.keyboard != android.content.res.Configuration.KEYBOARD_NOKEYS &&
+            c.hardKeyboardHidden == android.content.res.Configuration.HARDKEYBOARDHIDDEN_NO
+    }
+
+    /** 실물 키보드가 있어도 🎤 줄은 늘 보이게 */
+    override fun onEvaluateInputViewShown(): Boolean { super.onEvaluateInputViewShown(); return true }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (::content.isInitialized && !listening) showKeys()
+    }
+
+    private fun hwHint(): View = TextView(this).apply {
+        text = "⌨ 블루투스 키보드로 치는 중 · 지금 ${if (hwKorean) "한글" else "영어"}\n한/영 바꾸기: 한/영 키 또는 Shift + 스페이스"
+        gravity = Gravity.CENTER
+        setTextColor(Ui.MUTED)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+        setPadding(dp(8), dp(8), dp(8), dp(10))
+        setOnClickListener { toggleHwKorean() }
+    }
+
+    private fun toggleHwKorean() {
+        finishComposing()
+        hwKorean = !hwKorean
+        if (::content.isInitialized && !listening) showKeys()
+    }
+
+    private val hwJamo: Map<Char, Char> by lazy {
+        val m = HashMap<Char, Char>()
+        EN_ROWS.forEachIndexed { r, row -> row.forEachIndexed { i, c -> m[c] = KO_ROWS[r][i] } }
+        m
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (currentInputConnection == null || !hwKeyboard() && event.deviceId == android.view.KeyCharacterMap.VIRTUAL_KEYBOARD) return super.onKeyDown(keyCode, event)
+        // 한/영 바꾸기
+        if (keyCode == KeyEvent.KEYCODE_LANGUAGE_SWITCH || keyCode == KeyEvent.KEYCODE_KANA || keyCode == KeyEvent.KEYCODE_EISU ||
+            keyCode == KeyEvent.KEYCODE_ALT_RIGHT || (keyCode == KeyEvent.KEYCODE_SPACE && event.isShiftPressed)) {
+            if (event.repeatCount == 0) toggleHwKorean()
+            return true
+        }
+        // Ctrl·Alt·Win 과 함께 누른 키(복사·붙여넣기 등)는 앱에 그대로
+        if (event.isCtrlPressed || event.isAltPressed || event.isMetaPressed) { finishComposing(); return super.onKeyDown(keyCode, event) }
+        if (hwKorean && keyCode in KeyEvent.KEYCODE_A..KeyEvent.KEYCODE_Z) {
+            val c = 'a' + (keyCode - KeyEvent.KEYCODE_A)
+            var j = hwJamo[c] ?: return super.onKeyDown(keyCode, event)
+            if (event.isShiftPressed) j = KO_SHIFT[j] ?: j
+            lastCjiKey = null
+            typeChar(j, true)
+            return true
+        }
+        if (keyCode == KeyEvent.KEYCODE_DEL && hangul.isComposing) { backspace(); return true }
+        // 그 밖의 키(스페이스·엔터·숫자·화살표…)는 조합을 끝내고 앱에 그대로
+        if (!KeyEvent.isModifierKey(keyCode)) finishComposing()
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_LANGUAGE_SWITCH || keyCode == KeyEvent.KEYCODE_KANA || keyCode == KeyEvent.KEYCODE_EISU ||
+            keyCode == KeyEvent.KEYCODE_ALT_RIGHT) return true
+        if (hwKorean && keyCode in KeyEvent.KEYCODE_A..KeyEvent.KEYCODE_Z && !event.isCtrlPressed && !event.isAltPressed && !event.isMetaPressed) return true
+        return super.onKeyUp(keyCode, event)
     }
 
     private fun unclip(v: View) {
