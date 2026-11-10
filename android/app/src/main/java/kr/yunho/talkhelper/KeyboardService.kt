@@ -96,6 +96,12 @@ class KeyboardService : InputMethodService() {
     private val keyH get() = dp((screenHdp * 0.062f).toInt().coerceIn(42, 56))
     private val keyTextSp get() = if (screenHdp < 640) 18f else 21f
 
+    @SuppressLint("DiscouragedApi", "InternalInsetResource")
+    private fun sysDimen(name: String): Int = runCatching {
+        val id = resources.getIdentifier(name, "dimen", "android")
+        if (id != 0) resources.getDimensionPixelSize(id) else 0
+    }.getOrDefault(0)
+
     // ───────── 화면 만들기 ─────────
 
     override fun onCreateInputView(): View {
@@ -145,10 +151,14 @@ class KeyboardService : InputMethodService() {
         val base = r.paddingBottom
         r.setOnApplyWindowInsetsListener { v, insets ->
             val bottom = if (android.os.Build.VERSION.SDK_INT >= 30) {
-                maxOf(insets.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom,
+                val nav = insets.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom
+                // 제스처 막대만 있는 폰(삼성 등)은 막대 높이가 작게 알려져도, 그 자리에 '키보드 내리기 ∨' 줄(약 48dp)이 그려짐 → 그만큼 띄움
+                val imeBar = if (nav > 0) sysDimen("navigation_bar_frame_height") else 0
+                maxOf(nav, imeBar,
                     insets.getInsets(android.view.WindowInsets.Type.tappableElement()).bottom,
                     insets.getInsets(android.view.WindowInsets.Type.mandatorySystemGestures()).bottom)
             } else @Suppress("DEPRECATION") insets.systemWindowInsetBottom
+            android.util.Log.i("talkhelper-kb", "bottom inset=$bottom")
             v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, base + bottom)
             insets
         }
