@@ -233,11 +233,13 @@ class KeyboardService : InputMethodService() {
         val newAction = if (opts and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0 || multi) EditorInfo.IME_ACTION_NONE else act
         val actionChanged = newAction != editorAction
         editorAction = newAction
-        val want = if (cls == EditorInfo.TYPE_CLASS_NUMBER || cls == EditorInfo.TYPE_CLASS_PHONE) Layer.SYM else if (layer == Layer.SYM) Layer.KO else layer
+        val want = if (cls == EditorInfo.TYPE_CLASS_NUMBER || cls == EditorInfo.TYPE_CLASS_PHONE) Layer.SYM else if (layer == Layer.SYM) Layer.KO else if (layer == Layer.EMOJI) (if (emojiFrom == Layer.EN) Layer.EN else Layer.KO) else layer
         if (want != layer || !restarting || actionChanged) { layer = want; shift = false; if (::content.isInitialized && !listening) showKeys() }
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
+        // 키보드가 내려가면 이모티콘·기호 판은 닫아 둠 → 다음에 열면 늘 글자 자판부터 (루비로사 2026-11-10)
+        if (layer == Layer.EMOJI || layer == Layer.SYM) { layer = if (emojiFrom == Layer.EN && layer == Layer.EMOJI) Layer.EN else Layer.KO; shift = false; if (::content.isInitialized) showKeys() }
         stopRecognizer()
         hangul.clear()
         super.onFinishInputView(finishingInput)
@@ -245,6 +247,7 @@ class KeyboardService : InputMethodService() {
 
     override fun onDestroy() {
         stopRecognizer()
+        unmuteBeep()
         runCatching { recognizer?.destroy() }
         recognizer = null
         super.onDestroy()
@@ -793,7 +796,8 @@ class KeyboardService : InputMethodService() {
         Sounds.listenStart(this)
         Sounds.buzz(this, 70)
         Bg.main.removeCallbacks(pulse); Bg.main.postDelayed(pulse, 3000)
-        Bg.main.postDelayed({ if (listening) listen() }, 250)
+        // 우리 신호음이 다 울린 뒤에 음성 인식을 켬 (인식기 자체의 '띵' 소리와 겹치지 않게)
+        Bg.main.postDelayed({ if (listening) listen() }, 700)
     }
 
     private fun newRecognizer(): SpeechRecognizer {
@@ -814,7 +818,27 @@ class KeyboardService : InputMethodService() {
             .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
             .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
-        runCatching { r.startListening(i) }.onFailure { stopRecognizer(); showKeys(); showInfo("음성 인식을 시작하지 못했어요.", color = Ui.RED) }
+        // 구글 음성 인식은 켤 때마다 자기 '띵' 소리를 냄 → 이어 듣기로 여러 번 켜면 소리가 겹쳐 들렸음.
+        // 켜는 순간만 잠깐 미디어·알림 소리를 끄고 0.6초 뒤 되돌림 (우리 부드러운 신호음만 들리게)
+        muteBeep()
+        runCatching { r.startListening(i) }.onFailure { unmuteBeep(); stopRecognizer(); showKeys(); showInfo("음성 인식을 시작하지 못했어요.", color = Ui.RED) }
+        Bg.main.removeCallbacks(unmuteTask); Bg.main.postDelayed(unmuteTask, 600)
+    }
+
+    private var beepMuted = false
+    private val unmuteTask = Runnable { unmuteBeep() }
+    private val BEEP_STREAMS = intArrayOf(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.STREAM_NOTIFICATION, android.media.AudioManager.STREAM_SYSTEM)
+    private fun muteBeep() {
+        if (beepMuted) return
+        val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+        for (st in BEEP_STREAMS) runCatching { am.adjustStreamVolume(st, android.media.AudioManager.ADJUST_MUTE, 0) }
+        beepMuted = true
+    }
+    private fun unmuteBeep() {
+        if (!beepMuted) return
+        val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+        for (st in BEEP_STREAMS) runCatching { am.adjustStreamVolume(st, android.media.AudioManager.ADJUST_UNMUTE, 0) }
+        beepMuted = false
     }
 
     private var listenStartedAt = 0L
@@ -834,7 +858,11 @@ class KeyboardService : InputMethodService() {
     private fun stopRecognizer() {
         listening = false
         Bg.main.removeCallbacks(pulse)
+        // 인식기를 끌 때 나는 소리도 막고, 그 뒤 끝 신호음 전에 되돌림
+        muteBeep()
         runCatching { recognizer?.cancel() }
+        Bg.main.removeCallbacks(unmuteTask)
+        Bg.main.postDelayed(unmuteTask, 250)
     }
 
     private fun finishSpeech() {
@@ -844,7 +872,7 @@ class KeyboardService : InputMethodService() {
         showKeys()
         val spoken = EndSignal.strip(heard.toString())
         if (spoken.isBlank()) { showInfo("말씀을 듣지 못했어요. 다시 눌러 주세요."); return }
-        Sounds.listenDone(this)
+        Bg.main.postDelayed({ unmuteBeep(); Sounds.listenDone(this) }, 300)   // 인식기 끄는 소리를 막은 뒤에 우리 끝 소리
         Sounds.buzz(this, 90)
         if (searchMode) { searchMode = false; searchAll(spoken); return }
         lastSpoken = spoken
