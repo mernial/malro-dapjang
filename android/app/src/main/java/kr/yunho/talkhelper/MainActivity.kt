@@ -329,6 +329,8 @@ class MainActivity : Activity() {
     private fun done() {
         val p = Prefs(this)
 
+        keyboardCard()
+
         // 켜기 / 끄기: 흰 카드 + 직접 그린 큰 스위치 (기본 스위치를 키우면 잘려 보여서)
         val ctx = this
         val onRow = Ui.hbox(ctx).apply {
@@ -408,6 +410,36 @@ class MainActivity : Activity() {
         body.add(readRow, 24)
 
         body.add(View(this), 40)
+    }
+
+    // ───────── 말로 답장 키보드 ─────────
+
+    private fun keyboardEnabled(): Boolean = runCatching {
+        (getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+            .enabledInputMethodList.any { it.packageName == packageName }
+    }.getOrDefault(false)
+
+    private fun keyboardChosen(): Boolean =
+        Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD).orEmpty().startsWith("$packageName/")
+
+    /** 키보드 켜기·고르기 안내 카드 (카톡 등 어디서나: 말하면 다듬은 글이 입력칸에) */
+    private fun keyboardCard() {
+        val ctx = this
+        val on = keyboardEnabled(); val chosen = keyboardChosen()
+        val box = Ui.vbox(ctx, 18, Ui.MINE)
+        box.add(Ui.text(ctx, "⌨ 말로 답장 키보드", 22f, bold = true), 0)
+        box.add(Ui.text(ctx, "카톡 입력칸을 누르면 뜨는 키보드에서 🎤를 누르고 말하면, 다듬은 글이 입력칸에 들어가요. 보내기는 직접 누르세요.", 15f), 6)
+        box.add(Ui.text(ctx,
+            "${if (on) "✅" else "1️⃣"} 키보드 켜기   ${if (chosen) "✅" else "2️⃣"} 키보드 고르기", 16f, bold = true), 10)
+        if (!on) box.add(Ui.button(ctx, "👉 1. 키보드 켜기", Ui.BROWN, Ui.YELLOW, sp = 18f) {
+            Toast.makeText(ctx, "목록에서 '${getString(R.string.keyboard_name)}'을 켜 주세요", Toast.LENGTH_LONG).show()
+            runCatching { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) }
+        }, 10)
+        else if (!chosen) box.add(Ui.button(ctx, "👉 2. 이 키보드 고르기", Ui.BROWN, Ui.YELLOW, sp = 18f) {
+            (getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showInputMethodPicker()
+        }, 10)
+        else box.add(Ui.text(ctx, "준비됐어요. 다른 키보드로 바꾸려면 키보드의 '⌨ 바꾸기'를 누르세요.", 14f, color = Ui.MUTED), 8)
+        body.add(box, 16)
     }
 
     private fun shareSetup() {

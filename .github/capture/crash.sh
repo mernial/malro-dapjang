@@ -35,6 +35,17 @@ adb shell input keyevent KEYCODE_BACK; sleep 1
 adb shell input keyevent KEYCODE_HOME; sleep 2
 timeout 30 adb shell am start -n $PKG/.HelperActivity --ez debugGuide true; sleep 4
 timeout 30 adb exec-out screencap -p > shots/guide.png
+# 말로 답장 키보드: 켜고 골라서 글 칸을 눌러 키보드 사진
+timeout 20 adb shell ime enable $PKG/.KeyboardService
+timeout 20 adb shell ime set $PKG/.KeyboardService
+adb shell input keyevent KEYCODE_HOME; sleep 1
+timeout 30 adb shell am start -n $PKG/.AskActivity; sleep 4
+timeout 20 adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+B=$(timeout 20 adb shell cat /sdcard/ui.xml | tr '>' '\n' | grep 'class="android.widget.EditText"' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')
+echo "글 칸: $B"
+if [ -n "$B" ]; then set -- $B; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 3; fi
+timeout 30 adb exec-out screencap -p > shots/keyboard.png
+adb shell input keyevent KEYCODE_BACK; sleep 1; adb shell input keyevent KEYCODE_BACK; sleep 1
 # 중계 서버로 다듬기·찾기 한 번씩 (코드 숨김 뒤에도 되는지)
 adb shell input keyevent KEYCODE_HOME; sleep 1
 timeout 30 adb shell am start -n $PKG/.MainActivity --ez e2e true
