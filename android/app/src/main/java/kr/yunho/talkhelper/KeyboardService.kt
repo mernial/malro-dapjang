@@ -264,7 +264,7 @@ class KeyboardService : InputMethodService() {
     }
     private fun gap(w: Float): Pair<View, Float> = View(this) to w
     /** 넓은 화면에서 자음·모음 사이 빈칸 (좁은 화면은 없음) */
-    private fun mid(): List<Pair<View, Float>> = if (wide) listOf(gap(0.9f)) else emptyList()
+    private fun mid(): List<Pair<View, Float>> = if (wide) listOf(gap(2.4f)) else emptyList()
 
     private fun row(items: List<Pair<View, Float>>): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
