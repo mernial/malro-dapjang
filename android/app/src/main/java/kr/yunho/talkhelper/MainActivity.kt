@@ -43,6 +43,8 @@ class MainActivity : Activity() {
 
     private lateinit var body: LinearLayout
     private var showAdvanced = false
+    private var showSettings = false
+    private var showHelp = false
     private var triedAccessibility = false
     private var update: Updater.Info? = null
     private var updating: String? = null
@@ -128,19 +130,17 @@ class MainActivity : Activity() {
     private fun render() {
         val p = Prefs(this)
         body.removeAllViews()
-        // 제목을 길게 누르면 숨겨 둔 '자세한 설정' (API 키·이름·고급 받아쓰기·문제 확인)
-        body.add(Ui.text(this, getString(R.string.app_name), 30f, bold = true).apply {
-            setOnLongClickListener { showAdvanced = !showAdvanced; render(); true }
-        }, 0)
+        // 제목을 길게 누르면 숨겨 둔 '자세한 설정' (API 키·고급·문제 확인, 운영자용)
+        header()
         updateBanner()
 
         // 중계 서버가 있으면 설정 코드 단계 없이 두 단계로 끝남
         // 플레이판: 카톡 위 버튼(접근성) 없이 키보드로만 → 1) 키보드 켜고 고르기 2) 마이크
-        val steps = if (BuildConfig.STORE_SAFE) listOf(keyboardEnabled() && keyboardChosen(), micOn())
+        val steps = if (BuildConfig.STORE_SAFE) listOf(keyboardEnabled(), micOn())
             else listOfNotNull(accessibilityOn(), micOn(), if (ClaudeProvider.relayAvailable) null else p.apiKey.isNotBlank())
         val current = steps.indexOfFirst { !it }
         if (current >= 0 && !showAdvanced) {
-            body.add(Ui.text(this, "준비 ${current + 1} / ${steps.size}", 18f, bold = true, color = Ui.MUTED), 8)
+            body.add(Ui.text(this, "준비 ${current + 1} / ${steps.size}", 15f, bold = true, color = Ui.MUTED), 20)
             when (current) {
                 0 -> if (BuildConfig.STORE_SAFE) stepKeyboard() else stepAccessibility()
                 1 -> stepMic()
@@ -149,18 +149,39 @@ class MainActivity : Activity() {
             footer()
             return
         }
-        if (!showAdvanced) done() else advanced()
+        when {
+            showAdvanced -> advanced()
+            showSettings -> userSettings()
+            showHelp -> help()
+            else -> done()
+        }
         footer()
     }
 
     /** 모든 화면 맨 아래: 개인정보처리방침과 문의 (구글 플레이 정책: 앱 안에서도 방침을 볼 수 있어야 함) */
     private fun footer() {
-        body.add(Ui.button(this, "개인정보처리방침 보기", Ui.CARD, sp = 14f) {
+        val ctx = this
+        val links = Ui.hbox(ctx).apply { gravity = android.view.Gravity.CENTER }
+        fun link(label: String, onClick: () -> Unit) = Ui.text(ctx, label, 13f, bold = true, color = Ui.MUTED).apply {
+            minHeight = Ui.dp(ctx, 48); gravity = android.view.Gravity.CENTER
+            val ph = Ui.dp(ctx, 10); setPadding(ph, 0, ph, 0)
+            setOnClickListener { onClick() }
+        }
+        links.addView(link("개인정보처리방침") {
             runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_URL))) }
                 .onFailure { Toast.makeText(this, PRIVACY_URL, Toast.LENGTH_LONG).show() }
-        }, 32)
-        body.add(Ui.text(this, "버전 ${BuildConfig.VERSION_NAME}\n문의·불편 신고: $REPORT_EMAIL\n이 앱은 카카오와 관련이 없는 독립 앱입니다.", 13f, color = Ui.MUTED)
-            .apply { setTextIsSelectable(true) }, 8)
+        })
+        links.addView(Ui.text(ctx, "|", 13f, color = Ui.LINE))
+        links.addView(link("문의·불편 신고") {
+            val mail = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$REPORT_EMAIL"))
+                .putExtra(Intent.EXTRA_SUBJECT, "[말로 답장] 문의 (버전 ${BuildConfig.VERSION_NAME})")
+            runCatching { startActivity(mail) }.onFailure { Toast.makeText(this, REPORT_EMAIL, Toast.LENGTH_LONG).show() }
+        })
+        body.add(links, 28)
+        body.add(Ui.text(ctx, "버전 ${BuildConfig.VERSION_NAME} · $REPORT_EMAIL\n이 앱은 카카오와 관련이 없는 독립 앱입니다.", 12f, color = Ui.MUTED).apply {
+            gravity = android.view.Gravity.CENTER
+            setTextIsSelectable(true)
+        }, 2)
         body.add(View(this), 24)
     }
 
@@ -205,9 +226,9 @@ class MainActivity : Activity() {
     }
 
     private fun bigCard(title: String, desc: String): LinearLayout {
-        val box = Ui.vbox(this, 18, Ui.CARD)
-        box.add(Ui.text(this, title, 26f, bold = true), 0)
-        box.add(Ui.text(this, desc, 19f), 12)
+        val box = Kit.card(this, 20)
+        box.addView(Ui.text(this, title, 22f, bold = true))
+        box.add(Ui.text(this, desc, 17f), 12)
         body.add(box, 14)
         return box
     }
@@ -344,142 +365,229 @@ class MainActivity : Activity() {
             .setPositiveButton("확인", null).show()
     }
 
-    // ───────── 완료 ─────────
+    // ───────── 완료: 첫 화면 ─────────
+
+    /** 맨 위: 제목·부제 + 오른쪽 설정 아이콘. 제목을 길게 누르면 운영자용 '자세한 설정' */
+    private fun header() {
+        val ctx = this
+        val row = Ui.hbox(ctx)
+        val col = Ui.vbox(ctx)
+        col.addView(Ui.text(ctx, getString(R.string.app_name), 26f, bold = true).apply {
+            setOnLongClickListener { showAdvanced = !showAdvanced; showSettings = false; showHelp = false; render(); true }
+        })
+        col.add(Ui.text(ctx, "말하면, 내 말투로 답장해요", 14f, color = Ui.MUTED), 2)
+        row.addView(col, LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        if (!showSettings && !showHelp && !showAdvanced) {
+            val gear = android.widget.FrameLayout(ctx).apply {
+                isClickable = true
+                contentDescription = "설정"
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(Ui.CARD); setStroke(Ui.dp(ctx, 1), Ui.LINE)
+                }
+                addView(Kit.icon(ctx, R.drawable.ic_sliders, Ui.BROWN, 22), android.widget.FrameLayout.LayoutParams(
+                    Ui.dp(ctx, 22), Ui.dp(ctx, 22), android.view.Gravity.CENTER))
+                setOnClickListener { showSettings = true; render() }
+            }
+            row.addView(gear, LinearLayout.LayoutParams(Ui.dp(ctx, 48), Ui.dp(ctx, 48)))
+        }
+        body.add(row, 4)
+    }
+
+    /** 다른 화면(설정·도움말) 위: ‹ 돌아가기 + 제목 */
+    private fun subHeader(title: String, back: () -> Unit) {
+        val ctx = this
+        val row = Ui.hbox(ctx).apply { minimumHeight = Ui.dp(ctx, 48); isClickable = true; setOnClickListener { back() } }
+        row.addView(Kit.icon(ctx, R.drawable.ic_chevron, Ui.BROWN, 22).apply { rotation = 180f })
+        row.addView(Ui.text(ctx, title, 22f, bold = true), LinearLayout.LayoutParams(
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginStart = Ui.dp(ctx, 6) })
+        row.contentDescription = "$title, 돌아가기"
+        body.add(row, 4)
+    }
+
+    private fun pickKeyboard() =
+        (getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showInputMethodPicker()
+
+    private fun openKeyboardSettings() {
+        Toast.makeText(this, "목록에서 '${getString(R.string.keyboard_name)}'을 켜 주세요", Toast.LENGTH_LONG).show()
+        runCatching { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) }
+    }
+
+    /** 말투마다 '알았어 고마워' 미리 보기 */
+    private fun toneExample(m: kr.yunho.talkhelper.core.Mode): String = when (m) {
+        kr.yunho.talkhelper.core.Mode.POLITE -> "네, 알겠어요. 고마워요."
+        kr.yunho.talkhelper.core.Mode.FRIENDLY -> "알았어, 고마워!"
+        kr.yunho.talkhelper.core.Mode.BUSINESS -> "네, 확인했습니다. 감사합니다."
+        kr.yunho.talkhelper.core.Mode.PARENT -> "그래, 알았다~ 고마워."
+        kr.yunho.talkhelper.core.Mode.MINE -> "평소 내가 쓰는 말투로 바꿔 줘요."
+    }
 
     private fun done() {
         val p = Prefs(this)
-
-        keyboardCard()
-        if (BuildConfig.STORE_SAFE) { storeHowTo(); return }
-
-        // 켜기 / 끄기: 흰 카드 + 직접 그린 큰 스위치 (기본 스위치를 키우면 잘려 보여서)
         val ctx = this
-        val onRow = Ui.hbox(ctx).apply {
-            background = Ui.rounded(ctx, Ui.CARD, 22, if (p.enabled) Ui.BROWN else Ui.LINE)
-            val pad = Ui.dp(ctx, 18); setPadding(pad, pad, pad, pad)
-            gravity = android.view.Gravity.CENTER_VERTICAL
-            elevation = Ui.dp(ctx, 2).toFloat()
-        }
-        val label = Ui.vbox(ctx)
-        label.add(Ui.text(ctx, if (p.enabled) "켜져 있어요" else "꺼져 있어요", 24f, bold = true,
-            color = if (p.enabled) Ui.BROWN else Ui.MUTED), 0)
-        label.add(Ui.text(ctx, if (p.enabled) "카톡 대화방에 🎤 버튼이 떠요" else "카톡에 버튼이 나오지 않아요", 15f, color = Ui.MUTED), 2)
-        onRow.addView(label, android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        val toggle = Ui.toggle(ctx, p.enabled) { on ->
-            p.enabled = on
-            KakaoAccessibilityService.instance?.redrawBubble()
-            render()
-        }
-        toggle.contentDescription = "말로 답장 켜기 끄기"
-        onRow.addView(toggle)
-        onRow.setOnClickListener { toggle.performClick() }
-        body.add(onRow, 16)
+        val store = BuildConfig.STORE_SAFE
 
-        // 사용법: 세 가지 손동작을 칩으로 한눈에
-        val how = Ui.vbox(ctx, 16, Ui.THEM)
-        how.add(Ui.text(ctx, "카톡 🎤 버튼 쓰는 법", 17f, bold = true), 0)
-        fun gesture(chip: String, what: String) {
-            // 칩은 글자 크기만큼, 설명은 그 아래 줄에 (큰 글씨 설정에서도 줄이 꼬이지 않게)
-            val item = Ui.vbox(ctx)
-            item.addView(Ui.text(ctx, chip, 15f, bold = true, color = Ui.YELLOW).apply {
-                background = Ui.rounded(ctx, Ui.BROWN, 14)
-                val ph = Ui.dp(ctx, 12); val pv = Ui.dp(ctx, 5); setPadding(ph, pv, ph, pv)
-            }, android.widget.LinearLayout.LayoutParams(android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
-            item.add(Ui.text(ctx, what, 17f).apply { setPadding(Ui.dp(ctx, 4), 0, 0, 0) }, 6)
-            how.add(item, 14)
+        // B. 지금 상태 (실제 시스템 설정을 읽어서 표시, 화면에 돌아올 때마다 다시 읽음)
+        val status = Kit.card(ctx)
+        if (!store) {
+            val on = p.enabled
+            status.addView(Kit.statusRow(ctx, R.drawable.ic_mic, "카카오톡 말로 답장",
+                if (on) "사용 중" else "꺼짐", if (on) Kit.State.OK else Kit.State.OFF,
+                if (on) "카카오톡에서 🎤 버튼을 눌러 말해 보세요." else "켜면 카카오톡에 🎤 버튼이 떠요.",
+                Ui.toggle(ctx, on) { v ->
+                    p.enabled = v
+                    KakaoAccessibilityService.instance?.redrawBubble()
+                    render()
+                }.apply { contentDescription = "카카오톡 말로 답장 켜기 끄기" }))
+            with(Kit) { status.addDivider() }
         }
-        gesture("누르기", "말하고 끝에 \"…라고 보내 줘\" 또는 \"…라고 전해 줘\"")
-        gesture("꾹 누르기", "말투 바꾸기 · 🔎 찾기 · ⚙ 설정")
-        gesture("끌어 옮기기", "버튼 자리 바꾸기")
-        body.add(how, 16)
+        val kbOn = keyboardEnabled(); val kbChosen = keyboardChosen()
+        when {
+            kbOn && kbChosen -> status.addView(Kit.statusRow(ctx, R.drawable.ic_keyboard, "말로 답장 키보드",
+                "설정 완료 · 사용 가능", Kit.State.OK,
+                if (store) "글을 쓸 때 위의 🎤 말로 답장을 누르세요." else null,
+                Kit.smallButton(ctx, "키보드 변경") { pickKeyboard() }))
+            else -> {
+                status.addView(Kit.statusRow(ctx, R.drawable.ic_keyboard,
+                    if (store) "키보드 설정이 필요해요" else "말로 답장 키보드",
+                    if (kbOn) "키보드를 골라 주세요" else "아직 켜지 않았어요",
+                    if (store) Kit.State.NEED else Kit.State.OFF,
+                    if (store) null else "카톡 말고 다른 앱에서도 말로 답장을 쓰려면 켜 보세요."))
+                fun step(n: Int, label: String, doneStep: Boolean, enabled: Boolean, onClick: () -> Unit) {
+                    val b = if (doneStep) Kit.smallButton(ctx, "✅ $n. $label") {} else if (enabled) Kit.primaryButton(ctx, "$n. $label", onClick)
+                        else Kit.smallButton(ctx, "$n. $label") {}.apply { alpha = 0.5f }
+                    status.add(b, 10)
+                }
+                step(1, "키보드 켜기", kbOn, true) { openKeyboardSettings() }
+                step(2, "키보드 선택하기", false, kbOn) { pickKeyboard() }
+            }
+        }
+        body.add(status, 20)
 
-        // 말투 예시: 같은 말이 말투마다 어떻게 바뀌는지 한눈에
-        val ex = Ui.vbox(ctx, 16, Ui.CARD)
-        ex.add(Ui.text(ctx, "말투에 따라 이렇게 바뀌어요", 17f, bold = true), 0)
-        ex.add(Ui.text(ctx, "🎤 \"알았어 고마워\"", 18f, bold = true).apply {
-            background = Ui.rounded(ctx, Ui.THEM, 14)
-            val ph = Ui.dp(ctx, 14); val pv = Ui.dp(ctx, 10); setPadding(ph, pv, ph, pv)
-        }, 12)
-        fun example(m: kr.yunho.talkhelper.core.Mode, out: String) {
+        // C. 답장 말투: 고른 것만 노랑, 아래에 미리 보기 하나
+        body.add(Kit.section(ctx, R.drawable.ic_message_circle, "답장 말투"), 24)
+        val toneCard = Kit.card(ctx, 16)
+        val chips = LinkedHashMap<kr.yunho.talkhelper.core.Mode, android.widget.TextView>()
+        val preview = Ui.text(ctx, "", 17f, bold = true)
+        fun paintTones() {
+            chips.forEach { (m, v) -> Kit.paintChip(ctx, v, m == p.mode) }
+            preview.text = toneExample(p.mode)
+        }
+        val modes = kr.yunho.talkhelper.core.Mode.values().toList()
+        for (line in listOf(modes.take(3), modes.drop(3))) {
             val row = Ui.hbox(ctx)
-            row.addView(Ui.text(ctx, "${m.emoji} ${m.label}", 14f, bold = true).apply {
-                background = Ui.rounded(ctx, Ui.CARD, 14, Ui.LINE)
-                gravity = android.view.Gravity.CENTER
-                val ph = Ui.dp(ctx, 8); val pv = Ui.dp(ctx, 8); setPadding(ph, pv, ph, pv)
-            }, android.widget.LinearLayout.LayoutParams(Ui.dp(ctx, 124), android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
-            row.addView(Ui.text(ctx, out, 16f, bold = true).apply {
-                background = Ui.rounded(ctx, Ui.MINE, 14)
-                val ph = Ui.dp(ctx, 12); val pv = Ui.dp(ctx, 9); setPadding(ph, pv, ph, pv)
-            }, android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = Ui.dp(ctx, 8) })
-            ex.add(row, 10)
+            for (m in line) {
+                val c = Kit.chip(ctx, "${m.emoji} ${m.label}").apply {
+                    contentDescription = "${m.label} 말투"
+                    setOnClickListener { p.mode = m; paintTones() }
+                }
+                chips[m] = c
+                row.add(c)
+            }
+            if (line.size < 3) row.add(View(ctx))   // 두 번째 줄도 같은 칸 너비
+            toneCard.add(row, if (line.first() == modes.first()) 0 else 8)
         }
-        example(kr.yunho.talkhelper.core.Mode.POLITE, "네, 알겠어요. 고마워요.")
-        example(kr.yunho.talkhelper.core.Mode.FRIENDLY, "알았어, 고마워!")
-        example(kr.yunho.talkhelper.core.Mode.BUSINESS, "네, 확인했습니다. 감사합니다.")
-        ex.add(Ui.text(ctx, "🤗 자녀에게 · 🪞 내 말투도 있어요. 🎤 버튼을 꾹 누르고 '말투'를 고르면 그 방에서는 계속 그 말투로 써요.", 14f, color = Ui.MUTED), 12)
-        body.add(ex, 16)
+        val box = Ui.vbox(ctx, 14).apply {
+            background = Ui.rounded(ctx, Ui.BG, 14)
+        }
+        box.addView(Ui.text(ctx, "🎤 \"알았어 고마워\"", 14f, color = Ui.MUTED))
+        box.add(preview, 6)
+        toneCard.add(box, 14)
+        toneCard.add(Ui.text(ctx, if (store) "키보드 위 '말투'에서도 바꿀 수 있어요." else "카톡 🎤 버튼을 꾹 누르면 방마다 다른 말투로 바꿀 수 있어요.", 13f, color = Ui.MUTED), 10)
+        paintTones()
+        body.add(toneCard, 10)
 
-        // 보내는 방식: 한 줄 알약 + 설명 한 줄
-        body.add(Ui.text(ctx, "보내는 방식", 18f, bold = true), 24)
-        body.add(Ui.sendModePicker(ctx, p), 8)
+        // D. 보내는 방식 (카톡 위 버튼이 직접 보내는 직접 설치판만. 키보드는 보내기를 사용자가 누름)
+        if (!store) {
+            body.add(Kit.section(ctx, R.drawable.ic_send, "보내는 방식"), 24)
+            body.add(Ui.sendModePicker(ctx, p), 10)
+        }
 
-        // 찾은 내용 읽어 주기 (기본: 안 읽음) — 위와 같은 모양의 스위치
-        val readRow = Ui.hbox(ctx).apply { setPadding(0, Ui.dp(ctx, 4), 0, Ui.dp(ctx, 4)) }
-        readRow.addView(Ui.text(ctx, "찾은 내용 소리로 읽어 주기", 18f),
-            android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        readRow.addView(Ui.toggle(ctx, p.readAnswers) { on -> p.readAnswers = on }.apply { contentDescription = "찾은 내용 소리로 읽어 주기" })
-        body.add(readRow, 24)
-
-        body.add(View(this), 40)
+        // E. 추가 설정 + F. 사용 방법
+        val more = Kit.card(ctx, 16)
+        more.addView(Kit.toggleRow(ctx, R.drawable.ic_volume, "찾은 내용 읽어 주기", "찾은 문장을 소리로 들려줘요.", p.readAnswers) { on -> p.readAnswers = on })
+        with(Kit) { more.addDivider(10) }
+        more.addView(Kit.navRow(ctx, R.drawable.ic_help, "사용 방법",
+            if (store) "🎤 말로 답장 → 말하기 → 확인하고 보내기" else "마이크 누르기 → 말하기 → 답장 보내기") { showHelp = true; render() })
+        body.add(more, 24)
     }
 
-    /** 플레이판 완료 화면: 키보드 쓰는 법 + 말투 예시 */
-    private fun storeHowTo() {
+    /** 사용 방법 (첫 화면의 '사용 방법'을 누르면) */
+    private fun help() {
         val ctx = this
-        val how = Ui.vbox(ctx, 16, Ui.THEM)
-        how.add(Ui.text(ctx, "키보드 쓰는 법", 17f, bold = true), 0)
-        fun item(chip: String, what: String) {
-            val it = Ui.vbox(ctx)
-            it.addView(Ui.text(ctx, chip, 15f, bold = true, color = Ui.YELLOW).apply {
-                background = Ui.rounded(ctx, Ui.BROWN, 14)
-                val ph = Ui.dp(ctx, 12); val pv = Ui.dp(ctx, 5); setPadding(ph, pv, ph, pv)
-                Ui.iconize(this)
-            }, android.widget.LinearLayout.LayoutParams(android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
-            it.add(Ui.text(ctx, what, 17f).apply { setPadding(Ui.dp(ctx, 4), 0, 0, 0) }, 6)
-            how.add(it, 14)
+        subHeader("사용 방법") { showHelp = false; render() }
+        val card = Kit.card(ctx)
+        fun item(res: Int, title: String, desc: String, first: Boolean = false) {
+            if (!first) with(Kit) { card.addDivider(12) }
+            val row = Ui.hbox(ctx).apply { gravity = android.view.Gravity.TOP }
+            row.addView(Kit.icon(ctx, res, Ui.BROWN, 24))
+            val col = Ui.vbox(ctx)
+            col.addView(Ui.text(ctx, title, 16f, bold = true))
+            col.add(Ui.text(ctx, desc, 15f, color = Ui.MUTED), 4)
+            row.addView(col, LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = Ui.dp(ctx, 14) })
+            card.addView(row)
         }
-        item("🎤 말로 답장", "누르고 편하게 말하면, 다듬은 글이 입력칸에 들어가요. 확인하고 보내기는 직접 누르세요.")
-        item("말투 ▾", "정중하게·다정하게 같은 말투를 골라요. 방금 넣은 글도 그 말투로 바뀌어요.")
-        item("🔎 찾기", "카톡 대화방 ☰ → 설정 → '대화 내용 내보내기' → '말로 답장'으로 보내 둔 대화에서 찾아 줘요.")
-        item("⇄ 천지인", "두벌식·천지인 자판을 바꿔요.")
-        body.add(how, 16)
+        if (BuildConfig.STORE_SAFE) {
+            item(R.drawable.ic_mic, "🎤 말로 답장", "누르고 편하게 말하면, 다듬은 글이 입력칸에 들어가요. 확인하고 보내기는 직접 누르세요.", true)
+            item(R.drawable.ic_message_circle, "말투 ▾", "정중하게·친구처럼 같은 말투를 골라요. 방금 넣은 글도 그 말투로 바뀌어요.")
+            item(R.drawable.ic_search, "🔎 찾기", "카톡 대화방 ☰ → 설정 → '대화 내용 내보내기' → '말로 답장'으로 보내 둔 대화에서 찾아 줘요.")
+            item(R.drawable.ic_keyboard, "⇄ 천지인 / 두벌식", "자판 모양을 바꿔요.")
+        } else {
+            item(R.drawable.ic_tap, "한 번 누르기", "음성 답장 시작. 말하고 끝에 \"…라고 보내 줘\"라고 하면 바로 다듬어요.", true)
+            item(R.drawable.ic_mic, "길게 누르기", "말투 바꾸기 · 🔎 찾기 · ⚙ 설정")
+            item(R.drawable.ic_move, "끌어 옮기기", "버튼 자리를 바꿔요.")
+            item(R.drawable.ic_keyboard, "말로 답장 키보드", "다른 앱에서도 키보드 위 🎤로 말하면 다듬은 글이 들어가요.")
+        }
+        body.add(card, 20)
+    }
 
-        val ex = Ui.vbox(ctx, 16, Ui.CARD)
-        ex.add(Ui.text(ctx, "말투에 따라 이렇게 바뀌어요", 17f, bold = true), 0)
-        ex.add(Ui.text(ctx, "🎤 \"알았어 고마워\"", 18f, bold = true).apply {
-            background = Ui.rounded(ctx, Ui.THEM, 14)
-            val ph = Ui.dp(ctx, 14); val pv = Ui.dp(ctx, 10); setPadding(ph, pv, ph, pv)
-        }, 12)
-        for ((m, out) in listOf(
-            kr.yunho.talkhelper.core.Mode.POLITE to "네, 알겠어요. 고마워요.",
-            kr.yunho.talkhelper.core.Mode.FRIENDLY to "알았어, 고마워!",
-            kr.yunho.talkhelper.core.Mode.BUSINESS to "네, 확인했습니다. 감사합니다.",
-        )) {
-            val row = Ui.hbox(ctx)
-            row.addView(Ui.text(ctx, "${m.emoji} ${m.label}", 14f, bold = true).apply {
-                background = Ui.rounded(ctx, Ui.CARD, 14, Ui.LINE)
-                gravity = android.view.Gravity.CENTER
-                val pp = Ui.dp(ctx, 8); setPadding(pp, pp, pp, pp)
-            }, android.widget.LinearLayout.LayoutParams(Ui.dp(ctx, 124), android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
-            row.addView(Ui.text(ctx, out, 16f, bold = true).apply {
-                background = Ui.rounded(ctx, Ui.MINE, 14)
-                val ph = Ui.dp(ctx, 12); val pv = Ui.dp(ctx, 9); setPadding(ph, pv, ph, pv)
-            }, android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = Ui.dp(ctx, 8) })
-            ex.add(row, 10)
+    /** 사용자 설정 (오른쪽 위 설정 아이콘) */
+    private fun userSettings() {
+        val ctx = this
+        val p = Prefs(this)
+        subHeader("설정") { showSettings = false; render() }
+
+        val kb = Kit.card(ctx, 16)
+        kb.addView(Kit.navRow(ctx, R.drawable.ic_keyboard, "키보드 켜기·끄기", "휴대폰 키보드 목록 열기") { openKeyboardSettings() })
+        with(Kit) { kb.addDivider(10) }
+        kb.addView(Kit.navRow(ctx, R.drawable.ic_refresh, "키보드 바꾸기", "말로 답장 키보드 ↔ 다른 키보드") { pickKeyboard() })
+        if (!BuildConfig.STORE_SAFE) {
+            with(Kit) { kb.addDivider(10) }
+            kb.addView(Kit.navRow(ctx, R.drawable.ic_settings, "카톡 위 버튼 (접근성)", "접근성 설정 열기") { openAccessibilitySettings() })
+            with(Kit) { kb.addDivider(10) }
+            kb.addView(Kit.navRow(ctx, R.drawable.ic_pin, "버튼 위치 처음대로", "카톡 위 🎤 버튼을 오른쪽 가운데로") {
+                p.bubbleX = -1; p.bubbleY = -1
+                KakaoAccessibilityService.instance?.redrawBubble()
+                Toast.makeText(this, "버튼을 오른쪽 가운데로 되돌렸어요. 카톡을 다시 열어 보세요.", Toast.LENGTH_LONG).show()
+            })
         }
-        ex.add(Ui.text(ctx, "🤗 자녀에게 · 🪞 내 말투도 있어요. 키보드 위 '말투 ▾'에서 고르세요.", 14f, color = Ui.MUTED), 12)
-        body.add(ex, 16)
-        body.add(View(this), 40)
+        body.add(kb, 20)
+
+        // 내 말투 정보 (말투에 반영)
+        body.add(Kit.section(ctx, R.drawable.ic_user, "나에 대해 (선택)"), 24)
+        val me = Kit.card(ctx, 16)
+        me.addView(Ui.text(ctx, "내 이름", 15f, bold = true))
+        val name = Ui.input(ctx, "예: 윤호요셉").apply { setText(p.myName) }
+        me.add(name, 6)
+        me.add(Ui.text(ctx, "나는 어떤 사람인가요?", 15f, bold = true), 14)
+        val role = Ui.input(ctx, "예: 본당 주임신부 / 70대 어머니").apply { setText(p.myRole) }
+        me.add(role, 6)
+        me.add(Ui.text(ctx, "적어 두면 '내 말투'와 답장이 더 나에게 맞춰져요.", 13f, color = Ui.MUTED), 8)
+        me.add(Kit.primaryButton(ctx, "저장") {
+            p.myName = name.text.toString().trim()
+            p.myRole = role.text.toString().trim()
+            Toast.makeText(this, "저장했어요", Toast.LENGTH_SHORT).show()
+            showSettings = false
+            render()
+        }, 14)
+        body.add(me, 10)
+
+        val etc = Kit.card(ctx, 16)
+        etc.addView(Kit.navRow(ctx, R.drawable.ic_search, "대화에서 찾기", "내보낸 대화 보기·찾기") {
+            startActivity(Intent(this, AskActivity::class.java))
+        })
+        with(Kit) { etc.addDivider(10) }
+        etc.addView(Kit.navRow(ctx, R.drawable.ic_trash, "저장한 대화·기록 지우기", "설정은 그대로 남아요") { confirmClearAll() })
+        body.add(etc, 24)
     }
 
     // ───────── 말로 답장 키보드 ─────────
@@ -491,31 +599,6 @@ class MainActivity : Activity() {
 
     private fun keyboardChosen(): Boolean =
         Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD).orEmpty().startsWith("$packageName/")
-
-    /** 키보드 켜기·고르기 안내 카드 (카톡 등 어디서나: 말하면 다듬은 글이 입력칸에) */
-    private fun keyboardCard() {
-        val ctx = this
-        val on = keyboardEnabled(); val chosen = keyboardChosen()
-        val box = Ui.vbox(ctx, 18, Ui.MINE)
-        box.add(Ui.text(ctx, "⌨ 말로 답장 키보드", 22f, bold = true), 0)
-        box.add(Ui.text(ctx, "평소처럼 글도 치고, 위의 🎤 말로 답장을 누르고 말하면 다듬은 글이 입력칸에 들어가요. 보내기는 직접 누르세요.", 15f), 6)
-        box.add(Ui.text(ctx,
-            "${if (on) "✅" else "1️⃣"} 키보드 켜기   ${if (chosen) "✅" else "2️⃣"} 키보드 고르기", 16f, bold = true), 10)
-        if (!on) box.add(Ui.button(ctx, "👉 1. 키보드 켜기", Ui.BROWN, Ui.YELLOW, sp = 18f) {
-            Toast.makeText(ctx, "목록에서 '${getString(R.string.keyboard_name)}'을 켜 주세요", Toast.LENGTH_LONG).show()
-            runCatching { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) }
-        }, 10)
-        else if (!chosen) box.add(Ui.button(ctx, "👉 2. 이 키보드 고르기", Ui.BROWN, Ui.YELLOW, sp = 18f) {
-            (getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showInputMethodPicker()
-        }, 10)
-        else {
-            box.add(Ui.text(ctx, "준비됐어요. 이제 글을 쓸 때마다 말로 답장 키보드가 떠요.", 15f, color = Ui.GREEN), 8)
-            box.add(Ui.button(ctx, "다른 키보드로 바꾸기", Ui.CARD, Ui.BROWN, sp = 15f) {
-                (getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showInputMethodPicker()
-            }, 8)
-        }
-        body.add(box, 16)
-    }
 
     private fun shareSetup() {
         val key = Prefs(this).apiKey

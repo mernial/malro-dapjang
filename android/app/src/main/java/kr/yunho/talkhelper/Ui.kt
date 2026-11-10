@@ -16,12 +16,12 @@ import android.widget.TextView
 
 /** 어르신용 큰 글씨 화면을 코드로 만드는 도우미 */
 object Ui {
-    val YELLOW = Color.parseColor("#FEE500")
-    val BROWN = Color.parseColor("#3B1E1E")
-    val BG = Color.parseColor("#F7F4EE")
+    val YELLOW = Color.parseColor("#F8D978")
+    val BROWN = Color.parseColor("#432725")
+    val BG = Color.parseColor("#F8F7F3")
     val CARD = Color.WHITE
-    val MUTED = Color.parseColor("#6B625A")
-    val LINE = Color.parseColor("#E2D9CC")
+    val MUTED = Color.parseColor("#77706A")
+    val LINE = Color.parseColor("#D8C9B9")
     val MINE = Color.parseColor("#FDE68A")
     val THEM = Color.parseColor("#F1ECE4")
     val RED = Color.parseColor("#B4441F")
@@ -33,7 +33,7 @@ object Ui {
     fun rounded(ctx: Context, color: Int, radiusDp: Int = 16, stroke: Int? = null) = GradientDrawable().apply {
         setColor(color)
         cornerRadius = dp(ctx, radiusDp).toFloat()
-        if (stroke != null) setStroke(dp(ctx, 2), stroke)
+        if (stroke != null) setStroke(dp(ctx, 1), stroke)
     }
 
     /** 글 속 이모티콘을 같은 모양의 단순한 선 아이콘으로 바꿈 (앱 전체 아이콘을 하나로 맞춤) */
@@ -149,7 +149,7 @@ object Ui {
         val box = vbox(ctx)
         val row = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
-            background = rounded(ctx, THEM, 18)
+            background = rounded(ctx, CARD, 16, LINE)
             val p = dp(ctx, 4); setPadding(p, p, p, p)
         }
         val desc = text(ctx, "", 14f, color = MUTED).apply { setPadding(dp(ctx, 6), dp(ctx, 8), 0, 0) }
@@ -157,15 +157,17 @@ object Ui {
         fun paint() {
             pills.forEach { (m, t) ->
                 val on = m == prefs.sendMode
-                t.background = if (on) rounded(ctx, BROWN, 14) else null
-                t.setTextColor(if (on) YELLOW else BROWN)
+                t.background = if (on) rounded(ctx, BROWN, 12) else null
+                t.setTextColor(if (on) Color.WHITE else BROWN)
+                t.typeface = if (on) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
             }
             desc.text = prefs.sendMode.desc
         }
         SendMode.available().forEach { m ->
-            val t = text(ctx, m.label, 16f, bold = true).apply {
+            val t = text(ctx, m.label, 16f).apply {
                 gravity = Gravity.CENTER
-                val pv = dp(ctx, 10); setPadding(dp(ctx, 4), pv, dp(ctx, 4), pv)
+                minHeight = dp(ctx, 48)
+                val pv = dp(ctx, 8); setPadding(dp(ctx, 4), pv, dp(ctx, 4), pv)
                 contentDescription = "${m.label} 보내기"
                 setOnClickListener { prefs.sendMode = m; paint(); onPick(m) }
             }
