@@ -193,8 +193,15 @@ class KeyboardService : InputMethodService() {
         if (::toneButton.isInitialized) paintTone()
         // 숫자만 받는 칸이면 숫자 자판, 아니면 한글 자판부터
         val cls = (info?.inputType ?: 0) and EditorInfo.TYPE_MASK_CLASS
+        // 입력칸이 원하는 줄바꿈 칸 모양 (검색칸이면 🔍 검색, 보내기 칸이면 '보내기' …)
+        val opts = info?.imeOptions ?: 0
+        val multi = (info?.inputType ?: 0) and EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE != 0
+        val act = opts and EditorInfo.IME_MASK_ACTION
+        val newAction = if (opts and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0 || multi) EditorInfo.IME_ACTION_NONE else act
+        val actionChanged = newAction != editorAction
+        editorAction = newAction
         val want = if (cls == EditorInfo.TYPE_CLASS_NUMBER || cls == EditorInfo.TYPE_CLASS_PHONE) Layer.SYM else if (layer == Layer.SYM) Layer.KO else layer
-        if (want != layer || !restarting) { layer = want; shift = false; if (::content.isInitialized && !listening) showKeys() }
+        if (want != layer || !restarting || actionChanged) { layer = want; shift = false; if (::content.isInitialized && !listening) showKeys() }
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
@@ -304,7 +311,7 @@ class KeyboardService : InputMethodService() {
             key(",", special = true) { commitPlain(",") } to 0.9f,
             key("띄어쓰기") { commitPlain(" ") } to 3.4f,
             key(".", special = true) { commitPlain(".") } to 1f,
-            key("↵", special = true) { enter() } to 1.7f,
+            enterKey() to 1.7f,
         )
         return column(listOf(
             // 폴드처럼 넓으면 왼쪽(자음)·오른쪽(모음) 사이를 조금 띄움. 모든 줄에 같은 폭이라 키 줄이 어긋나지 않음
@@ -321,7 +328,7 @@ class KeyboardService : InputMethodService() {
         fun c(label: String, cycle: String) = key(label) { cjiConsonant(label, cycle) } to 1f
         val rows = listOf(
             row(listOf(v("ㅣ", 'I'), v("•", 'D'), v("ㅡ", 'E'), key("⌫", special = true, repeat = true) { backspace() } to 1f)),
-            row(listOf(c("ㄱㅋ", "ㄱㅋㄲ"), c("ㄴㄹ", "ㄴㄹ"), c("ㄷㅌ", "ㄷㅌㄸ"), key("↵", special = true) { enter() } to 1f)),
+            row(listOf(c("ㄱㅋ", "ㄱㅋㄲ"), c("ㄴㄹ", "ㄴㄹ"), c("ㄷㅌ", "ㄷㅌㄸ"), enterKey() to 1f)),
             row(listOf(c("ㅂㅍ", "ㅂㅍㅃ"), c("ㅅㅎ", "ㅅㅎㅆ"), c("ㅈㅊ", "ㅈㅊㅉ"),
                 key("!#1", special = true) { toSymbols() } to 0.5f, key("한/영", special = true) { toEnglish() } to 0.5f)),
             // 휴대폰 숫자판처럼: ㅇㅁ 은 가운데(0 자리), 왼쪽 문장부호, 오른쪽 띄어쓰기
@@ -383,7 +390,7 @@ class KeyboardService : InputMethodService() {
             key(if (emojiFrom == Layer.EN) "ABC" else "가", special = true) { layer = if (emojiFrom == Layer.EMOJI) Layer.KO else emojiFrom; showKeys() } to 1.5f,
             key("띄어쓰기") { commitPlain(" ") } to 4f,
             key("⌫", special = true, repeat = true) { backspace() } to 1.5f,
-            key("↵", special = true) { enter() } to 1.5f,
+            enterKey() to 1.5f,
         )))
         return col
     }
@@ -396,7 +403,7 @@ class KeyboardService : InputMethodService() {
             key("#", special = true) { commitPlain("#") } to 0.9f,
             key("띄어쓰기") { commitPlain(" ") } to 3f,
             key("⌫", special = true, repeat = true) { backspace() } to 1.4f,
-            key("↵", special = true) { enter() } to 1.4f,
+            enterKey() to 1.4f,
         ))
         return column(listOf(line("1234567890"), line("-/:;()₩&@\""), line(".,?!'~^*+="), bottom), )
     }
@@ -468,9 +475,32 @@ class KeyboardService : InputMethodService() {
         if (!sel.isNullOrEmpty()) ic.commitText("", 1) else ic.deleteSurroundingText(1, 0)
     }
 
+    /** 지금 입력칸의 줄바꿈 칸 동작 (IME_ACTION_*). NONE 이면 그냥 줄바꿈 */
+    private var editorAction = EditorInfo.IME_ACTION_NONE
+
+    /** 줄바꿈 칸: 검색칸이면 🔍, 보내기·이동·다음·완료 칸이면 그 글자, 아니면 ↵ */
+    private fun enterKey(): TextView {
+        val (label, desc) = when (editorAction) {
+            EditorInfo.IME_ACTION_SEARCH -> "🔎" to "검색"
+            EditorInfo.IME_ACTION_SEND -> "보내기" to "보내기"
+            EditorInfo.IME_ACTION_GO -> "이동" to "이동"
+            EditorInfo.IME_ACTION_NEXT -> "다음" to "다음 칸"
+            EditorInfo.IME_ACTION_DONE -> "완료" to "완료"
+            else -> "↵" to "줄바꿈"
+        }
+        return key(label, special = true) { enter() }.apply {
+            contentDescription = desc
+            if (editorAction == EditorInfo.IME_ACTION_SEARCH) background = Ui.rounded(this@KeyboardService, Ui.YELLOW, 8, KEY_EDGE)
+        }
+    }
+
     private fun enter() {
         finishComposing()
         val ic = currentInputConnection ?: return
+        val act = editorAction
+        if (act != EditorInfo.IME_ACTION_NONE && act != EditorInfo.IME_ACTION_UNSPECIFIED && ic.performEditorAction(act)) {
+            lastCjiKey = null; inserted = null; return
+        }
         ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
         ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
         lastCjiKey = null
