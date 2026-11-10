@@ -102,7 +102,7 @@ class KeyboardService : InputMethodService() {
             background = Ui.rounded(ctx, Ui.CARD, 14, Ui.LINE)
             setOnClickListener { onClick() }
         }.also { keys.add(it, weight = weight) }
-        key("⌨ 다른 키보드", 1.6f) { otherKeyboard() }
+        key("⌨ 바꾸기", 1.4f) { otherKeyboard() }
         key("⌫", 1f) { backspace() }
         key("띄어쓰기", 1.4f) { currentInputConnection?.commitText(" ", 1); inserted = null }
         key("↵", 1f) { sendKey(KeyEvent.KEYCODE_ENTER); inserted = null }

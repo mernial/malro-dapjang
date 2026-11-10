@@ -438,7 +438,7 @@ class MainActivity : Activity() {
         else if (!chosen) box.add(Ui.button(ctx, "👉 2. 이 키보드 고르기", Ui.BROWN, Ui.YELLOW, sp = 18f) {
             (getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showInputMethodPicker()
         }, 10)
-        else box.add(Ui.text(ctx, "준비됐어요. 다른 키보드로 바꾸려면 키보드의 '⌨ 다른 키보드'를 누르세요.", 14f, color = Ui.MUTED), 8)
+        else box.add(Ui.text(ctx, "준비됐어요. 다른 키보드로 바꾸려면 키보드의 '⌨ 바꾸기'를 누르세요.", 14f, color = Ui.MUTED), 8)
         body.add(box, 16)
     }
 
