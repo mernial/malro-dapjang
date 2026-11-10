@@ -116,8 +116,10 @@ class KeyboardService : InputMethodService() {
         }
         // 1) 단축키 줄
         val toolbar = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        fun tool(label: String, weight: Float, onClick: () -> Unit) = TextView(ctx).apply {
+        // 단축키 넷: 꾹 눌러 끌어서 다른 단추 위에 놓으면 자리 바꾸기 (순서 기억 'toolOrder')
+        fun tool(key: String, label: String, weight: Float, onClick: () -> Unit) = TextView(ctx).apply {
             text = label
+            tag = key
             gravity = Gravity.CENTER
             maxLines = 1
             setTextColor(Ui.BROWN)
@@ -126,14 +128,45 @@ class KeyboardService : InputMethodService() {
             background = Ui.rounded(ctx, Ui.CARD, 12, Ui.LINE)
             setPadding(dp(4), 0, dp(4), 0)
             setOnClickListener { onClick() }
+            setOnLongClickListener { v ->
+                Sounds.buzz(ctx, 30)
+                v.startDragAndDrop(android.content.ClipData.newPlainText("tool", key), View.DragShadowBuilder(v), key, 0)
+                true
+            }
+            setOnDragListener { v, e ->
+                when (e.action) {
+                    android.view.DragEvent.ACTION_DRAG_STARTED -> e.localState is String && (e.localState as String) in TOOL_KEYS
+                    android.view.DragEvent.ACTION_DRAG_ENTERED -> { v.alpha = 0.45f; true }
+                    android.view.DragEvent.ACTION_DRAG_EXITED, android.view.DragEvent.ACTION_DRAG_ENDED -> { v.alpha = 1f; true }
+                    android.view.DragEvent.ACTION_DROP -> {
+                        val from = e.localState as? String
+                        if (from != null && from != key) {
+                            val list = toolOrder().toMutableList()
+                            val fi = list.indexOf(from); val ti = list.indexOf(key)
+                            list.removeAt(fi); list.add(ti, from)
+                            getSharedPreferences("settings", MODE_PRIVATE).edit().putString("toolOrder", list.joinToString(",")).apply()
+                            Bg.main.post { setInputView(onCreateInputView()) }
+                        }
+                        true
+                    }
+                    else -> true
+                }
+            }
             Ui.iconize(this)
-        }.also { toolbar.addView(it, LinearLayout.LayoutParams(0, dp(42), weight).apply { marginEnd = dp(4) }) }
-        tool("🎤 말로 답장", 1.6f) { startVoice(search = false) }.apply {
-            setTextColor(Ui.YELLOW); background = Ui.rounded(ctx, Ui.BROWN, 12); text = "🎤 말로 답장"; Ui.iconize(this)
         }
-        tool("🔎 찾기", 1f) { startVoice(search = true) }
-        toneButton = tool("", 1.3f) { toggleToneRow() }
-        tool(if (prefs.keyboardLayout == "cji") "⇄ 두벌식" else "⇄ 천지인", 1.1f) { switchLayout() }
+        val tools = mapOf(
+            "voice" to { tool("voice", "🎤 말로 답장", 1.6f) { startVoice(search = false) }.apply {
+                setTextColor(Ui.YELLOW); background = Ui.rounded(ctx, Ui.BROWN, 12); text = "🎤 말로 답장"; Ui.iconize(this) } to 1.6f },
+            "search" to { tool("search", "🔎 찾기", 1f) { startVoice(search = true) } to 1f },
+            "tone" to { tool("tone", "", 1.3f) { toggleToneRow() }.also { toneButton = it } to 1.3f },
+            "layout" to { tool("layout", if (prefs.keyboardLayout == "cji") "⇄ 두벌식" else "⇄ 천지인", 1.1f) { switchLayout() } to 1.1f },
+            // ⚙ 키보드 설정: 말로 답장 앱의 설정 화면 (키보드 바꾸기·내 이름 등)
+            "settings" to { tool("settings", "⚙", 0.5f) { openAppSettings() }.apply { contentDescription = "키보드 설정" } to 0.5f },
+        )
+        for (k in toolOrder()) {
+            val (v, w) = tools.getValue(k)()
+            toolbar.addView(v, LinearLayout.LayoutParams(0, dp(42), w).apply { marginEnd = dp(4) })
+        }
         r.addView(toolbar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         // 2) 알림 줄 (넣었어요·말투 고르기·오류)
@@ -666,6 +699,21 @@ class KeyboardService : InputMethodService() {
         infoRow.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
     }
 
+    private fun openAppSettings() {
+        stopRecognizer()
+        finishComposing()
+        runCatching {
+            startActivity(Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                .putExtra(MainActivity.EXTRA_SETTINGS, true))
+        }
+    }
+
+    private fun toolOrder(): List<String> {
+        val saved = getSharedPreferences("settings", MODE_PRIVATE).getString("toolOrder", "").orEmpty().split(',').filter { it in TOOL_KEYS }
+        return saved + TOOL_KEYS.filter { it !in saved }
+    }
+
     private fun orderedModes(): List<Mode> {
         val all = Mode.values().toList()
         val saved = prefs.toneOrder.mapNotNull { k -> all.firstOrNull { it.name == k } }
@@ -801,7 +849,7 @@ class KeyboardService : InputMethodService() {
         if (searchMode) { searchMode = false; searchAll(spoken); return }
         lastSpoken = spoken
         cache.clear()
-        inserted = null
+        // 방금 넣은 글이 그대로 있으면(보내지 않음) 새로 말한 내용으로 바꿔 넣음 — put() 이 지우고 넣음 (신부님 요청 2026-11-10)
         rewrite(mode)
     }
 
@@ -872,11 +920,27 @@ class KeyboardService : InputMethodService() {
         val ic = currentInputConnection ?: return
         inserted?.let { old ->
             val before = ic.getTextBeforeCursor(old.length, 0)?.toString()
-            if (before == old) ic.deleteSurroundingText(old.length, 0)
+            if (before == old) {
+                // 커서 뒤에 다른 글이 없을 때만 (사용자가 고쳐 쓰는 중인 글은 건드리지 않음)
+                ic.deleteSurroundingText(old.length, 0)
+            }
         }
         ic.commitText(text, 1)
         inserted = text
-        showInfo("✅ 넣었어요. 확인하고 직접 보내세요. 다른 말투로 바꾸려면:", tones = true)
+        // 말투 줄은 매번 띄우지 않음 (신부님 요청 2026-11-10): 짧은 안내만 잠깐, 말투를 바꾸려면 위 '말투 ▾'
+        showInfo("✅ 넣었어요. 확인하고 직접 보내세요. 말투를 바꾸려면 위 '말투 ▾'")
+        infoRow.tag = "done"
+        val ai = text
+        infoRow.addView(TextView(this).apply {
+            this.text = "🚩 이상해요"
+            setTextColor(Ui.MUTED)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setPadding(dp(6), dp(2), dp(6), dp(4))
+            contentDescription = "이상한 결과 알리기"
+            setOnClickListener { askReport(ai) }
+            Ui.iconize(this)
+        })
+        Bg.main.postDelayed({ if (infoRow.tag == "done") hideInfo() }, 6000)
     }
 
     /** 🔎 카톡 '대화 내보내기'로 저장해 둔 대화에서 찾기 (화면은 읽지 않음) */
@@ -939,6 +1003,7 @@ class KeyboardService : InputMethodService() {
             "신앙" to "🙏 ✝️ ⛪ 📿 🕊️ 🕯️ 📖 🔔 👼 🌹 ☦️ 🎄",
             "축하·일상" to "🎂 🎁 🎊 🌸 🌷 💐 ☕ 🍚 🍰 🍎 🏠 🚗 ☀️ 🌧️ ❄️ 🌙",
         )
+        private val TOOL_KEYS = listOf("voice", "search", "tone", "layout", "settings")
         private val KEY_EDGE = android.graphics.Color.parseColor("#CDBFAF")
         private val KO_ROWS = listOf("ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ", "ㅁㄴㅇㄹㅎㅗㅓㅏㅣ", "ㅋㅌㅊㅍㅠㅜㅡ")
         private val KO_SHIFT = mapOf('ㅂ' to 'ㅃ', 'ㅈ' to 'ㅉ', 'ㄷ' to 'ㄸ', 'ㄱ' to 'ㄲ', 'ㅅ' to 'ㅆ', 'ㅐ' to 'ㅒ', 'ㅔ' to 'ㅖ')
