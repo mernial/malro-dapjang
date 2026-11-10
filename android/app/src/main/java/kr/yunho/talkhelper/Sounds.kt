@@ -34,7 +34,7 @@ object Sounds {
         pool = p
     }
 
-    /** 듣기 시작: 올라가는 두 음 */
+    /** 듣기 시작: 부드럽게 올라가는 두 음 (레→솔, 2026-11-10 고음을 깎은 따뜻한 벨 소리로 바꿈) */
     fun listenStart(ctx: Context) = play(ctx, startId)
 
     /** 다 들었음: 내려오는 두 음 */
@@ -49,7 +49,7 @@ object Sounds {
         if (silent(ctx)) return
         init(ctx)
         val ready = synchronized(loaded) { id in loaded }
-        if (ready) runCatching { pool?.play(id, 0.9f, 0.9f, 1, 0, 1f) }
+        if (ready) runCatching { pool?.play(id, 0.7f, 0.7f, 1, 0, 1f) }
     }
 
     /** 진동 [ms] 밀리초. 휴대폰 '터치 진동' 설정이 꺼져 있어도 울리도록 진동기를 직접 씀 */
