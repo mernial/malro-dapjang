@@ -111,6 +111,11 @@ class Prefs(ctx: Context) {
         roomKey(room)?.let { sp.edit().putString("mode:$it", m.name).apply() }
     }
 
+    /** 말로 답장 키보드 자판: "dubeol"(두벌식) / "cji"(천지인) */
+    var keyboardLayout: String
+        get() = sp.getString("keyboardLayout", "dubeol") ?: "dubeol"
+        set(v) = sp.edit().putString("keyboardLayout", v).apply()
+
     /** 동그라미 메뉴 '말투' 안의 다섯 말투 순서 (사용자가 끌어서 바꾼 것) */
     var toneOrder: List<String>
         get() = (sp.getString("toneOrder", "") ?: "").split(',').filter { it.isNotBlank() }
