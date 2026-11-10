@@ -93,6 +93,8 @@ class KeyboardService : InputMethodService() {
     private val screenWdp get() = resources.configuration.screenWidthDp
     private val screenHdp get() = resources.configuration.screenHeightDp
     /** 키 높이: 화면 높이에 맞춰 (너무 작거나 크지 않게) */
+    /** 넓은 화면 (폴드 펼침·태블릿): 자음·모음 사이를 띄우고 키 간격을 넓힘 */
+    private val wide get() = screenWdp >= 600
     private val keyH get() = dp((screenHdp * 0.062f).toInt().coerceIn(42, 56))
     private val keyTextSp get() = if (screenHdp < 640) 18f else 21f
 
@@ -238,7 +240,8 @@ class KeyboardService : InputMethodService() {
         maxLines = 1
         setTextColor(Ui.BROWN)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, if (label.length > 2) keyTextSp - 5 else keyTextSp)
-        background = Ui.rounded(this@KeyboardService, if (special) KEY_SPECIAL else Ui.CARD, 8)
+        // 얇은 테두리로 키 경계를 또렷하게 (옆 키를 잘못 누르는 일 줄이기)
+        background = Ui.rounded(this@KeyboardService, if (special) KEY_SPECIAL else Ui.CARD, 8, KEY_EDGE)
         elevation = dp(1).toFloat()
         Ui.iconize(this)
         if (repeat) {
@@ -254,8 +257,13 @@ class KeyboardService : InputMethodService() {
         } else setOnClickListener { Sounds.buzz(this@KeyboardService, 8, 40); onClick() }
     }
 
-    private fun keyLp(w: Float) = LinearLayout.LayoutParams(0, keyH, w).apply { setMargins(dp(2), dp(3), dp(2), dp(3)) }
+    private fun keyLp(w: Float) = LinearLayout.LayoutParams(0, keyH, w).apply {
+        val h = if (wide) dp(5) else dp(2); val v = if (wide) dp(4) else dp(3)
+        setMargins(h, v, h, v)
+    }
     private fun gap(w: Float): Pair<View, Float> = View(this) to w
+    /** 넓은 화면에서 자음·모음 사이 빈칸 (좁은 화면은 없음) */
+    private fun mid(): List<Pair<View, Float>> = if (wide) listOf(gap(0.9f)) else emptyList()
 
     private fun row(items: List<Pair<View, Float>>): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
@@ -297,9 +305,10 @@ class KeyboardService : InputMethodService() {
             key("↵", special = true) { enter() } to 1.7f,
         )
         return column(listOf(
-            row(r1),
-            row(listOf(gap(0.5f)) + r2 + listOf(gap(0.5f))),
-            row(listOf(shiftKey) + r3 + listOf(back)),
+            // 폴드처럼 넓으면 왼쪽(자음)·오른쪽(모음) 사이를 조금 띄움. 모든 줄에 같은 폭이라 키 줄이 어긋나지 않음
+            row(r1.take(5) + mid() + r1.drop(5)),
+            row(listOf(gap(0.5f)) + r2.take(5) + mid() + r2.drop(5) + listOf(gap(0.5f))),
+            row(listOf(shiftKey) + r3.take(4) + mid() + r3.drop(4) + listOf(back)),
             row(bottom),
         ))
     }
@@ -712,6 +721,7 @@ class KeyboardService : InputMethodService() {
     companion object {
         private val KB_BG = android.graphics.Color.parseColor("#E9E4DC")
         private val KEY_SPECIAL = android.graphics.Color.parseColor("#D6CFC4")
+        private val KEY_EDGE = android.graphics.Color.parseColor("#CDBFAF")
         private val KO_ROWS = listOf("ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ", "ㅁㄴㅇㄹㅎㅗㅓㅏㅣ", "ㅋㅌㅊㅍㅠㅜㅡ")
         private val KO_SHIFT = mapOf('ㅂ' to 'ㅃ', 'ㅈ' to 'ㅉ', 'ㄷ' to 'ㄸ', 'ㄱ' to 'ㄲ', 'ㅅ' to 'ㅆ', 'ㅐ' to 'ㅒ', 'ㅔ' to 'ㅖ')
         private val EN_ROWS = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")

@@ -60,6 +60,16 @@ else timeout 10 adb shell input tap 950 1592; sleep 3; fi   # 키보드 창은 u
 timeout 30 adb exec-out screencap -p > shots/keyboard_cji.png
 timeout 10 adb shell input tap 950 1592; sleep 2   # 다시 두벌식으로
 timeout 20 adb shell cmd overlay enable com.android.internal.systemui.navbar.threebutton; sleep 3
+# 폴드를 편 것처럼 넓은 화면으로 바꿔 키보드 사진 (자음·모음 사이 띄움 확인)
+adb shell input keyevent KEYCODE_BACK; sleep 1
+adb shell wm size 2200x1800; adb shell wm density 420; sleep 4
+timeout 30 adb shell am start -n $PKG/.AskActivity; sleep 4
+timeout 20 adb shell uiautomator dump /sdcard/w.xml >/dev/null 2>&1
+W=$(timeout 20 adb shell cat /sdcard/w.xml | tr '>' '\n' | grep 'class="android.widget.EditText"' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')
+if [ -n "$W" ]; then set -- $W; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 3; fi
+timeout 30 adb exec-out screencap -p > shots/keyboard_wide.png
+adb shell input keyevent KEYCODE_BACK; sleep 1; adb shell input keyevent KEYCODE_BACK; sleep 1
+adb shell wm size reset; adb shell wm density reset; sleep 4
 # 키보드까지 준비된 첫 화면 (새 디자인 확인): 위·아래로 한 장씩, 설정 화면 한 장
 adb shell input keyevent KEYCODE_BACK; sleep 1; adb shell input keyevent KEYCODE_HOME; sleep 1
 timeout 30 adb shell am start -n $PKG/.MainActivity; sleep 4
