@@ -33,6 +33,11 @@ class KeyboardService : InputMethodService() {
     private var mode = Mode.POLITE
 
     private lateinit var micButton: TextView
+    private lateinit var searchButton: TextView
+    private lateinit var answerBox: View
+    private lateinit var answerText: TextView
+    /** 지금 듣는 것이 '찾기' 질문인지 */
+    private var searchMode = false
     private lateinit var status: TextView
     private lateinit var chips: Map<Mode, TextView>
 
@@ -87,12 +92,42 @@ class KeyboardService : InputMethodService() {
         }
         root.add(status, 8)
 
+        // 찾은 답 (찾기를 했을 때만 보임, 길면 안에서 넘겨 봄)
+        answerText = TextView(ctx).apply {
+            setTextColor(Ui.BROWN)
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15f)
+            setLineSpacing(0f, 1.15f)
+            setTextIsSelectable(true)
+        }
+        val answerScroll = android.widget.ScrollView(ctx).apply { addView(answerText) }
+        answerBox = Ui.vbox(ctx, 12, Ui.THEM).apply {
+            visibility = View.GONE
+            addView(answerScroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(ctx, 170)))
+            addView(Ui.text(ctx, "닫기", 15f, bold = true).apply {
+                gravity = Gravity.CENTER
+                val p = Ui.dp(ctx, 8); setPadding(p, p, p, p)
+                setOnClickListener { answerBox.visibility = View.GONE }
+            })
+        }
+        root.add(answerBox, 8)
+
+        // 🎤 말하기 (다듬어 넣기) · 🔎 찾기 (내보내 둔 대화에서)
+        val talk = Ui.hbox(ctx)
         micButton = Ui.text(ctx, "", 20f, bold = true).apply {
             gravity = Gravity.CENTER
             minHeight = Ui.dp(ctx, 64)
-            setOnClickListener { toggleMic() }
+            setOnClickListener { if (listening && !searchMode) finishSpeech() else if (!listening) toggleMic(search = false) }
         }
-        root.add(micButton, 8)
+        talk.add(micButton, weight = 2.2f)
+        searchButton = Ui.text(ctx, "🔎 찾기", 18f, bold = true).apply {
+            gravity = Gravity.CENTER
+            minHeight = Ui.dp(ctx, 64)
+            background = Ui.rounded(ctx, Ui.CARD, 18, Ui.BROWN)
+            setOnClickListener { if (listening && searchMode) finishSpeech() else if (!listening) toggleMic(search = true) }
+            Ui.iconize(this)
+        }
+        talk.add(searchButton, weight = 1f)
+        root.add(talk, 8)
 
         // 아래 줄: 다른 키보드 · 지우기 · 줄바꿈
         val keys = Ui.hbox(ctx)
@@ -155,6 +190,12 @@ class KeyboardService : InputMethodService() {
         micButton.setTextColor(Ui.YELLOW)
         micButton.background = Ui.rounded(this, Ui.BROWN, 18)
         Ui.iconize(micButton)
+        if (::searchButton.isInitialized) {
+            searchButton.text = "🔎 찾기"
+            searchButton.setTextColor(Ui.BROWN)
+            searchButton.background = Ui.rounded(this, Ui.CARD, 18, Ui.BROWN)
+            Ui.iconize(searchButton)
+        }
     }
 
     // ───────── 키 ─────────
@@ -186,7 +227,7 @@ class KeyboardService : InputMethodService() {
 
     private fun hasMic() = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
-    private fun toggleMic() {
+    private fun toggleMic(search: Boolean) {
         if (listening) { finishSpeech(); return }
         if (!hasMic()) {
             showStatus("마이크 허용이 필요해요. '${getString(R.string.app_name)}' 앱을 열어 마이크를 허용해 주세요.", Ui.RED)
@@ -197,11 +238,14 @@ class KeyboardService : InputMethodService() {
         if (ClaudeProvider.get(this) == null) { showStatus("아직 준비가 안 됐어요. 앱을 열어 설정을 마쳐 주세요.", Ui.RED); return }
         heard.clear(); partial = ""
         listening = true
-        micButton.text = "🎙️ 듣는 중… (누르면 끝)"
-        micButton.setTextColor(Ui.CARD)
-        micButton.background = Ui.rounded(this, Ui.GREEN, 18)
-        Ui.iconize(micButton)
-        showStatus("듣고 있어요… 다 말하면 잠시 멈추거나 버튼을 누르세요")
+        searchMode = search
+        val b = if (search) searchButton else micButton
+        b.text = if (search) "🎙️ 듣는 중" else "🎙️ 듣는 중… (누르면 끝)"
+        b.setTextColor(Ui.CARD)
+        b.background = Ui.rounded(this, Ui.GREEN, 18)
+        Ui.iconize(b)
+        if (search) answerBox.visibility = View.GONE
+        showStatus(if (search) "🔎 무엇을 찾을까요? (예: 모임 날짜 언제로 정했지?)" else "듣고 있어요… 다 말하면 잠시 멈추거나 버튼을 누르세요")
         Sounds.listenStart(this)
         Sounds.buzz(this, 70)
         Bg.main.removeCallbacks(pulse); Bg.main.postDelayed(pulse, 3000)
@@ -243,6 +287,7 @@ class KeyboardService : InputMethodService() {
         if (spoken.isBlank()) { showStatus("말씀을 듣지 못했어요. 다시 눌러 주세요."); return }
         Sounds.listenDone(this)
         Sounds.buzz(this, 90)
+        if (searchMode) { searchMode = false; searchAll(spoken); return }
         lastSpoken = spoken
         cache.clear()
         inserted = null
@@ -310,6 +355,34 @@ class KeyboardService : InputMethodService() {
         ic.commitText(text, 1)
         inserted = text
         showStatus("넣었어요. 확인하고 직접 보내세요. 말투를 누르면 바꿔 넣어요.", Ui.GREEN)
+    }
+
+    // ───────── 찾기: 카톡 '대화 내보내기'로 저장해 둔 대화에서 (화면은 읽지 않음) ─────────
+
+    private fun searchAll(question: String) {
+        val claude = ClaudeProvider.get(this) ?: return
+        val id = ++job
+        showStatus("🔎 \"$question\" 저장해 둔 대화에서 찾는 중…")
+        Bg.run({
+            val ids = Rooms.ids(this)
+            if (ids.isEmpty()) null
+            else {
+                val rooms = ids.map { r -> (Rooms.name(this, r) ?: r) to ChatStore.chatText(this, r).orEmpty() }.filter { it.second.isNotBlank() }
+                claude.answer(question, kr.yunho.talkhelper.core.ChatSearch.excerptMany(rooms, question), null, manyRooms = true)
+            }
+        }) { r ->
+            if (id != job) return@run
+            r.onSuccess { full ->
+                if (full == null) {
+                    showStatus("아직 저장해 둔 대화가 없어요. 카톡 대화방 ☰ → 설정 → '대화 내용 내보내기' → '말로 답장'으로 보내 두면 찾을 수 있어요.", Ui.RED)
+                    return@onSuccess
+                }
+                val (text, _) = kr.yunho.talkhelper.core.ChatSearch.splitAnswer(full)
+                answerText.text = Ui.answer(text)
+                answerBox.visibility = View.VISIBLE
+                showStatus("🔎 \"$question\"")
+            }.onFailure { showStatus((it as? HelperException)?.message ?: "찾지 못했어요. 다시 해 주세요.", Ui.RED) }
+        }
     }
 
     private fun switchTone(m: Mode) {
