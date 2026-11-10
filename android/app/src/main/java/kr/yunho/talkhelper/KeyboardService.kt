@@ -609,7 +609,8 @@ class KeyboardService : InputMethodService() {
     // ───────── 말투 ─────────
 
     private fun paintTone() {
-        toneButton.text = "${mode.emoji} ${mode.label} ▾"
+        toneButton.text = "${mode.emoji} ▾"
+        toneButton.contentDescription = "말투: ${mode.label}"
         Ui.iconize(toneButton)
     }
 
@@ -627,7 +628,11 @@ class KeyboardService : InputMethodService() {
         for (m in order) {
             val on = m == mode
             line.addView(TextView(this).apply {
-                text = "${m.emoji} ${m.label}"
+                // 그림만 크게 (신부님 요청 2026-11-10). 이름은 화면 읽기·위 안내 글로
+                text = m.emoji
+                contentDescription = "${m.label} 말투"
+                gravity = Gravity.CENTER
+                minWidth = dp(52)
                 // 꾹 누르면 끌어서 다른 칩 위에 놓아 자리 바꾸기
                 setOnLongClickListener { v ->
                     Sounds.buzz(this@KeyboardService, 30)
@@ -654,7 +659,7 @@ class KeyboardService : InputMethodService() {
                     }
                 }
                 setTextColor(if (on) Ui.YELLOW else Ui.BROWN)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
                 background = Ui.rounded(this@KeyboardService, if (on) Ui.BROWN else Ui.CARD, 16, if (on) Ui.BROWN else Ui.LINE)
                 setPadding(dp(12), dp(8), dp(12), dp(8))
