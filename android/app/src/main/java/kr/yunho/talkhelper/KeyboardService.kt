@@ -709,7 +709,7 @@ class KeyboardService : InputMethodService() {
         content.removeAllViews()
         val box = Ui.vbox(this, 14, Ui.CARD)
         box.add(Ui.text(this, if (search) "🔎 무엇을 찾을까요?" else "🎤 편하게 말하세요", 19f, bold = true).apply { gravity = Gravity.CENTER; Ui.iconize(this) }, 0)
-        box.add(Ui.text(this, if (search) "예) 모임 날짜 언제로 정했지?" else "다 말하고 잠시 멈추면 다듬어서 입력칸에 넣어요", 15f, color = Ui.MUTED).apply { gravity = Gravity.CENTER; tag = "heard" }, 6)
+        box.add(Ui.text(this, if (search) "예) 모임 날짜 언제로 정했지?" else "쉬어 가며 말해도 돼요. 다 말하면 아래를 누르거나 3초쯤 기다리세요", 15f, color = Ui.MUTED).apply { gravity = Gravity.CENTER; tag = "heard" }, 6)
         box.add(Ui.text(this, "🎙️ 듣는 중 · 누르면 끝", 18f, bold = true, color = Ui.CARD).apply {
             gravity = Gravity.CENTER
             minHeight = dp(56)
@@ -737,6 +737,7 @@ class KeyboardService : InputMethodService() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) { showInfo("이 휴대폰에서 음성 인식을 쓸 수 없어요.", color = Ui.RED); return }
         if (ClaudeProvider.get(this) == null) { showInfo("아직 준비가 안 됐어요. 앱을 열어 설정을 마쳐 주세요.", color = Ui.RED); return }
         heard.clear(); partial = ""
+        listenStartedAt = System.currentTimeMillis(); lastHeardAt = listenStartedAt
         listening = true
         searchMode = search
         hideInfo()
@@ -766,6 +767,20 @@ class KeyboardService : InputMethodService() {
             .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
             .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L)
         runCatching { r.startListening(i) }.onFailure { stopRecognizer(); showKeys(); showInfo("음성 인식을 시작하지 못했어요.", color = Ui.RED) }
+    }
+
+    private var listenStartedAt = 0L
+    private var lastHeardAt = 0L
+
+    /** 한 토막이 끝난 뒤 이어서 듣기. 3.5초 넘게 조용하면 그때까지 한 말로 다듬고, 8초 동안 아무 말도 없으면 멈춤 */
+    private fun keepListening() {
+        val now = System.currentTimeMillis()
+        val spoken = heard.isNotBlank()
+        when {
+            spoken && now - lastHeardAt >= 3500 -> finishSpeech()
+            !spoken && now - listenStartedAt >= 8000 -> { stopRecognizer(); showKeys(); showInfo("말씀을 듣지 못했어요. 다시 눌러 주세요.") }
+            else -> Bg.main.postDelayed({ if (listening) listen() }, 120)
+        }
     }
 
     private fun stopRecognizer() {
@@ -800,19 +815,32 @@ class KeyboardService : InputMethodService() {
         override fun onPartialResults(b: Bundle?) {
             if (!listening) return
             partial = b?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+            if (partial.isNotBlank()) lastHeardAt = System.currentTimeMillis()
             val now = (heard.toString() + " " + partial).trim()
             if (now.isNotBlank()) heardView()?.let { it.text = "“$now”"; it.setTextColor(Ui.BROWN) }
         }
         override fun onResults(b: Bundle?) {
             if (!listening) return
             val best = b?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-            if (best.isNotBlank()) heard.append(' ').append(best)
+            if (best.isNotBlank()) { heard.append(' ').append(best); lastHeardAt = System.currentTimeMillis() }
             partial = ""
-            // 말이 끝나(잠시 조용해지)면 바로 다듬음. "~라고 보내 줘"는 떼어 냄
-            finishSpeech()
+            heardView()?.let { v -> heard.toString().trim().takeIf { it.isNotBlank() }?.let { v.text = "“$it”"; v.setTextColor(Ui.BROWN) } }
+            // 음성 인식은 말이 잠깐만 끊겨도 한 토막을 끝냄 → 바로 다듬지 않고 이어서 들음.
+            // 끝: '듣는 중 · 누르면 끝' 누르기, "~라고 보내 줘", 또는 3.5초 넘게 조용함. 찾기는 한 문장이면 끝
+            when {
+                searchMode && heard.isNotBlank() -> finishSpeech()
+                EndSignal.isEnd(heard.toString()) -> finishSpeech()
+                else -> keepListening()
+            }
         }
         override fun onError(error: Int) {
             if (!listening) return
+            if (error != SpeechRecognizer.ERROR_NETWORK && error != SpeechRecognizer.ERROR_NETWORK_TIMEOUT && error != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                // 말이 없어서 끝난 것(조용함·못 알아들음)이면 계속 들음
+                if (partial.isNotBlank()) { heard.append(' ').append(partial); partial = "" }
+                if (searchMode && heard.isNotBlank()) { finishSpeech(); return }
+                keepListening(); return
+            }
             if (heard.isNotBlank() || partial.isNotBlank()) { finishSpeech(); return }
             stopRecognizer()
             showKeys()
