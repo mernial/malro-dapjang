@@ -603,6 +603,7 @@ class KeyboardService : InputMethodService() {
     // ───────── 이모티콘 ─────────
 
     private var emojiFrom = Layer.KO
+    private var emojiTab = 0
     private fun emojiKey(): TextView = key("😊", special = true) { finishComposing(); emojiFrom = layer; layer = Layer.EMOJI; showKeys() }
         .apply { contentDescription = "이모티콘" }
 
@@ -621,13 +622,8 @@ class KeyboardService : InputMethodService() {
         // 넓은 화면은 한글·영어 자판과 같은 폭·같은 자리 (신부님 2026-11-11 '모든 자판 위치 통일')
         val panelW = if (wide) minOf(squareWidthDp(), screenWdp) else screenWdp
         val cols = ((panelW - 16) / 40).coerceAtLeast(8)
-        val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(4), 0, dp(4), 0) }
-        fun group(title: String, list: List<String>) {
-            if (list.isEmpty()) return
-            grid.addView(TextView(this).apply {
-                text = title; setTextColor(Ui.MUTED); setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-                setPadding(dp(4), dp(8), 0, dp(2))
-            })
+        val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(4), dp(4), dp(4), 0) }
+        fun fill(list: List<String>) {
             list.chunked(cols).forEach { line ->
                 val r = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
                 line.forEach { e ->
@@ -641,13 +637,33 @@ class KeyboardService : InputMethodService() {
                 grid.addView(r)
             }
         }
-        group("최근", recentEmojis())
-        EMOJI_GROUPS.forEach { (t, l) -> group(t, l.split(' ')) }
+        // 위 탭으로 무리를 나눔: 자주 쓰는(최근 쓴 것 먼저)·표정·손·마음·신앙·자연·음식·사물 (신부님 요청 2026-11-11)
+        val tabs = listOf("🕘" to "자주") + EMOJI_GROUPS.map { (t, l) -> l.substringBefore(' ') to t }
+        emojiTab = emojiTab.coerceIn(0, tabs.lastIndex)
+        if (emojiTab == 0) fill((recentEmojis() + FREQUENT.split(' ')).distinct())
+        else fill(EMOJI_GROUPS[emojiTab - 1].second.split(' '))
         val scroll = ScrollView(this).apply { addView(grid) }
+        val tabBar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(4), dp(2), dp(4), 0) }
+        tabs.forEachIndexed { i, (icon, label) ->
+            val on = i == emojiTab
+            tabBar.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
+                background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(if (on) android.graphics.Color.WHITE else android.graphics.Color.TRANSPARENT) }
+                addView(TextView(this@KeyboardService).apply { text = icon; gravity = Gravity.CENTER; setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f) })
+                addView(TextView(this@KeyboardService).apply {
+                    text = label; gravity = Gravity.CENTER; setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+                    setTextColor(if (on) Ui.BROWN else Ui.MUTED); if (on) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                })
+                contentDescription = "$label 이모티콘"
+                setOnClickListener { Sounds.buzz(this@KeyboardService, 8, 40); emojiTab = i; showKeys() }
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f).apply { setMargins(dp(1), 0, dp(1), 0) })
+        }
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        // 높이도 글자 자판과 똑같이 (이모티콘 칸 = 키 세 줄, 아래 줄 = 키 한 줄) → 자판을 바꿔도 키보드가 들썩이지 않음
+        // 높이도 글자 자판과 똑같이 (탭 + 이모티콘 칸 = 키 세 줄, 아래 줄 = 키 한 줄) → 자판을 바꿔도 키보드가 들썩이지 않음
         val rowH = keyH + 2 * dp(if (wide) 5 else 4)
-        col.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, rowH * 3))
+        val tabH = dp(46)
+        col.addView(tabBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, tabH))
+        col.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, rowH * 3 - tabH))
         // 아래 줄: 글자 자판 아래 줄과 같은 높이
         val bottom = row(listOf(
             key(if (emojiFrom == Layer.EN) "ABC" else "가", special = true) { layer = if (emojiFrom == Layer.EMOJI) Layer.KO else emojiFrom; showKeys() } to 1.3f,
@@ -1303,13 +1319,16 @@ class KeyboardService : InputMethodService() {
     companion object {
         private val KB_BG = android.graphics.Color.parseColor("#E9E4DC")
         private val KEY_SPECIAL = android.graphics.Color.parseColor("#D6CFC4")
+        private const val FREQUENT = "😊 😂 🥰 😍 👍 🙏 ❤️ 👏 🎉 😭 😅 🤗 😢 🙂 😆 💕"
+        /** 탭 무리: 첫 이모티콘이 탭 그림 */
         private val EMOJI_GROUPS = listOf(
-            "자주 쓰는" to "😊 😂 🥰 😍 👍 🙏 ❤️ 👏 🎉 😭 😅 🤗 😢 🙂 😆 💕",
-            "표정" to "😀 😃 😄 😁 😉 😌 🥹 😇 🤔 😮 😲 😳 🥲 😔 😞 😣 😤 😡 😴 🤒 😷 🤭 🫢 😎",
-            "손·몸" to "👋 🙌 👐 🤝 ✌️ 👌 🤞 💪 👆 👉 ✋ 🙆 🙇 🙋 🫶 ✊",
-            "마음" to "❤️ 🧡 💛 💚 💙 💜 🤍 💖 💗 💝 💞 💌 ✨ 🌟 ⭐ 💯",
-            "신앙" to "🙏 ✝️ ⛪ 📿 🕊️ 🕯️ 📖 🔔 👼 🌹 ☦️ 🎄",
-            "축하·일상" to "🎂 🎁 🎊 🌸 🌷 💐 ☕ 🍚 🍰 🍎 🏠 🚗 ☀️ 🌧️ ❄️ 🌙",
+            "표정" to "😀 😃 😄 😁 😆 😅 😂 🤣 😊 🙂 😉 😌 😍 🥰 😘 🥹 😇 🤗 🤭 🫢 🤔 😮 😲 😳 🥲 😢 😭 😔 😞 😣 😤 😡 😴 🤒 😷 😎 🥳 😋 😜 🤩",
+            "손" to "👍 👋 🙌 👏 👐 🤝 ✌️ 👌 🤞 💪 👆 👉 ✋ 🙆 🙇 🙋 🫶 ✊ 👎 🙅 🤷 🤦",
+            "마음" to "❤️ 🧡 💛 💚 💙 💜 🤍 🖤 💖 💗 💓 💝 💞 💕 💌 💘 ✨ 🌟 ⭐ 💯 🔥 💤",
+            "신앙" to "🙏 ✝️ ⛪ 📿 🕊️ 🕯️ 📖 🔔 👼 🌹 🎄 ⭐ 🍞 🍷 💒 🎶",
+            "자연" to "🌸 🌷 🌹 🌻 💐 🍀 🌳 🍁 🌈 ☀️ 🌤️ 🌧️ ☔ ❄️ 🌙 ⭐ 🐶 🐱 🐰 🐻 🐥 🦋 🐟 🐾",
+            "음식" to "🍚 🍜 🍲 🍙 🍰 🎂 🍞 🍎 🍊 🍓 🍉 🍇 ☕ 🍵 🍺 🍷 🥤 🍗 🍕 🍔 🍦 🍫",
+            "사물" to "🎁 🎉 🎊 🎈 🏠 🚗 🚌 ✈️ 📱 💻 📷 📚 ✏️ 💰 💊 🏥 ⏰ 📅 🎵 ⚽ 👓 👕",
         )
         private val TOOL_KEYS = listOf("voice", "search", "tone", "layout", "settings")
         private val KEY_EDGE = android.graphics.Color.parseColor("#CDBFAF")
