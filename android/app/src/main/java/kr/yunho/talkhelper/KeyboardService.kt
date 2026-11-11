@@ -97,7 +97,9 @@ class KeyboardService : InputMethodService() {
     /** 키 높이: 화면 높이에 맞춰 (너무 작거나 크지 않게) */
     /** 넓은 화면 (폴드 펼침·태블릿): 자음·모음 사이를 띄우고 키 간격을 넓힘 */
     private val wide get() = screenWdp >= 600
-    private val keyH get() = dp((screenHdp * 0.062f).toInt().coerceIn(42, 56))
+    private val keyH get() = dp(keyHdp)
+    /** 키 높이(dp). 폴드처럼 넓은 화면은 조금 더 크게 (오타 줄이기, 신부님 2026-11-11) */
+    private val keyHdp get() = if (wide) (screenHdp * 0.068f).toInt().coerceIn(50, 62) else (screenHdp * 0.062f).toInt().coerceIn(42, 56)
     private val keyTextSp get() = if (screenHdp < 640) 18f else 21f
 
     @SuppressLint("DiscouragedApi", "InternalInsetResource")
@@ -269,6 +271,7 @@ class KeyboardService : InputMethodService() {
     private fun showKeys() {
         if (!::content.isInitialized) return
         content.removeAllViews()
+        keyActions.clear()
         if (hwKeyboard()) { content.addView(hwHint()); return }
         val keys = when (layer) {
             Layer.KO -> if (prefs.keyboardLayout == "cji") cheonjiin() else qwerty(KO_ROWS, KO_SHIFT)
@@ -360,6 +363,40 @@ class KeyboardService : InputMethodService() {
         Sounds.buzz(this, 8, 40)
     }
 
+    /** 지금 자판의 키와 그 동작 (빈틈·겹친 손가락을 가장 가까운 키로 보내려고) */
+    private val keyActions = HashMap<View, () -> Unit>()
+
+    /** 화면 좌표 (x, y) 에 가장 가까운 키를 누름. 키 사이 틈이면 가까운 키로 (가운데 큰 빈칸은 제외) */
+    private fun pressAt(x: Float, y: Float): Boolean {
+        val loc = IntArray(2)
+        var best: View? = null; var bestD = Float.MAX_VALUE
+        for (k in keyActions.keys) {
+            if (!k.isAttachedToWindow || k.visibility != View.VISIBLE || inScrollView(k)) continue
+            val parent = k.parent as? View ?: continue
+            parent.getLocationOnScreen(loc)
+            val l = loc[0] + k.left; val t = loc[1] + k.top; val r = loc[0] + k.right; val b = loc[1] + k.bottom
+            val dx = if (x < l) l - x else if (x > r) x - r else 0f
+            val dy = if (y < t) t - y else if (y > b) y - b else 0f
+            val d = maxOf(dx, dy)
+            if (d < bestD) { bestD = d; best = k }
+        }
+        val k = best ?: return false
+        // 키 사이 틈은 가까운 키로 (넓은 화면은 틈이 넓어 조금 더 멀리까지). 가운데 큰 빈칸 한가운데는 그대로 빈칸
+        if (bestD > dp(if (wide) 20 else 12)) return false
+        keyActions[k]?.invoke()
+        tap(k)
+        pop(k, true); Bg.main.postDelayed({ pop(k, false) }, 110)
+        return true
+    }
+
+    private fun pressPointer(v: View, e: MotionEvent) {
+        val i = e.actionIndex
+        val x: Float; val y: Float
+        if (android.os.Build.VERSION.SDK_INT >= 29) { x = e.getRawX(i); y = e.getRawY(i) }
+        else { val loc = IntArray(2); v.getLocationOnScreen(loc); x = loc[0] + e.getX(i); y = loc[1] + e.getY(i) }
+        pressAt(x, y)
+    }
+
     private fun inScrollView(v: View): Boolean {
         var p = v.parent
         while (p is View) {
@@ -398,12 +435,14 @@ class KeyboardService : InputMethodService() {
         background = Ui.rounded(this@KeyboardService, if (special) KEY_SPECIAL else Ui.CARD, 8, KEY_EDGE)
         elevation = dp(1).toFloat()
         Ui.iconize(this)
+        keyActions[this] = onClick
         if (repeat) {
             // 지우기: 꾹 누르고 있으면 계속 지움
             val rep = object : Runnable { override fun run() { onClick(); Bg.main.postDelayed(this, 70) } }
             setOnTouchListener { v, e ->
                 when (e.actionMasked) {
                     MotionEvent.ACTION_DOWN -> { v.isPressed = true; pop(v, true); Sounds.buzz(this@KeyboardService, 8, 40); onClick(); Bg.main.postDelayed(rep, 450) }
+                    MotionEvent.ACTION_POINTER_DOWN -> pressPointer(v, e)
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { v.isPressed = false; pop(v, false); Bg.main.removeCallbacks(rep) }
                 }
                 true
@@ -418,6 +457,8 @@ class KeyboardService : InputMethodService() {
                         pop(v, true)
                         if (!inScroll) { v.isPressed = true; onClick(); tap(v) }
                     }
+                    // 이 키를 누른 채 다른 손가락이 닿았는데 그 손가락도 이 키로 온 경우(키가 커져 옆을 덮음 등) → 손가락 자리의 키로
+                    MotionEvent.ACTION_POINTER_DOWN -> if (!inScroll) pressPointer(v, e)
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { pop(v, false); if (!inScroll) v.isPressed = false }
                 }
                 !inScroll   // 밀어 넘기는 칸이 아니면 여기서 끝 (click 두 번 안 되게)
@@ -428,18 +469,37 @@ class KeyboardService : InputMethodService() {
     }
 
     private fun keyLp(w: Float) = LinearLayout.LayoutParams(0, keyH, w).apply {
-        val h = if (wide) dp(5) else dp(2); val v = if (wide) dp(4) else dp(3)
+        // 키 사이를 조금 더 띄움 (신부님 2026-11-11)
+        val h = if (wide) dp(KEY_GAP_WIDE) else dp(3); val v = if (wide) dp(5) else dp(4)
         setMargins(h, v, h, v)
     }
     private fun gap(w: Float): Pair<View, Float> = View(this) to w
     /** 넓은 화면에서 자음·모음 사이 빈칸 (좁은 화면은 없음) */
-    private fun mid(): List<Pair<View, Float>> = if (wide) listOf(gap(2.4f)) else emptyList()
+    private fun mid(): List<Pair<View, Float>> = if (wide) listOf(gap(MID_GAP)) else emptyList()
 
+    /**
+     * 넓은 화면 두벌식: 키가 정사각형에 가깝도록 전체 폭을 줄임 →
+     * 바깥 키(ㅂ·ㅁ·ㅋ·ㅔ·ㅣ·ㅡ)는 안쪽으로, 가운데 틈 옆 키(ㅅ·ㅎ·ㅍ·ㅛ·ㅗ·ㅠ)는 바깥으로 (신부님 2026-11-11)
+     */
+    private fun squareWidthDp(): Int {
+        val unit = keyHdp * 1.12f + 2 * KEY_GAP_WIDE   // 키 폭 ≈ 높이 (살짝 넓게)
+        return (unit * (10 + MID_GAP)).toInt() + 8
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
     private fun row(items: List<Pair<View, Float>>): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         // 글자 기준선 맞춤을 끔: 그림(😊·🔎) 키만 위로 올라가 줄이 어긋나던 것
         isBaselineAligned = false
         items.forEach { (v, w) -> addView(v, keyLp(w)) }
+        // 키 사이 틈을 눌러도 가장 가까운 키로 (틈 때문에 눌림이 빠지지 않게)
+        setOnTouchListener { rv, e ->
+            if (inScrollView(rv)) return@setOnTouchListener false   // 이모티콘 판은 밀어 넘기기 그대로
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> pressPointer(rv, e)
+            }
+            true
+        }
     }
 
     private fun column(rows: List<View>, maxWidthDp: Int? = null): View {
@@ -483,7 +543,7 @@ class KeyboardService : InputMethodService() {
             row(listOf(gap(0.5f)) + r2.take(5) + mid() + r2.drop(5) + listOf(gap(0.5f))),
             row(listOf(shiftKey) + r3.take(4) + mid() + r3.drop(4) + listOf(back)),
             row(bottom),
-        ))
+        ), maxWidthDp = if (wide) squareWidthDp() else null)
     }
 
     /** 천지인: ㅣ ㆍ ㅡ 와 자음 묶음 키 (같은 키를 거듭 누르면 ㄱ→ㅋ→ㄲ 처럼 바뀜) */
@@ -940,16 +1000,19 @@ class KeyboardService : InputMethodService() {
         Bg.main.removeCallbacks(readyFallback)
         // 인식기 '띵'이 끝난 뒤 소리를 되돌리고 우리 부드러운 신호음
         Bg.main.removeCallbacks(unmuteTask)
+        // 구글 '띵'은 준비된 순간에 0.3~0.4초 울림 → 다 끝난 뒤(0.5초)에 소리를 되돌려야 겹치지 않음 (신부님 2026-11-11 '소리 두 개')
         Bg.main.postDelayed({
+            val wasMuted = beepMuted
             unmuteBeep()
             if (!listening) return@postDelayed
-            Sounds.listenStart(this)
+            // 소리를 못 끈 때(블루투스·이어폰·음악 재생 중)는 구글 '띵'이 이미 울렸으니 우리 소리는 내지 않음 (진동만)
+            if (wasMuted) Sounds.listenStart(this)
             Sounds.buzz(this, 70)
             heardView()?.takeIf { heard.isBlank() && partial.isBlank() }?.text = if (searchMode) "예) 모임 날짜 언제로 정했지?" else "쉬어 가며 말해도 돼요. 다 말하면 아래를 누르거나 4초쯤 기다리세요"
             content.findViewWithTag<TextView>("readyTitle")?.let {
                 it.text = if (searchMode) "🔎 무엇을 찾을까요?" else "🎤 편하게 말하세요"; Ui.iconize(it)
             }
-        }, 150)
+        }, 500)
         Bg.main.removeCallbacks(pulse); Bg.main.postDelayed(pulse, 3000)
     }
 
@@ -1211,6 +1274,9 @@ class KeyboardService : InputMethodService() {
         )
         private val TOOL_KEYS = listOf("voice", "search", "tone", "layout", "settings")
         private val KEY_EDGE = android.graphics.Color.parseColor("#CDBFAF")
+        private const val KEY_GAP_WIDE = 6
+        /** 넓은 화면에서 자음·모음 사이 빈칸 (키 몇 개 폭) */
+        private const val MID_GAP = 2.0f
         private val KO_ROWS = listOf("ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ", "ㅁㄴㅇㄹㅎㅗㅓㅏㅣ", "ㅋㅌㅊㅍㅠㅜㅡ")
         private val KO_SHIFT = mapOf('ㅂ' to 'ㅃ', 'ㅈ' to 'ㅉ', 'ㄷ' to 'ㄸ', 'ㄱ' to 'ㄲ', 'ㅅ' to 'ㅆ', 'ㅐ' to 'ㅒ', 'ㅔ' to 'ㅖ')
         private val EN_ROWS = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
