@@ -761,7 +761,25 @@ class KeyboardService : InputMethodService() {
         inserted = null
         if (hangul.backspace()) { ic.setComposingText(hangul.composing, 1); return }
         val sel = ic.getSelectedText(0)
-        if (!sel.isNullOrEmpty()) ic.commitText("", 1) else ic.deleteSurroundingText(1, 0)
+        if (!sel.isNullOrEmpty()) { ic.commitText("", 1); return }
+        // 이모티콘(😊·❤️·👨‍👩‍👧)은 글자 칸 2~여러 개 → 한 칸만 지우면 반쪽이 남아 '�'로 보였음 (루비로사 2026-11-11)
+        // 보이는 글자 하나(문자소)만큼 지움
+        val before = ic.getTextBeforeCursor(32, 0)?.toString().orEmpty()
+        ic.deleteSurroundingText(lastGraphemeLength(before), 0)
+    }
+
+    /** 글 끝의 보이는 글자 하나가 차지하는 칸 수 (이모티콘·결합 문자 포함) */
+    private fun lastGraphemeLength(text: String): Int {
+        if (text.isEmpty()) return 1
+        val n = runCatching {
+            val it = android.icu.text.BreakIterator.getCharacterInstance()
+            it.setText(text)
+            val end = it.last()
+            end - it.previous()
+        }.getOrDefault(0)
+        if (n > 0) return n
+        // 예비: 서로 짝인 반쪽 글자(서로게이트)는 둘을 함께
+        return if (text.length >= 2 && Character.isLowSurrogate(text.last()) && Character.isHighSurrogate(text[text.length - 2])) 2 else 1
     }
 
     /** 지금 입력칸의 줄바꿈 칸 동작 (IME_ACTION_*). NONE 이면 그냥 줄바꿈 */
