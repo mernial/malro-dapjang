@@ -428,12 +428,23 @@ class KeyboardService : InputMethodService() {
     }
 
     private fun keyLp(w: Float) = LinearLayout.LayoutParams(0, keyH, w).apply {
-        val h = if (wide) dp(5) else dp(2); val v = if (wide) dp(4) else dp(3)
+        // 키 사이를 조금 더 띄움 (신부님 2026-11-11)
+        val h = if (wide) dp(KEY_GAP_WIDE) else dp(3); val v = if (wide) dp(5) else dp(4)
         setMargins(h, v, h, v)
     }
     private fun gap(w: Float): Pair<View, Float> = View(this) to w
     /** 넓은 화면에서 자음·모음 사이 빈칸 (좁은 화면은 없음) */
-    private fun mid(): List<Pair<View, Float>> = if (wide) listOf(gap(2.4f)) else emptyList()
+    private fun mid(): List<Pair<View, Float>> = if (wide) listOf(gap(MID_GAP)) else emptyList()
+
+    /**
+     * 넓은 화면 두벌식: 키가 정사각형에 가깝도록 전체 폭을 줄임 →
+     * 바깥 키(ㅂ·ㅁ·ㅋ·ㅔ·ㅣ·ㅡ)는 안쪽으로, 가운데 틈 옆 키(ㅅ·ㅎ·ㅍ·ㅛ·ㅗ·ㅠ)는 바깥으로 (신부님 2026-11-11)
+     */
+    private fun squareWidthDp(): Int {
+        val keyHdp = (screenHdp * 0.062f).toInt().coerceIn(42, 56)
+        val unit = keyHdp * 1.08f + 2 * KEY_GAP_WIDE   // 키 폭 ≈ 높이 (살짝 넓게)
+        return (unit * (10 + MID_GAP)).toInt() + 8
+    }
 
     private fun row(items: List<Pair<View, Float>>): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
@@ -483,7 +494,7 @@ class KeyboardService : InputMethodService() {
             row(listOf(gap(0.5f)) + r2.take(5) + mid() + r2.drop(5) + listOf(gap(0.5f))),
             row(listOf(shiftKey) + r3.take(4) + mid() + r3.drop(4) + listOf(back)),
             row(bottom),
-        ))
+        ), maxWidthDp = if (wide) squareWidthDp() else null)
     }
 
     /** 천지인: ㅣ ㆍ ㅡ 와 자음 묶음 키 (같은 키를 거듭 누르면 ㄱ→ㅋ→ㄲ 처럼 바뀜) */
@@ -1211,6 +1222,9 @@ class KeyboardService : InputMethodService() {
         )
         private val TOOL_KEYS = listOf("voice", "search", "tone", "layout", "settings")
         private val KEY_EDGE = android.graphics.Color.parseColor("#CDBFAF")
+        private const val KEY_GAP_WIDE = 6
+        /** 넓은 화면에서 자음·모음 사이 빈칸 (키 몇 개 폭) */
+        private const val MID_GAP = 1.3f
         private val KO_ROWS = listOf("ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ", "ㅁㄴㅇㄹㅎㅗㅓㅏㅣ", "ㅋㅌㅊㅍㅠㅜㅡ")
         private val KO_SHIFT = mapOf('ㅂ' to 'ㅃ', 'ㅈ' to 'ㅉ', 'ㄷ' to 'ㄸ', 'ㄱ' to 'ㄲ', 'ㅅ' to 'ㅆ', 'ㅐ' to 'ㅒ', 'ㅔ' to 'ㅖ')
         private val EN_ROWS = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
