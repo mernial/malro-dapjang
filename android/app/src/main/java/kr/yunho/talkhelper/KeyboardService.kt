@@ -85,6 +85,8 @@ class KeyboardService : InputMethodService() {
         super.onCreate()
         prefs = Prefs(this)
         Sounds.init(this)
+        // 예전에 소리를 꺼 둔 채 키보드가 꺼졌으면 되돌림
+        if (getSharedPreferences("settings", MODE_PRIVATE).getBoolean("beepMuted", false)) { beepMuted = true; unmuteBeep() }
     }
 
     // ───────── 크기 (폴드·일반 폰) ─────────
@@ -352,6 +354,12 @@ class KeyboardService : InputMethodService() {
         return super.onKeyUp(keyCode, event)
     }
 
+    /** 키 누름 진동 */
+    private fun tap(v: View) {
+        // 글자를 먼저 넣고 진동은 그다음 (진동 때문에 글자가 늦게 뜨지 않게)
+        Sounds.buzz(this, 8, 40)
+    }
+
     private fun inScrollView(v: View): Boolean {
         var p = v.parent
         while (p is View) {
@@ -371,9 +379,10 @@ class KeyboardService : InputMethodService() {
     private fun pop(v: View, down: Boolean) {
         v.animate().cancel()
         if (down) {
-            v.animate().scaleX(1.18f).scaleY(1.18f).translationZ(dp(6).toFloat()).setStartDelay(0).setDuration(40).start()
+            // 움직임 없이 그 자리에서 바로 커짐 (기다림 0)
+            v.scaleX = 1.18f; v.scaleY = 1.18f; v.translationZ = dp(6).toFloat()
         } else {
-            v.animate().scaleX(1f).scaleY(1f).translationZ(0f).setDuration(110).setStartDelay(40).start()
+            v.animate().scaleX(1f).scaleY(1f).translationZ(0f).setStartDelay(0).setDuration(90).start()
         }
     }
 
@@ -407,7 +416,7 @@ class KeyboardService : InputMethodService() {
                 when (e.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
                         pop(v, true)
-                        if (!inScroll) { v.isPressed = true; Sounds.buzz(this@KeyboardService, 8, 40); onClick() }
+                        if (!inScroll) { v.isPressed = true; onClick(); tap(v) }
                     }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { pop(v, false); if (!inScroll) v.isPressed = false }
                 }
@@ -977,18 +986,36 @@ class KeyboardService : InputMethodService() {
     private var beepMuted = false
     private val unmuteTask = Runnable { unmuteBeep() }
     private val BEEP_STREAMS = intArrayOf(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.STREAM_NOTIFICATION, android.media.AudioManager.STREAM_SYSTEM)
+    /**
+     * 인식기 '띵'을 가리려고 소리를 잠깐 끔 — 휴대폰 스피커로 듣고 음악이 안 나올 때만.
+     * 차 블루투스·이어폰에서는 끄지 않음: 블루투스는 끈 소리가 제대로 안 돌아와 차 음량이 0이 됐음 (신부님 2026-11-11)
+     */
     private fun muteBeep() {
-        if (beepMuted) return
+        if (beepMuted || !listening) return
         val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+        if (am.isMusicActive || externalAudio(am)) return
         for (st in BEEP_STREAMS) runCatching { am.adjustStreamVolume(st, android.media.AudioManager.ADJUST_MUTE, 0) }
         beepMuted = true
+        getSharedPreferences("settings", MODE_PRIVATE).edit().putBoolean("beepMuted", true).apply()
     }
     private fun unmuteBeep() {
         if (!beepMuted) return
         val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
         for (st in BEEP_STREAMS) runCatching { am.adjustStreamVolume(st, android.media.AudioManager.ADJUST_UNMUTE, 0) }
         beepMuted = false
+        getSharedPreferences("settings", MODE_PRIVATE).edit().putBoolean("beepMuted", false).apply()
     }
+
+    /** 블루투스(차·이어폰)·유선 이어폰·USB 로 소리가 나가는지 */
+    private fun externalAudio(am: android.media.AudioManager): Boolean = runCatching {
+        val ext = setOf(
+            android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+            android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET, android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+            android.media.AudioDeviceInfo.TYPE_USB_HEADSET, android.media.AudioDeviceInfo.TYPE_USB_DEVICE,
+            android.media.AudioDeviceInfo.TYPE_HEARING_AID, 26 /* BLE_HEADSET */, 27 /* BLE_SPEAKER */, 30 /* BLE_BROADCAST */,
+        )
+        am.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS).any { it.type in ext }
+    }.getOrDefault(true)
 
     private var listenStartedAt = 0L
     private var lastHeardAt = 0L
@@ -1005,12 +1032,12 @@ class KeyboardService : InputMethodService() {
     }
 
     private fun stopRecognizer() {
+        // 듣는 중이었을 때만 끄는 소리를 막음 (예전엔 키보드가 내려갈 때마다 소리를 껐다 켰음)
+        if (listening) muteBeep()
         listening = false
         waitingReady = false
         Bg.main.removeCallbacks(readyFallback)
         Bg.main.removeCallbacks(pulse)
-        // 인식기를 끌 때 나는 소리도 막고, 그 뒤 끝 신호음 전에 되돌림
-        muteBeep()
         runCatching { recognizer?.cancel() }
         Bg.main.removeCallbacks(unmuteTask)
         Bg.main.postDelayed(unmuteTask, 250)
