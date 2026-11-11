@@ -663,20 +663,29 @@ class KeyboardService : InputMethodService() {
     }
 
     private fun symbols(): View {
-        // 넓은 화면에선 한글 자판처럼 가운데를 띄움
-        fun line(s: String): LinearLayout {
-            val ks = s.map { ch -> key("$ch") { commitPlain("$ch") } to 1f }
-            return row(ks.take(5) + mid() + ks.drop(5))
-        }
-        val bottom = row(listOf(
-            key("가", special = true) { toKorean() } to 1.4f,
-            key("%", special = true) { commitPlain("%") } to 0.9f,
-            key("#", special = true) { commitPlain("#") } to 0.9f,
-            key("띄어쓰기") { space() } to 3f,
-            key("⌫", special = true, repeat = true) { backspace() } to 1.4f,
-            enterKey() to 1.4f,
-        ))
-        return column(listOf(line("1234567890"), line("-/:;()₩&@\""), line(".,?!'~^*+="), bottom), maxWidthDp = if (wide) squareWidthDp() else null)
+        // 한글 자판과 같은 틀: ⌫ 는 셋째 줄 오른쪽 끝, 띄어쓰기·완료도 같은 자리 (신부님 요청 2026-11-11)
+        // 자주 쓰는 ! ? ~ 는 엄지가 닿는 셋째 줄, . , 는 띄어쓰기 옆
+        fun k(ch: String, w: Float = 1f) = key(ch) { commitPlain(ch) } to w
+        fun sk(ch: String, w: Float) = key(ch, special = true) { commitPlain(ch) } to w
+        val r1 = "1234567890".map { k("$it") }
+        val r2 = "-/:;()₩&@\"".map { k("$it") }
+        val r3 = "!?~'^*+".map { k("$it") }
+        val back = key("⌫", special = true, repeat = true) { backspace() } to 1.5f
+        val bottom = listOf(
+            key("가", special = true) { toKorean() } to 1.5f,
+            sk("#", 1.2f),
+            sk("=", 1f),
+            sk(",", 0.9f),
+            key("띄어쓰기") { space() } to 3.4f,
+            sk(".", 1f),
+            enterKey() to 1.7f,
+        )
+        return column(listOf(
+            row(r1.take(5) + mid() + r1.drop(5)),
+            row(r2.take(5) + mid() + r2.drop(5)),
+            row(listOf(sk("%", 1.5f)) + r3.take(4) + mid() + r3.drop(4) + listOf(back)),
+            row(bottom),
+        ), maxWidthDp = if (wide) squareWidthDp() else null)
     }
 
     // ───────── 글자 넣기 ─────────
