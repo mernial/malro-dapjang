@@ -292,10 +292,16 @@ class KeyboardService : InputMethodService() {
     private var hwKorean = true
 
     private fun hwKeyboard(): Boolean {
+        // 휴대폰 설정 '실제 키보드 사용 중에 화면 키보드 표시'를 켰으면 화면 자판 그대로
+        val showSoft = runCatching { android.provider.Settings.Secure.getInt(contentResolver, "show_ime_with_hard_keyboard", 0) == 1 }.getOrDefault(false)
+        if (showSoft) return false
         val c = resources.configuration
         return c.keyboard != android.content.res.Configuration.KEYBOARD_NOKEYS &&
             c.hardKeyboardHidden == android.content.res.Configuration.HARDKEYBOARDHIDDEN_NO
     }
+
+    /** 가로 화면에서도 앱 화면을 가리는 전체 화면 입력 모드는 쓰지 않음 */
+    override fun onEvaluateFullscreenMode(): Boolean = false
 
     /** 실물 키보드가 있어도 🎤 줄은 늘 보이게 */
     override fun onEvaluateInputViewShown(): Boolean { super.onEvaluateInputViewShown(); return true }
