@@ -53,10 +53,13 @@ object Sounds {
     }
 
     /** 진동 [ms] 밀리초. 휴대폰 '터치 진동' 설정이 꺼져 있어도 울리도록 진동기를 직접 씀 */
+    private var vibrator: Vibrator? = null
+
     fun buzz(ctx: Context, ms: Long, amplitude: Int = VibrationEffect.DEFAULT_AMPLITUDE) = runCatching {
-        val vib = if (Build.VERSION.SDK_INT >= 31)
-            (ctx.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
-        else @Suppress("DEPRECATION") (ctx.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator)
+        // 키마다 부르므로 진동기는 한 번만 찾아 둠
+        val vib = vibrator ?: (if (Build.VERSION.SDK_INT >= 31)
+            (ctx.applicationContext.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+        else @Suppress("DEPRECATION") (ctx.applicationContext.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator)).also { vibrator = it }
         vib.vibrate(VibrationEffect.createOneShot(ms, amplitude))
     }
 }

@@ -352,6 +352,15 @@ class KeyboardService : InputMethodService() {
         return super.onKeyUp(keyCode, event)
     }
 
+    private fun inScrollView(v: View): Boolean {
+        var p = v.parent
+        while (p is View) {
+            if (p is ScrollView || p is HorizontalScrollView) return true
+            p = p.parent
+        }
+        return false
+    }
+
     private fun unclip(v: View) {
         if (v !is ViewGroup) return
         v.clipChildren = false; v.clipToPadding = false
@@ -362,7 +371,7 @@ class KeyboardService : InputMethodService() {
     private fun pop(v: View, down: Boolean) {
         v.animate().cancel()
         if (down) {
-            v.animate().scaleX(1.18f).scaleY(1.18f).translationZ(dp(6).toFloat()).setDuration(60).start()
+            v.animate().scaleX(1.18f).scaleY(1.18f).translationZ(dp(6).toFloat()).setStartDelay(0).setDuration(40).start()
         } else {
             v.animate().scaleX(1f).scaleY(1f).translationZ(0f).setDuration(110).setStartDelay(40).start()
         }
@@ -391,13 +400,20 @@ class KeyboardService : InputMethodService() {
                 true
             }
         } else {
+            // 손가락이 닿는 순간 바로 입력 (예전엔 손을 뗄 때 입력되고, 손가락이 조금만 미끄러져도 눌림이 취소됐음 — 신부님 2026-11-11 '반응이 느림').
+            // 이모티콘 판처럼 밀어서 넘기는 칸 안의 키만 예전처럼 뗄 때 (밀다가 잘못 들어가지 않게)
             setOnTouchListener { v, e ->
+                val inScroll = inScrollView(v)
                 when (e.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> pop(v, true)
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> pop(v, false)
+                    MotionEvent.ACTION_DOWN -> {
+                        pop(v, true)
+                        if (!inScroll) { v.isPressed = true; Sounds.buzz(this@KeyboardService, 8, 40); onClick() }
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { pop(v, false); if (!inScroll) v.isPressed = false }
                 }
-                false   // 누르기(click)는 그대로
+                !inScroll   // 밀어 넘기는 칸이 아니면 여기서 끝 (click 두 번 안 되게)
             }
+            // 화면 읽기(톡백)의 두 번 누르기 등은 click 으로 옴
             setOnClickListener { Sounds.buzz(this@KeyboardService, 8, 40); onClick() }
         }
     }
