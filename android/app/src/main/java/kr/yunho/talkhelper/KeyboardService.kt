@@ -269,6 +269,7 @@ class KeyboardService : InputMethodService() {
     private fun showKeys() {
         if (!::content.isInitialized) return
         content.removeAllViews()
+        keyActions.clear()
         if (hwKeyboard()) { content.addView(hwHint()); return }
         val keys = when (layer) {
             Layer.KO -> if (prefs.keyboardLayout == "cji") cheonjiin() else qwerty(KO_ROWS, KO_SHIFT)
@@ -360,6 +361,39 @@ class KeyboardService : InputMethodService() {
         Sounds.buzz(this, 8, 40)
     }
 
+    /** 지금 자판의 키와 그 동작 (빈틈·겹친 손가락을 가장 가까운 키로 보내려고) */
+    private val keyActions = HashMap<View, () -> Unit>()
+
+    /** 화면 좌표 (x, y) 에 가장 가까운 키를 누름. 키 사이 틈이면 가까운 키로 (가운데 큰 빈칸은 제외) */
+    private fun pressAt(x: Float, y: Float): Boolean {
+        val loc = IntArray(2)
+        var best: View? = null; var bestD = Float.MAX_VALUE
+        for (k in keyActions.keys) {
+            if (!k.isAttachedToWindow || k.visibility != View.VISIBLE || inScrollView(k)) continue
+            val parent = k.parent as? View ?: continue
+            parent.getLocationOnScreen(loc)
+            val l = loc[0] + k.left; val t = loc[1] + k.top; val r = loc[0] + k.right; val b = loc[1] + k.bottom
+            val dx = if (x < l) l - x else if (x > r) x - r else 0f
+            val dy = if (y < t) t - y else if (y > b) y - b else 0f
+            val d = maxOf(dx, dy)
+            if (d < bestD) { bestD = d; best = k }
+        }
+        val k = best ?: return false
+        if (bestD > dp(12)) return false
+        keyActions[k]?.invoke()
+        tap(k)
+        pop(k, true); Bg.main.postDelayed({ pop(k, false) }, 110)
+        return true
+    }
+
+    private fun pressPointer(v: View, e: MotionEvent) {
+        val i = e.actionIndex
+        val x: Float; val y: Float
+        if (android.os.Build.VERSION.SDK_INT >= 29) { x = e.getRawX(i); y = e.getRawY(i) }
+        else { val loc = IntArray(2); v.getLocationOnScreen(loc); x = loc[0] + e.getX(i); y = loc[1] + e.getY(i) }
+        pressAt(x, y)
+    }
+
     private fun inScrollView(v: View): Boolean {
         var p = v.parent
         while (p is View) {
@@ -398,12 +432,14 @@ class KeyboardService : InputMethodService() {
         background = Ui.rounded(this@KeyboardService, if (special) KEY_SPECIAL else Ui.CARD, 8, KEY_EDGE)
         elevation = dp(1).toFloat()
         Ui.iconize(this)
+        keyActions[this] = onClick
         if (repeat) {
             // 지우기: 꾹 누르고 있으면 계속 지움
             val rep = object : Runnable { override fun run() { onClick(); Bg.main.postDelayed(this, 70) } }
             setOnTouchListener { v, e ->
                 when (e.actionMasked) {
                     MotionEvent.ACTION_DOWN -> { v.isPressed = true; pop(v, true); Sounds.buzz(this@KeyboardService, 8, 40); onClick(); Bg.main.postDelayed(rep, 450) }
+                    MotionEvent.ACTION_POINTER_DOWN -> pressPointer(v, e)
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { v.isPressed = false; pop(v, false); Bg.main.removeCallbacks(rep) }
                 }
                 true
@@ -418,6 +454,8 @@ class KeyboardService : InputMethodService() {
                         pop(v, true)
                         if (!inScroll) { v.isPressed = true; onClick(); tap(v) }
                     }
+                    // 이 키를 누른 채 다른 손가락이 닿았는데 그 손가락도 이 키로 온 경우(키가 커져 옆을 덮음 등) → 손가락 자리의 키로
+                    MotionEvent.ACTION_POINTER_DOWN -> if (!inScroll) pressPointer(v, e)
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { pop(v, false); if (!inScroll) v.isPressed = false }
                 }
                 !inScroll   // 밀어 넘기는 칸이 아니면 여기서 끝 (click 두 번 안 되게)
@@ -446,11 +484,20 @@ class KeyboardService : InputMethodService() {
         return (unit * (10 + MID_GAP)).toInt() + 8
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     private fun row(items: List<Pair<View, Float>>): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         // 글자 기준선 맞춤을 끔: 그림(😊·🔎) 키만 위로 올라가 줄이 어긋나던 것
         isBaselineAligned = false
         items.forEach { (v, w) -> addView(v, keyLp(w)) }
+        // 키 사이 틈을 눌러도 가장 가까운 키로 (틈 때문에 눌림이 빠지지 않게)
+        setOnTouchListener { rv, e ->
+            if (inScrollView(rv)) return@setOnTouchListener false   // 이모티콘 판은 밀어 넘기기 그대로
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> pressPointer(rv, e)
+            }
+            true
+        }
     }
 
     private fun column(rows: List<View>, maxWidthDp: Int? = null): View {
