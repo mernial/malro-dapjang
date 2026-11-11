@@ -38,6 +38,8 @@ timeout 30 adb exec-out screencap -p > shots/guide.png
 # 말로 답장 키보드: 켜고 골라서 글 칸을 눌러 키보드 사진
 timeout 20 adb shell ime enable $PKG/.KeyboardService
 timeout 20 adb shell ime set $PKG/.KeyboardService
+# 에뮬레이터는 컴퓨터 자판이 붙어 있어 화면 자판을 숨김 → "실물 자판이 있어도 화면 자판 보이기" 켬
+adb shell settings put secure show_ime_with_hard_keyboard 1 || true
 adb shell input keyevent KEYCODE_HOME; sleep 1
 timeout 30 adb shell am start -n $PKG/.AskActivity; sleep 4
 timeout 20 adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1

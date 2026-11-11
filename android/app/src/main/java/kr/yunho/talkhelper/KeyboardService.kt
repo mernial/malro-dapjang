@@ -292,10 +292,16 @@ class KeyboardService : InputMethodService() {
     private var hwKorean = true
 
     private fun hwKeyboard(): Boolean {
+        // 휴대폰 설정 '실제 키보드 사용 중에 화면 키보드 표시'를 켰으면 화면 자판 그대로
+        val showSoft = runCatching { android.provider.Settings.Secure.getInt(contentResolver, "show_ime_with_hard_keyboard", 0) == 1 }.getOrDefault(false)
+        if (showSoft) return false
         val c = resources.configuration
         return c.keyboard != android.content.res.Configuration.KEYBOARD_NOKEYS &&
             c.hardKeyboardHidden == android.content.res.Configuration.HARDKEYBOARDHIDDEN_NO
     }
+
+    /** 가로 화면에서도 앱 화면을 가리는 전체 화면 입력 모드는 쓰지 않음 */
+    override fun onEvaluateFullscreenMode(): Boolean = false
 
     /** 실물 키보드가 있어도 🎤 줄은 늘 보이게 */
     override fun onEvaluateInputViewShown(): Boolean { super.onEvaluateInputViewShown(); return true }
@@ -612,7 +618,9 @@ class KeyboardService : InputMethodService() {
     /** 이모티콘 판: 최근 쓴 것 + 무리별, 아래 줄은 돌아가기·지우기·띄어쓰기·줄바꿈 */
     private fun emojis(): View {
         // 칸 하나 약 56dp 로 (넓은 화면에서 이모티콘 사이가 너무 벌어지지 않게)
-        val cols = ((screenWdp - 16) / 40).coerceAtLeast(8)
+        // 넓은 화면은 한글·영어 자판과 같은 폭·같은 자리 (신부님 2026-11-11 '모든 자판 위치 통일')
+        val panelW = if (wide) minOf(squareWidthDp(), screenWdp) else screenWdp
+        val cols = ((panelW - 16) / 40).coerceAtLeast(8)
         val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(4), 0, dp(4), 0) }
         fun group(title: String, list: List<String>) {
             if (list.isEmpty()) return
@@ -637,17 +645,21 @@ class KeyboardService : InputMethodService() {
         EMOJI_GROUPS.forEach { (t, l) -> group(t, l.split(' ')) }
         val scroll = ScrollView(this).apply { addView(grid) }
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        col.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, keyH * 4 - dp(4)))
-        // 아래 줄은 작게: 높이 44dp, 넓은 화면에선 가운데 520dp 안에
+        // 높이도 글자 자판과 똑같이 (이모티콘 칸 = 키 세 줄, 아래 줄 = 키 한 줄) → 자판을 바꿔도 키보드가 들썩이지 않음
+        val rowH = keyH + 2 * dp(if (wide) 5 else 4)
+        col.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, rowH * 3))
+        // 아래 줄: 글자 자판 아래 줄과 같은 높이
         val bottom = row(listOf(
             key(if (emojiFrom == Layer.EN) "ABC" else "가", special = true) { layer = if (emojiFrom == Layer.EMOJI) Layer.KO else emojiFrom; showKeys() } to 1.3f,
             key("띄어쓰기") { space() } to 3f,
             key("⌫", special = true, repeat = true) { backspace() } to 1.3f,
             enterKey() to 1.3f,
         ))
-        for (i in 0 until bottom.childCount) bottom.getChildAt(i).layoutParams.height = dp(44)
-        col.addView(column(listOf(bottom), maxWidthDp = 520))
-        return col
+        col.addView(column(listOf(bottom), maxWidthDp = if (wide) squareWidthDp() else 520))
+        if (!wide || screenWdp <= panelW + 16) return col
+        return FrameLayout(this).apply {
+            addView(col, FrameLayout.LayoutParams(dp(panelW), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL))
+        }
     }
 
     private fun symbols(): View {
@@ -664,7 +676,7 @@ class KeyboardService : InputMethodService() {
             key("⌫", special = true, repeat = true) { backspace() } to 1.4f,
             enterKey() to 1.4f,
         ))
-        return column(listOf(line("1234567890"), line("-/:;()₩&@\""), line(".,?!'~^*+="), bottom), )
+        return column(listOf(line("1234567890"), line("-/:;()₩&@\""), line(".,?!'~^*+="), bottom), maxWidthDp = if (wide) squareWidthDp() else null)
     }
 
     // ───────── 글자 넣기 ─────────
