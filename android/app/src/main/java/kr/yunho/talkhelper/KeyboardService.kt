@@ -1000,16 +1000,19 @@ class KeyboardService : InputMethodService() {
         Bg.main.removeCallbacks(readyFallback)
         // 인식기 '띵'이 끝난 뒤 소리를 되돌리고 우리 부드러운 신호음
         Bg.main.removeCallbacks(unmuteTask)
+        // 구글 '띵'은 준비된 순간에 0.3~0.4초 울림 → 다 끝난 뒤(0.5초)에 소리를 되돌려야 겹치지 않음 (신부님 2026-11-11 '소리 두 개')
         Bg.main.postDelayed({
+            val wasMuted = beepMuted
             unmuteBeep()
             if (!listening) return@postDelayed
-            Sounds.listenStart(this)
+            // 소리를 못 끈 때(블루투스·이어폰·음악 재생 중)는 구글 '띵'이 이미 울렸으니 우리 소리는 내지 않음 (진동만)
+            if (wasMuted) Sounds.listenStart(this)
             Sounds.buzz(this, 70)
             heardView()?.takeIf { heard.isBlank() && partial.isBlank() }?.text = if (searchMode) "예) 모임 날짜 언제로 정했지?" else "쉬어 가며 말해도 돼요. 다 말하면 아래를 누르거나 4초쯤 기다리세요"
             content.findViewWithTag<TextView>("readyTitle")?.let {
                 it.text = if (searchMode) "🔎 무엇을 찾을까요?" else "🎤 편하게 말하세요"; Ui.iconize(it)
             }
-        }, 150)
+        }, 500)
         Bg.main.removeCallbacks(pulse); Bg.main.postDelayed(pulse, 3000)
     }
 
