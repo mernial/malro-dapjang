@@ -97,7 +97,9 @@ class KeyboardService : InputMethodService() {
     /** 키 높이: 화면 높이에 맞춰 (너무 작거나 크지 않게) */
     /** 넓은 화면 (폴드 펼침·태블릿): 자음·모음 사이를 띄우고 키 간격을 넓힘 */
     private val wide get() = screenWdp >= 600
-    private val keyH get() = dp((screenHdp * 0.062f).toInt().coerceIn(42, 56))
+    private val keyH get() = dp(keyHdp)
+    /** 키 높이(dp). 폴드처럼 넓은 화면은 조금 더 크게 (오타 줄이기, 신부님 2026-11-11) */
+    private val keyHdp get() = if (wide) (screenHdp * 0.068f).toInt().coerceIn(50, 62) else (screenHdp * 0.062f).toInt().coerceIn(42, 56)
     private val keyTextSp get() = if (screenHdp < 640) 18f else 21f
 
     @SuppressLint("DiscouragedApi", "InternalInsetResource")
@@ -379,7 +381,8 @@ class KeyboardService : InputMethodService() {
             if (d < bestD) { bestD = d; best = k }
         }
         val k = best ?: return false
-        if (bestD > dp(12)) return false
+        // 키 사이 틈은 가까운 키로 (넓은 화면은 틈이 넓어 조금 더 멀리까지). 가운데 큰 빈칸 한가운데는 그대로 빈칸
+        if (bestD > dp(if (wide) 20 else 12)) return false
         keyActions[k]?.invoke()
         tap(k)
         pop(k, true); Bg.main.postDelayed({ pop(k, false) }, 110)
@@ -479,8 +482,7 @@ class KeyboardService : InputMethodService() {
      * 바깥 키(ㅂ·ㅁ·ㅋ·ㅔ·ㅣ·ㅡ)는 안쪽으로, 가운데 틈 옆 키(ㅅ·ㅎ·ㅍ·ㅛ·ㅗ·ㅠ)는 바깥으로 (신부님 2026-11-11)
      */
     private fun squareWidthDp(): Int {
-        val keyHdp = (screenHdp * 0.062f).toInt().coerceIn(42, 56)
-        val unit = keyHdp * 1.08f + 2 * KEY_GAP_WIDE   // 키 폭 ≈ 높이 (살짝 넓게)
+        val unit = keyHdp * 1.12f + 2 * KEY_GAP_WIDE   // 키 폭 ≈ 높이 (살짝 넓게)
         return (unit * (10 + MID_GAP)).toInt() + 8
     }
 
@@ -1271,7 +1273,7 @@ class KeyboardService : InputMethodService() {
         private val KEY_EDGE = android.graphics.Color.parseColor("#CDBFAF")
         private const val KEY_GAP_WIDE = 6
         /** 넓은 화면에서 자음·모음 사이 빈칸 (키 몇 개 폭) */
-        private const val MID_GAP = 1.3f
+        private const val MID_GAP = 2.0f
         private val KO_ROWS = listOf("ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ", "ㅁㄴㅇㄹㅎㅗㅓㅏㅣ", "ㅋㅌㅊㅍㅠㅜㅡ")
         private val KO_SHIFT = mapOf('ㅂ' to 'ㅃ', 'ㅈ' to 'ㅉ', 'ㄷ' to 'ㄸ', 'ㄱ' to 'ㄲ', 'ㅅ' to 'ㅆ', 'ㅐ' to 'ㅒ', 'ㅔ' to 'ㅖ')
         private val EN_ROWS = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
