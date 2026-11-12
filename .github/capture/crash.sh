@@ -58,8 +58,13 @@ adb shell "input motionevent DOWN $KX $KY; input motionevent DOWN $KX $KY; input
 sleep 1
 timeout 20 adb shell uiautomator dump /sdcard/t2.xml >/dev/null 2>&1
 echo "겹쳐 누르기 결과: $(timeout 20 adb shell cat /sdcard/t2.xml | tr '>' '\n' | grep 'class="android.widget.EditText"' | head -1 | sed -E 's/.* text="([^"]*)".*/\1/')"
+# 꾹 누르기: ㅋ 를 1.5초 누르고 있으면 여러 개
+adb shell "input motionevent DOWN $KX $KY"; sleep 1.5; adb shell "input motionevent UP $KX $KY"
+sleep 1
+timeout 20 adb shell uiautomator dump /sdcard/t3.xml >/dev/null 2>&1
+echo "꾹 누르기 결과: $(timeout 20 adb shell cat /sdcard/t3.xml | tr '>' '\n' | grep 'class="android.widget.EditText"' | head -1 | sed -E 's/.* text="([^"]*)".*/\1/')"
 timeout 10 adb logcat -d -s talkhelper-kb | grep -i "key " | tail -20
-for i in 1 2 3 4 5 6 7 8 9 10; do adb shell input keyevent KEYCODE_DEL; done
+for i in $(seq 1 30); do adb shell input keyevent KEYCODE_DEL; done
 # 기호 자판: 아래 줄 자리가 한글과 같은지 (!#1 → 사진 → 가)
 timeout 10 adb shell input tap 70 2182; sleep 2
 timeout 30 adb exec-out screencap -p > shots/keyboard_sym.png

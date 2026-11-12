@@ -436,8 +436,53 @@ class KeyboardService : InputMethodService() {
         if (bestD > dp(if (wide) 20 else 12)) return false
         keyActions[k]?.invoke()
         tap(k)
-        pop(k, true); Bg.main.postDelayed({ pop(k, false) }, 110)
+        pop(k, true); Bg.main.postDelayed({ pop(k, false) }, 60)
         return true
+    }
+
+    /**
+     * 손가락마다 닿은 넓이를 지켜봄. 빨리 칠 때 손가락을 화면에서 다 떼지 않고 다시 누르면
+     * 휴대폰은 '누름'을 새로 알려 주지 않아 글자가 빠졌음 (신부님 2026-11-12 '연속으로 누르면 씹혀').
+     * 닿은 넓이가 크게 줄었다가 다시 커지면 그 자리 키를 새로 누른 것으로 침.
+     */
+    private class Touch(var peak: Float, var low: Float, var armed: Boolean = false, var lastAt: Long = 0L)
+    private val touches = HashMap<Int, Touch>()
+
+    private fun touchSize(e: MotionEvent, i: Int): Float {
+        val major = e.getTouchMajor(i)
+        return if (major > 0f) major else e.getSize(i)
+    }
+
+    private fun touchStart(e: MotionEvent, i: Int) {
+        val sz = touchSize(e, i)
+        touches[e.getPointerId(i)] = Touch(sz, sz, lastAt = e.eventTime)
+    }
+
+    /** 다시 누른 손가락이 있으면 그 자리 키를 누르고 true */
+    private fun touchRepress(v: View, e: MotionEvent): Boolean {
+        var pressed = false
+        for (i in 0 until e.pointerCount) {
+            val t = touches[e.getPointerId(i)] ?: continue
+            val sz = touchSize(e, i)
+            if (sz <= 0f) continue
+            if (!t.armed) {
+                if (sz > t.peak) t.peak = sz
+                // 가장 크게 닿았을 때의 절반 아래로 줄면 '떼는 중'
+                if (sz < t.peak * 0.55f) { t.armed = true; t.low = sz }
+            } else {
+                if (sz < t.low) t.low = sz
+                // 다시 크게 닿고(줄었던 것의 1.6배 넘게, 처음의 75% 넘게) 앞 누름에서 0.06초 넘게 지났으면 새 누름
+                if (sz > t.low * 1.6f && sz > t.peak * 0.75f && e.eventTime - t.lastAt > 60) {
+                    val x: Float; val y: Float
+                    if (android.os.Build.VERSION.SDK_INT >= 29) { x = e.getRawX(i); y = e.getRawY(i) }
+                    else { val loc = IntArray(2); v.getLocationOnScreen(loc); x = loc[0] + e.getX(i); y = loc[1] + e.getY(i) }
+                    if (BuildConfig.E2E) android.util.Log.i("talkhelper-kb", "key repress t=${e.eventTime}")
+                    if (pressAt(x, y)) pressed = true
+                    t.peak = sz; t.low = sz; t.armed = false; t.lastAt = e.eventTime
+                }
+            }
+        }
+        return pressed
     }
 
     private fun pressPointer(v: View, e: MotionEvent) {
@@ -471,13 +516,14 @@ class KeyboardService : InputMethodService() {
             // 움직임 없이 그 자리에서 바로 커짐 (기다림 0)
             v.scaleX = 1.18f; v.scaleY = 1.18f; v.translationZ = dp(6).toFloat()
         } else {
-            v.animate().scaleX(1f).scaleY(1f).translationZ(0f).setStartDelay(0).setDuration(90).start()
+            // 손을 떼면 빠르게 원래 크기로 (신부님 2026-11-12 '빠르게 줄어들게')
+            v.animate().scaleX(1f).scaleY(1f).translationZ(0f).setStartDelay(0).setDuration(40).start()
         }
     }
 
     /** 키 하나 */
     @SuppressLint("ClickableViewAccessibility")
-    private fun key(label: String, special: Boolean = false, repeat: Boolean = false, onClick: () -> Unit): TextView = TextView(this).apply {
+    private fun key(label: String, special: Boolean = false, repeat: Boolean = false, hold: Boolean = !special, onClick: () -> Unit): TextView = TextView(this).apply {
         text = label
         gravity = Gravity.CENTER
         maxLines = 1
@@ -502,17 +548,26 @@ class KeyboardService : InputMethodService() {
         } else {
             // 손가락이 닿는 순간 바로 입력 (예전엔 손을 뗄 때 입력되고, 손가락이 조금만 미끄러져도 눌림이 취소됐음 — 신부님 2026-11-11 '반응이 느림').
             // 이모티콘 판처럼 밀어서 넘기는 칸 안의 키만 예전처럼 뗄 때 (밀다가 잘못 들어가지 않게)
+            // 글자 키는 꾹 누르고 있으면 계속 써짐 (신부님 2026-11-12)
+            val holdRep = object : Runnable { override fun run() { if (isPressed) { onClick(); Bg.main.postDelayed(this, 90) } } }
             setOnTouchListener { v, e ->
                 val inScroll = inScrollView(v)
                 when (e.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
                         if (BuildConfig.E2E) android.util.Log.i("talkhelper-kb", "key down t=${e.eventTime}")   // 시험판만, 무슨 키인지는 남기지 않음
                         pop(v, true)
-                        if (!inScroll) { v.isPressed = true; onClick(); tap(v) }
+                        if (!inScroll) {
+                            v.isPressed = true; onClick(); tap(v)
+                            touchStart(e, 0)
+                            if (hold) Bg.main.postDelayed(holdRep, 650)   // 천천히 누르는 분이 잘못 겹쳐 쓰지 않게 조금 기다림
+                        }
                     }
                     // 이 키를 누른 채 다른 손가락이 닿았는데 그 손가락도 이 키로 온 경우(키가 커져 옆을 덮음 등) → 손가락 자리의 키로
-                    MotionEvent.ACTION_POINTER_DOWN -> if (!inScroll) pressPointer(v, e)
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { pop(v, false); if (!inScroll) v.isPressed = false }
+                    MotionEvent.ACTION_POINTER_DOWN -> if (!inScroll) { Bg.main.removeCallbacks(holdRep); pressPointer(v, e); touchStart(e, e.actionIndex) }
+                    // 손을 다 떼지 않고 다시 누른 것(닿은 넓이가 줄었다 커짐) → 새로 누른 것으로
+                    MotionEvent.ACTION_MOVE -> if (!inScroll && touchRepress(v, e)) Bg.main.removeCallbacks(holdRep)
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> { Bg.main.removeCallbacks(holdRep); pop(v, false); if (!inScroll) v.isPressed = false; touches.clear() }
+                    MotionEvent.ACTION_POINTER_UP -> touches.remove(e.getPointerId(e.actionIndex))
                 }
                 !inScroll   // 밀어 넘기는 칸이 아니면 여기서 끝 (click 두 번 안 되게)
             }
@@ -604,8 +659,8 @@ class KeyboardService : InputMethodService() {
 
     /** 천지인: ㅣ ㆍ ㅡ 와 자음 묶음 키 (같은 키를 거듭 누르면 ㄱ→ㅋ→ㄲ 처럼 바뀜) */
     private fun cheonjiin(): View {
-        fun v(label: String, k: Char) = key(label) { lastCjiKey = null; hangul.cjiVowel(k); render() } to 1f
-        fun c(label: String, cycle: String) = key(label) { cjiConsonant(label, cycle) } to 1f
+        fun v(label: String, k: Char) = key(label, hold = false) { lastCjiKey = null; hangul.cjiVowel(k); render() } to 1f
+        fun c(label: String, cycle: String) = key(label, hold = false) { cjiConsonant(label, cycle) } to 1f
         val rows = listOf(
             row(listOf(v("ㅣ", 'I'), v("•", 'D'), v("ㅡ", 'E'), key("⌫", special = true, repeat = true) { backspace() } to 1f)),
             row(listOf(c("ㄱㅋ", "ㄱㅋㄲ"), c("ㄴㄹ", "ㄴㄹ"), c("ㄷㅌ", "ㄷㅌㄸ"), enterKey() to 1f)),
