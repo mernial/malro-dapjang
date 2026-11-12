@@ -19,7 +19,7 @@
 ## 빌드와 배포
 
 - 이 저장소(`mernial/malro-dapjang`)는 2026-11-05에 `mernial/catholic-shorts`에서 옮겨 왔음. 앱 일은 이제 여기서만 함.
-- 브랜치에 push → GitHub Actions(`.github/workflows/android.yml`)가 테스트·빌드 → Releases(`talk-helper` 태그)에 APK/AAB → **플레이 내부 테스트에 자동 업로드**. 버전 = 실행 번호 + 100 (1.N). 예전 저장소에서 1.84까지 올렸기 때문.
+- 브랜치에 push → GitHub Actions(`.github/workflows/android.yml`)가 테스트·빌드 → Releases(`talk-helper` 태그)에 APK/AAB → **플레이 내부 테스트에 자동 업로드**. 비공개 테스트(테스터)에는 **하루 한 번** 밤 11시 17분에 그날 마지막 버전만(`play-closed.yml`, 플레이 하루 저장 횟수 때문 — 급하면 Actions 에서 직접 실행). 버전 = 실행 번호 + 100 (1.N). 예전 저장소에서 1.84까지 올렸기 때문.
 - 자동 서명·업로드에는 이 저장소의 GitHub 비밀 `SIGNING_KEY_B64`, `PLAY_SERVICE_ACCOUNT_JSON`이 필요함 (사용자가 직접 넣음).
 - 개인정보처리방침·설치 안내 페이지는 **예전 저장소** catholic-shorts의 main 브랜치 GitHub Pages(`talk-helper-privacy.html`, `talk-helper-install.html`)에 그대로 둠. 플레이에 그 주소가 등록돼 있으므로 옮기지 말 것.
 - 사용자는 폭넓게 권한을 주었고, 지금까지 작업 브랜치에서 PR을 만들어 main에 합쳐 왔음.
