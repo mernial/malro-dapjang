@@ -97,7 +97,9 @@ class KeyboardService : InputMethodService() {
     /** 키 높이: 화면 높이에 맞춰 (너무 작거나 크지 않게) */
     /** 넓은 화면 (폴드 펼침·태블릿): 자음·모음 사이를 띄우고 키 간격을 넓힘 */
     private val wide get() = screenWdp >= 600
-    private val keyH get() = dp(keyHdp)
+    private val keyH get() = dp((keyHdp - keyShrinkDp).coerceAtLeast(36))
+    /** 키보드 창이 모자라 맨 아래 줄이 잘릴 때 키 높이를 이만큼 줄임 (폴드 가로 화면, 신부님 2026-11-12) */
+    private var keyShrinkDp = 0
     /** 키 높이(dp). 폴드처럼 넓은 화면은 조금 더 크게 (오타 줄이기, 신부님 2026-11-11) */
     private val keyHdp get() = if (wide) (screenHdp * 0.068f).toInt().coerceIn(50, 62) else (screenHdp * 0.062f).toInt().coerceIn(42, 56)
     private val keyTextSp get() = if (screenHdp < 640) 18f else 21f
@@ -212,6 +214,8 @@ class KeyboardService : InputMethodService() {
             if (v.paddingBottom != want) {
                 v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, want)
                 v.post { window.window?.decorView?.requestLayout() }
+                // 아래 자리가 늘어 맨 아래 줄이 잘리는지 다시 봄
+                v.postDelayed({ if (::content.isInitialized && !listening) showKeys() }, 120)
             }
             insets
         }
@@ -289,9 +293,28 @@ class KeyboardService : InputMethodService() {
         // 누른 키가 살짝 커질 때 옆·위로 잘리지 않게
         unclip(keys); content.clipChildren = false; content.clipToPadding = false
         content.post {
-            val root = content.parent as? View
-            android.util.Log.i("talkhelper-kb", "size root=${root?.height} pad=${root?.paddingBottom} content=${content.height} keys=${keys.height} keyH=$keyH screenH=$screenHdp")
+            val root = content.parent as? View ?: return@post
+            val avail = root.height - root.paddingBottom - content.top
+            android.util.Log.i("talkhelper-kb", "size root=${root.height} pad=${root.paddingBottom} avail=$avail keys=${keys.height} keyH=$keyH shrink=$keyShrinkDp")
+            // 창이 키보드보다 작아 맨 아래 줄이 잘리면 → 키를 조금 낮춰 다시 그림 (줄 수로 나눠 한 번에)
+            val over = keys.height - avail
+            if (over > 0 && avail > 0 && keyShrinkDp < 16 && keys.height > 0) {
+                val rows = if (layer == Layer.EMOJI) 4 else (keys as? ViewGroup)?.let { countRows(it) }?.coerceAtLeast(1) ?: 4
+                keyShrinkDp += (over / resources.displayMetrics.density / rows).toInt() + 1
+                showKeys()
+            }
         }
+    }
+
+    /** 자판 안의 키 줄 수 (가로 줄 LinearLayout 중 키가 든 것) */
+    private fun countRows(g: ViewGroup): Int {
+        var n = 0
+        for (i in 0 until g.childCount) {
+            val c = g.getChildAt(i)
+            if (c is LinearLayout && c.orientation == LinearLayout.HORIZONTAL && (0 until c.childCount).any { keyActions.containsKey(c.getChildAt(it)) }) n++
+            else if (c is ViewGroup) n += countRows(c)
+        }
+        return n
     }
 
     // ───────── 블루투스(실물) 키보드 ─────────
@@ -318,6 +341,7 @@ class KeyboardService : InputMethodService() {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        keyShrinkDp = 0   // 화면을 돌리거나 펴면 다시 원래 높이부터
         if (::content.isInitialized && !listening) showKeys()
     }
 
