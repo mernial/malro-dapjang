@@ -27,6 +27,7 @@ import kr.yunho.talkhelper.core.EndSignal
 import kr.yunho.talkhelper.core.Hangul
 import kr.yunho.talkhelper.core.HelperException
 import kr.yunho.talkhelper.core.Mode
+import kr.yunho.talkhelper.core.MyStyle
 
 /**
  * '말로 답장 키보드' (안드로이드 표준 입력 방법).
@@ -960,6 +961,24 @@ class KeyboardService : InputMethodService() {
     }
 
     /** 🚩 누르면 키보드 안에서 한 번 더 묻고, '알리기'면 운영자에게 보냄 (앱이 몰래 보내지 않음) */
+    /** '내 말투'에 내가 보낸 말을 예시로 쓸지 처음 한 번 물음. 고르면 [then] 계속 */
+    private fun askStyleConsent(then: () -> Unit) {
+        showInfo(MyStyle.CONSENT_TEXT)
+        infoRow.tag = "consent"
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        fun b(label: String, primary: Boolean, onClick: () -> Unit) = TextView(this).apply {
+            text = label; gravity = Gravity.CENTER
+            setTextColor(if (primary) Ui.CARD else Ui.BROWN)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            background = Ui.rounded(this@KeyboardService, if (primary) Ui.BROWN else Ui.CARD, 14, if (primary) null else Ui.LINE)
+            setOnClickListener { onClick() }
+        }.also { row.addView(it, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(6) }) }
+        b("동의하고 쓰기", true) { prefs.myStyleConsent = true; then() }
+        b("예시 없이 쓰기", false) { prefs.myStyleConsent = false; then() }
+        infoRow.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
+    }
+
     private fun askReport(aiText: String, spoken: String = lastSpoken) {
         showInfo("🚩 이 글이 이상하거나 불쾌했나요? 말씀하신 내용과 AI가 만든 글을 운영자에게 알려요.")
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -1025,6 +1044,7 @@ class KeyboardService : InputMethodService() {
     private fun hideInfo() { if (::infoRow.isInitialized) infoRow.visibility = View.GONE }
 
     private fun switchTone(m: Mode) {
+        if (m == Mode.MINE && prefs.myStyleConsent == null) { askStyleConsent { switchTone(m) }; return }
         mode = m
         prefs.mode = m
         paintTone()
@@ -1287,11 +1307,17 @@ class KeyboardService : InputMethodService() {
     /** [m] 말투로 다듬어 입력칸에 넣음. 방금 넣은 글이 있으면 지우고 바꿔 넣음 */
     private fun rewrite(m: Mode) {
         cache[m]?.let { put(it); return }
+        if (m == Mode.MINE && prefs.myStyleConsent == null) { askStyleConsent { rewrite(m) }; return }
         val claude = ClaudeProvider.get(this) ?: return
         val spoken = lastSpoken
         val id = ++job
+        val useStyle = m == Mode.MINE && prefs.myStyleConsent == true
         showInfo("${m.emoji} '${m.label}' 말투로 다듬는 중…")
-        Bg.run({ claude.rewrite(m, spoken, null, prefs.myName, prefs.myRole, emptyList()) }) { r ->
+        Bg.run({
+            // 내 말투(동의함): 저장한 대화에서 내가 보낸 말만 예시로 (다른 사람 말은 넣지 않음)
+            val style = if (useStyle) runCatching { ChatStore.myStyleAll(this) }.getOrDefault(emptyList()) else emptyList()
+            claude.rewrite(m, spoken, null, prefs.myName, prefs.myRole, style)
+        }) { r ->
             if (id != job) return@run
             r.onSuccess { text -> cache[m] = text; if (mode == m) put(text) }
                 .onFailure { showInfo((it as? HelperException)?.message ?: "문제가 생겼어요. 다시 해 주세요.", color = Ui.RED) }

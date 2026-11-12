@@ -100,6 +100,30 @@ timeout 30 adb shell am start -n $PKG/.MainActivity; sleep 4
 timeout 30 adb exec-out screencap -p > shots/main_ready.png
 adb shell input swipe 540 1800 540 500 400; sleep 2
 timeout 30 adb exec-out screencap -p > shots/main_ready2.png
+# 키보드 색: '어두운색'을 눌러 미리 보기 사진, 다시 '베이지'로
+adb shell input swipe 540 1600 540 900 400; sleep 2
+timeout 20 adb shell uiautomator dump /sdcard/c.xml >/dev/null 2>&1
+D=$(timeout 20 adb shell cat /sdcard/c.xml | tr '>' '\n' | grep 'text="어두운색"' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')
+echo "어두운색: $D"
+if [ -n "$D" ]; then set -- $D; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 2; fi
+timeout 30 adb exec-out screencap -p > shots/kb_color.png
+B2=$(timeout 20 adb shell cat /sdcard/c.xml | tr '>' '\n' | grep 'text="✓ 베이지"' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')
+if [ -n "$B2" ]; then set -- $B2; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 1; fi
+# '내 말투' 동의 창: 칩을 누르면 창이 뜨는지 → '동의하고 쓰기' → 다시 '정중하게'로
+adb shell input swipe 540 700 540 1700 300; sleep 1
+timeout 20 adb shell uiautomator dump /sdcard/m.xml >/dev/null 2>&1
+M=$(timeout 20 adb shell cat /sdcard/m.xml | tr '>' '\n' | grep 'text="[^"]*내 말투"' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')
+echo "내 말투 칩: $M"
+if [ -n "$M" ]; then set -- $M; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 2; fi
+timeout 30 adb exec-out screencap -p > shots/mystyle_consent.png
+timeout 20 adb shell uiautomator dump /sdcard/m2.xml >/dev/null 2>&1
+Y=$(timeout 20 adb shell cat /sdcard/m2.xml | tr '>' '\n' | grep -i 'text="동의하고 쓰기"' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')
+echo "동의 단추: $Y"
+if [ -n "$Y" ]; then set -- $Y; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 2; fi
+timeout 30 adb exec-out screencap -p > shots/mystyle_after.png
+timeout 20 adb shell uiautomator dump /sdcard/m3.xml >/dev/null 2>&1
+P=$(timeout 20 adb shell cat /sdcard/m3.xml | tr '>' '\n' | grep 'text="[^"]*정중하게"' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')
+if [ -n "$P" ]; then set -- $P; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 1; fi
 adb shell input swipe 540 500 540 1800 400; sleep 2
 timeout 20 adb shell uiautomator dump /sdcard/m.xml >/dev/null 2>&1
 G=$(timeout 20 adb shell cat /sdcard/m.xml | tr '>' '\n' | grep 'content-desc="설정"' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')

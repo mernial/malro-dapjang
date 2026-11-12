@@ -54,8 +54,20 @@ object Ui {
 
     fun iconize(ctx: Context, s: CharSequence, color: Int, sizePx: Int): CharSequence {
         val plain = s.toString()
-        if (ICONS.none { plain.contains(it.first) }) return s
+        if (ICONS.none { plain.contains(it.first) } && !plain.contains(VOICE_PILL)) return s
         val sb = android.text.SpannableStringBuilder(s)
+        // ⟦말로답장⟧ → 키보드 위 '말로 답장' 단추와 똑같은 작은 그림
+        run {
+            var i = sb.indexOf(VOICE_PILL)
+            while (i >= 0) {
+                val d = voicePill(ctx, (sizePx * 1.35f).toInt())
+                sb.replace(i, i + VOICE_PILL.length, "\uFFFC")
+                val align = if (android.os.Build.VERSION.SDK_INT >= 29) android.text.style.DynamicDrawableSpan.ALIGN_CENTER
+                    else android.text.style.DynamicDrawableSpan.ALIGN_BOTTOM
+                sb.setSpan(android.text.style.ImageSpan(d, align), i, i + 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                i = sb.indexOf(VOICE_PILL, i + 1)
+            }
+        }
         for ((emo, res) in ICONS) {
             var i = sb.indexOf(emo)
             while (i >= 0) {
@@ -71,6 +83,31 @@ object Ui {
             }
         }
         return sb
+    }
+
+    /** 글 속에 넣으면 키보드 '말로 답장' 단추 그림으로 바뀌는 표시 */
+    const val VOICE_PILL = "⟦말로답장⟧"
+
+    /** 키보드 위 '🎤 말로 답장' 단추와 같은 모양 (갈색 둥근 단추 + 마이크 + 노란 글씨) */
+    fun voicePill(ctx: Context, heightPx: Int): android.graphics.drawable.Drawable {
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = YELLOW; typeface = Typeface.DEFAULT_BOLD; textSize = heightPx * 0.5f
+        }
+        val label = "말로 답장"
+        val pad = heightPx * 0.32f
+        val icon = (heightPx * 0.68f).toInt()
+        val gap = heightPx * 0.14f
+        val w = (pad + icon + gap + paint.measureText(label) + pad).toInt()
+        val bmp = android.graphics.Bitmap.createBitmap(w, heightPx, android.graphics.Bitmap.Config.ARGB_8888)
+        val cv = android.graphics.Canvas(bmp)
+        val bg = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = BROWN }
+        val r = heightPx * 0.3f
+        cv.drawRoundRect(0f, 0f, w.toFloat(), heightPx.toFloat(), r, r, bg)
+        val top = (heightPx - icon) / 2
+        micBadge(ctx, icon).apply { setBounds(pad.toInt(), top, pad.toInt() + icon, top + icon); draw(cv) }
+        val fm = paint.fontMetrics
+        cv.drawText(label, pad + icon + gap, heightPx / 2f - (fm.ascent + fm.descent) / 2, paint)
+        return android.graphics.drawable.BitmapDrawable(ctx.resources, bmp).apply { setBounds(0, 0, w, heightPx) }
     }
 
     /** 카톡 위 떠 있는 🎤 버튼과 똑같은 모양의 작은 그림: 짙은 동그라미 + 금색 테두리 + 흰 마이크 */
