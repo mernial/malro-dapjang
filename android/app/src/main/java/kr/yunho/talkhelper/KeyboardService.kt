@@ -224,6 +224,16 @@ class KeyboardService : InputMethodService() {
         window.window?.let { w ->
             if (android.os.Build.VERSION.SDK_INT >= 29) w.isNavigationBarContrastEnforced = false
             @Suppress("DEPRECATION") w.navigationBarColor = th.bg
+            // 아래 막대의 '키보드 내리기 ∨'·'키보드 바꾸기' 그림을 진하게 (밝은 키보드에선 어두운 그림, 어두운 키보드에선 밝은 그림)
+            val lightBar = th.id != "dark"
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                val f = android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                w.insetsController?.setSystemBarsAppearance(if (lightBar) f else 0, f)
+            } else {
+                @Suppress("DEPRECATION")
+                w.decorView.systemUiVisibility = if (lightBar) w.decorView.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+                    else w.decorView.systemUiVisibility and View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR.inv()
+            }
         }
         paintTone()
         showKeys()
@@ -572,13 +582,14 @@ class KeyboardService : InputMethodService() {
         val shiftKey = key(if (shift) "⬆" else "⇧", special = true) { shift = !shift; showKeys() } to 1.5f
         val back = key("⌫", special = true, repeat = true) { backspace() } to 1.5f
         val bottom = listOf(
-            key("!#1", special = true) { toSymbols() } to 1.5f,
-            key("한/영", special = true) { if (ko) toEnglish() else toKorean() } to 1.2f,
-            emojiKey() to 1f,
-            key(",", special = true) { commitPlain(",") } to 0.9f,
-            key("띄어쓰기") { space() } to spaceW(3.4f),
-            key(".", special = true) { commitPlain(".") } to 1f,
-            enterKey() to 1.7f,
+            // 아래 줄: 띄어쓰기 말고는 조금 줄이고 띄어쓰기를 넓게 (신부님 2026-11-12)
+            key("!#1", special = true) { toSymbols() } to 1.25f,
+            key("한/영", special = true) { if (ko) toEnglish() else toKorean() } to 1.05f,
+            emojiKey() to 0.9f,
+            key(",", special = true) { commitPlain(",") } to 0.8f,
+            key("띄어쓰기") { space() } to spaceW(4.65f),
+            key(".", special = true) { commitPlain(".") } to 0.8f,
+            enterKey() to 1.25f,
         )
         return column(listOf(
             // 폴드처럼 넓으면 왼쪽(자음)·오른쪽(모음) 사이를 조금 띄움. 모든 줄에 같은 폭이라 키 줄이 어긋나지 않음
@@ -725,13 +736,13 @@ class KeyboardService : InputMethodService() {
         val r3 = "!?~'^*+".map { k("$it") }
         val back = key("⌫", special = true, repeat = true) { backspace() } to 1.5f
         val bottom = listOf(
-            key("가", special = true) { toKorean() } to 1.5f,
-            sk("#", 1.2f),
-            sk("=", 1f),
-            sk(",", 0.9f),
-            key("띄어쓰기") { space() } to spaceW(3.4f),
-            sk(".", 1f),
-            enterKey() to 1.7f,
+            key("가", special = true) { toKorean() } to 1.25f,
+            sk("#", 1.05f),
+            sk("=", 0.9f),
+            sk(",", 0.8f),
+            key("띄어쓰기") { space() } to spaceW(4.65f),
+            sk(".", 0.8f),
+            enterKey() to 1.25f,
         )
         return column(listOf(
             row(r1.take(5) + mid() + r1.drop(5)),
@@ -859,7 +870,13 @@ class KeyboardService : InputMethodService() {
         }
         return key(label, special = true) { enter() }.apply {
             contentDescription = desc
-            if (editorAction == EditorInfo.IME_ACTION_SEARCH) background = Ui.rounded(this@KeyboardService, Ui.YELLOW, 8, th.edge)
+            // 눈에 잘 띄게: 진한 바탕 + 큰 글씨 (신부님 2026-11-12 '오른쪽 밑 화살표가 잘 안 보여')
+            val dark = th.id == "dark"
+            background = Ui.rounded(this@KeyboardService, if (dark) Ui.YELLOW else Ui.BROWN, 8, null)
+            setTextColor(if (dark) Ui.BROWN else Ui.YELLOW)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            if (label == "↵") setTextSize(TypedValue.COMPLEX_UNIT_SP, keyTextSp + 6)
+            Ui.iconize(this)
         }
     }
 
