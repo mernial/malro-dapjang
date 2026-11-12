@@ -72,6 +72,7 @@ timeout 20 adb shell cmd overlay enable com.android.internal.systemui.navbar.thr
 adb shell input keyevent KEYCODE_BACK; sleep 1
 adb shell wm size 2200x1800; adb shell wm density 420; sleep 4
 timeout 30 adb shell am start -n $PKG/.AskActivity; sleep 4
+adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS >/dev/null 2>&1 || true   # 'Pixel Launcher 멈춤' 창 닫기
 timeout 20 adb shell uiautomator dump /sdcard/w.xml >/dev/null 2>&1
 W=$(timeout 20 adb shell cat /sdcard/w.xml | tr '>' '\n' | grep 'class="android.widget.EditText"' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')
 if [ -n "$W" ]; then set -- $W; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 3; fi
@@ -80,6 +81,18 @@ timeout 10 adb shell input tap 1940 1074; sleep 3   # 위 줄 ⇄ → 천지인 
 timeout 30 adb exec-out screencap -p > shots/keyboard_wide_cji.png
 timeout 10 adb shell input tap 1940 1074; sleep 2   # 다시 두벌식
 adb shell input keyevent KEYCODE_BACK; sleep 1; adb shell input keyevent KEYCODE_BACK; sleep 1
+# 폴드를 가로로 든 것처럼 (낮고 넓은 화면) + 제스처 막대: 맨 아래 줄이 잘리지 않는지 (신부님 2026-11-12)
+timeout 20 adb shell cmd overlay enable com.android.internal.systemui.navbar.gestural
+adb shell wm size 2200x1650; adb shell wm density 420; sleep 4
+timeout 30 adb shell am start -n $PKG/.AskActivity; sleep 4
+adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS >/dev/null 2>&1 || true
+timeout 20 adb shell uiautomator dump /sdcard/l.xml >/dev/null 2>&1
+L=$(timeout 20 adb shell cat /sdcard/l.xml | tr '>' '\n' | grep 'class="android.widget.EditText"' | tail -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')
+if [ -n "$L" ]; then set -- $L; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 3; fi
+timeout 30 adb exec-out screencap -p > shots/keyboard_fold_land.png
+timeout 10 adb logcat -d -s talkhelper-kb | tail -6
+adb shell input keyevent KEYCODE_BACK; sleep 1; adb shell input keyevent KEYCODE_BACK; sleep 1
+timeout 20 adb shell cmd overlay enable com.android.internal.systemui.navbar.threebutton
 adb shell wm size reset; adb shell wm density reset; sleep 4
 # 키보드까지 준비된 첫 화면 (새 디자인 확인): 위·아래로 한 장씩, 설정 화면 한 장
 adb shell input keyevent KEYCODE_BACK; sleep 1; adb shell input keyevent KEYCODE_HOME; sleep 1

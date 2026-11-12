@@ -97,7 +97,9 @@ class KeyboardService : InputMethodService() {
     /** 키 높이: 화면 높이에 맞춰 (너무 작거나 크지 않게) */
     /** 넓은 화면 (폴드 펼침·태블릿): 자음·모음 사이를 띄우고 키 간격을 넓힘 */
     private val wide get() = screenWdp >= 600
-    private val keyH get() = dp(keyHdp)
+    private val keyH get() = dp((keyHdp - keyShrinkDp).coerceAtLeast(36))
+    /** 키보드 창이 모자라 맨 아래 줄이 잘릴 때 키 높이를 이만큼 줄임 (폴드 가로 화면, 신부님 2026-11-12) */
+    private var keyShrinkDp = 0
     /** 키 높이(dp). 폴드처럼 넓은 화면은 조금 더 크게 (오타 줄이기, 신부님 2026-11-11) */
     private val keyHdp get() = if (wide) (screenHdp * 0.068f).toInt().coerceIn(50, 62) else (screenHdp * 0.062f).toInt().coerceIn(42, 56)
     private val keyTextSp get() = if (screenHdp < 640) 18f else 21f
@@ -110,12 +112,16 @@ class KeyboardService : InputMethodService() {
 
     // ───────── 화면 만들기 ─────────
 
+    /** 지금 키보드 색 */
+    private var th = KbTheme.ALL[0]
+
     override fun onCreateInputView(): View {
         val ctx = this
         mode = prefs.mode
+        th = KbTheme.of(prefs.keyboardTheme)
         val r = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(KB_BG)
+            setBackgroundColor(th.bg)
             setPadding(dp(4), dp(4), dp(4), dp(6))
         }
         // 1) 단축키 줄
@@ -126,10 +132,10 @@ class KeyboardService : InputMethodService() {
             tag = key
             gravity = Gravity.CENTER
             maxLines = 1
-            setTextColor(Ui.BROWN)
+            setTextColor(th.text)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
-            background = Ui.rounded(ctx, Ui.CARD, 12, Ui.LINE)
+            background = Ui.rounded(ctx, th.key, 12, th.edge)
             setPadding(dp(4), 0, dp(4), 0)
             setOnClickListener { onClick() }
             setOnLongClickListener { v ->
@@ -176,7 +182,7 @@ class KeyboardService : InputMethodService() {
         // 2) 알림 줄 (넣었어요·말투 고르기·오류)
         infoRow = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
         infoText = TextView(ctx).apply {
-            setTextColor(Ui.BROWN); setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setTextColor(th.text); setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
             setPadding(dp(6), dp(6), dp(6), dp(2))
         }
         infoRow.addView(infoText)
@@ -208,13 +214,15 @@ class KeyboardService : InputMethodService() {
             if (v.paddingBottom != want) {
                 v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, want)
                 v.post { window.window?.decorView?.requestLayout() }
+                // 아래 자리가 늘어 맨 아래 줄이 잘리는지 다시 봄
+                v.postDelayed({ if (::content.isInitialized && !listening) showKeys() }, 120)
             }
             insets
         }
         // 아래 내비게이션 막대를 어두운 띠 대신 키보드 바탕색으로
         window.window?.let { w ->
             if (android.os.Build.VERSION.SDK_INT >= 29) w.isNavigationBarContrastEnforced = false
-            @Suppress("DEPRECATION") w.navigationBarColor = KB_BG
+            @Suppress("DEPRECATION") w.navigationBarColor = th.bg
         }
         paintTone()
         showKeys()
@@ -223,6 +231,8 @@ class KeyboardService : InputMethodService() {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        // 첫 화면에서 키보드 색을 바꿨으면 새 색으로 다시 그림
+        if (::content.isInitialized && KbTheme.of(prefs.keyboardTheme) != th && !listening) setInputView(onCreateInputView())
         hangul.clear()
         lastCjiKey = null
         if (!restarting) { inserted = null; cache.clear(); lastSpoken = ""; hideInfo() }
@@ -282,6 +292,29 @@ class KeyboardService : InputMethodService() {
         content.addView(keys)
         // 누른 키가 살짝 커질 때 옆·위로 잘리지 않게
         unclip(keys); content.clipChildren = false; content.clipToPadding = false
+        content.post {
+            val root = content.parent as? View ?: return@post
+            val avail = root.height - root.paddingBottom - content.top
+            android.util.Log.i("talkhelper-kb", "size root=${root.height} pad=${root.paddingBottom} avail=$avail keys=${keys.height} keyH=$keyH shrink=$keyShrinkDp")
+            // 창이 키보드보다 작아 맨 아래 줄이 잘리면 → 키를 조금 낮춰 다시 그림 (줄 수로 나눠 한 번에)
+            val over = keys.height - avail
+            if (over > 0 && avail > 0 && keyShrinkDp < 16 && keys.height > 0) {
+                val rows = if (layer == Layer.EMOJI) 4 else (keys as? ViewGroup)?.let { countRows(it) }?.coerceAtLeast(1) ?: 4
+                keyShrinkDp += (over / resources.displayMetrics.density / rows).toInt() + 1
+                showKeys()
+            }
+        }
+    }
+
+    /** 자판 안의 키 줄 수 (가로 줄 LinearLayout 중 키가 든 것) */
+    private fun countRows(g: ViewGroup): Int {
+        var n = 0
+        for (i in 0 until g.childCount) {
+            val c = g.getChildAt(i)
+            if (c is LinearLayout && c.orientation == LinearLayout.HORIZONTAL && (0 until c.childCount).any { keyActions.containsKey(c.getChildAt(it)) }) n++
+            else if (c is ViewGroup) n += countRows(c)
+        }
+        return n
     }
 
     // ───────── 블루투스(실물) 키보드 ─────────
@@ -308,13 +341,14 @@ class KeyboardService : InputMethodService() {
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
+        keyShrinkDp = 0   // 화면을 돌리거나 펴면 다시 원래 높이부터
         if (::content.isInitialized && !listening) showKeys()
     }
 
     private fun hwHint(): View = TextView(this).apply {
         text = "⌨ 블루투스 키보드로 치는 중 · 지금 ${if (hwKorean) "한글" else "영어"}\n한/영 바꾸기: 한/영 키 또는 Shift + 스페이스"
         gravity = Gravity.CENTER
-        setTextColor(Ui.MUTED)
+        setTextColor(th.muted)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
         setPadding(dp(8), dp(8), dp(8), dp(10))
         setOnClickListener { toggleHwKorean() }
@@ -435,10 +469,10 @@ class KeyboardService : InputMethodService() {
         text = label
         gravity = Gravity.CENTER
         maxLines = 1
-        setTextColor(Ui.BROWN)
+        setTextColor(th.text)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, if (label.length > 2) keyTextSp - 5 else keyTextSp)
         // 얇은 테두리로 키 경계를 또렷하게 (옆 키를 잘못 누르는 일 줄이기)
-        background = Ui.rounded(this@KeyboardService, if (special) KEY_SPECIAL else Ui.CARD, 8, KEY_EDGE)
+        background = Ui.rounded(this@KeyboardService, if (special) th.special else th.key, 8, th.edge)
         elevation = dp(1).toFloat()
         Ui.iconize(this)
         keyActions[this] = onClick
@@ -581,10 +615,10 @@ class KeyboardService : InputMethodService() {
             addView(TextView(this@KeyboardService).apply {
                 text = if (toLeft) "◀\n왼쪽으로" else "▶\n오른쪽으로"
                 gravity = Gravity.CENTER
-                setTextColor(Ui.BROWN)
+                setTextColor(th.text)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
-                background = Ui.rounded(this@KeyboardService, Ui.CARD, 20, KEY_EDGE)
+                background = Ui.rounded(this@KeyboardService, th.key, 20, th.edge)
                 setPadding(dp(18), dp(14), dp(18), dp(14))
                 contentDescription = if (toLeft) "자판을 왼쪽으로 옮기기" else "자판을 오른쪽으로 옮기기"
                 setOnClickListener { sp.edit().putString("cjiSide", target).apply(); showKeys() }
@@ -648,11 +682,11 @@ class KeyboardService : InputMethodService() {
             val on = i == emojiTab
             tabBar.addView(LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
-                background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(if (on) android.graphics.Color.WHITE else android.graphics.Color.TRANSPARENT) }
+                background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(if (on) th.key else android.graphics.Color.TRANSPARENT) }
                 addView(TextView(this@KeyboardService).apply { text = icon; gravity = Gravity.CENTER; setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f) })
                 addView(TextView(this@KeyboardService).apply {
                     text = label; gravity = Gravity.CENTER; setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-                    setTextColor(if (on) Ui.BROWN else Ui.MUTED); if (on) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(if (on) th.text else th.muted); if (on) setTypeface(typeface, android.graphics.Typeface.BOLD)
                 })
                 contentDescription = "$label 이모티콘"
                 setOnClickListener { Sounds.buzz(this@KeyboardService, 8, 40); emojiTab = i; showKeys() }
@@ -822,7 +856,7 @@ class KeyboardService : InputMethodService() {
         }
         return key(label, special = true) { enter() }.apply {
             contentDescription = desc
-            if (editorAction == EditorInfo.IME_ACTION_SEARCH) background = Ui.rounded(this@KeyboardService, Ui.YELLOW, 8, KEY_EDGE)
+            if (editorAction == EditorInfo.IME_ACTION_SEARCH) background = Ui.rounded(this@KeyboardService, Ui.YELLOW, 8, th.edge)
         }
     }
 
@@ -979,7 +1013,8 @@ class KeyboardService : InputMethodService() {
 
     private fun showInfo(text: String, tones: Boolean = false, color: Int = Ui.BROWN) {
         infoText.text = text
-        infoText.setTextColor(color)
+        // 어두운 키보드에서도 읽히게: 기본 글자색은 키보드 색을 따름
+        infoText.setTextColor(if (color == Ui.BROWN) th.text else color)
         Ui.iconize(infoText)
         while (infoRow.childCount > 1) infoRow.removeViewAt(1)
         if (tones) infoRow.addView(toneChips(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(4) })
@@ -1061,7 +1096,11 @@ class KeyboardService : InputMethodService() {
             unmuteBeep()
             if (!listening) return@postDelayed
             // 소리를 못 끈 때(블루투스·이어폰·음악 재생 중)는 구글 '띵'이 이미 울렸으니 우리 소리는 내지 않음 (진동만)
-            if (wasMuted) Sounds.listenStart(this)
+            if (wasMuted) {
+                Sounds.listenStart(this)
+                // 우리 시작 소리가 끝나면 다시 꺼 둠 → 듣는 동안 인식기 '삑' 소리가 안 남
+                Bg.main.postDelayed({ if (listening) muteBeep() }, 700)
+            }
             Sounds.buzz(this, 70)
             heardView()?.takeIf { heard.isBlank() && partial.isBlank() }?.text = if (searchMode) "예) 모임 날짜 언제로 정했지?" else "쉬어 가며 말해도 돼요. 다 말하면 아래를 누르거나 4초쯤 기다리세요"
             content.findViewWithTag<TextView>("readyTitle")?.let {
@@ -1097,8 +1136,9 @@ class KeyboardService : InputMethodService() {
         muteBeep()
         runCatching { r.startListening(i) }.onFailure { unmuteBeep(); stopRecognizer(); showKeys(); showInfo("음성 인식을 시작하지 못했어요.", color = Ui.RED) }
         Bg.main.removeCallbacks(unmuteTask)
+        // 이어 듣기로 다시 켤 때는 소리를 끈 채로 둠 — 예전엔 0.6초 뒤 되돌려서, 토막이 끝나고 다시 켤 때마다
+        // 구글 인식기의 '삑' 소리가 중간중간 들렸음 (신부님 2026-11-12). 다 듣고 끝낼 때(stopRecognizer) 되돌림
         if (waitingReady) Bg.main.postDelayed(readyFallback, 2000)   // 준비 알림이 안 오는 휴대폰
-        else Bg.main.postDelayed(unmuteTask, 600)
     }
 
     private var beepMuted = false
@@ -1277,7 +1317,7 @@ class KeyboardService : InputMethodService() {
         val ai = text
         infoRow.addView(TextView(this).apply {
             this.text = "🚩 이상해요"
-            setTextColor(Ui.MUTED)
+            setTextColor(th.muted)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
             setPadding(dp(6), dp(2), dp(6), dp(4))
             contentDescription = "이상한 결과 알리기"
@@ -1337,8 +1377,6 @@ class KeyboardService : InputMethodService() {
     }
 
     companion object {
-        private val KB_BG = android.graphics.Color.parseColor("#E9E4DC")
-        private val KEY_SPECIAL = android.graphics.Color.parseColor("#D6CFC4")
         private const val FREQUENT = "😊 😂 🥰 😍 👍 🙏 ❤️ 👏 🎉 😭 😅 🤗 😢 🙂 😆 💕"
         /** 탭 무리: 첫 이모티콘이 탭 그림 */
         private val EMOJI_GROUPS = listOf(
@@ -1351,7 +1389,6 @@ class KeyboardService : InputMethodService() {
             "사물" to "🎁 🎉 🎊 🎈 🏠 🚗 🚌 ✈️ 📱 💻 📷 📚 ✏️ 💰 💊 🏥 ⏰ 📅 🎵 ⚽ 👓 👕",
         )
         private val TOOL_KEYS = listOf("voice", "search", "tone", "layout", "settings")
-        private val KEY_EDGE = android.graphics.Color.parseColor("#CDBFAF")
         private const val KEY_GAP_WIDE = 6
         /** 넓은 화면에서 자음·모음 사이 빈칸 (키 몇 개 폭) */
         private const val MID_GAP = 2.0f
