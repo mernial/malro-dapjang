@@ -583,12 +583,12 @@ class KeyboardService : InputMethodService() {
         val back = key("⌫", special = true, repeat = true) { backspace() } to 1.5f
         val bottom = listOf(
             // 아래 줄: 띄어쓰기 말고는 조금 줄이고 띄어쓰기를 넓게 (신부님 2026-11-12)
-            key("!#1", special = true) { toSymbols() } to 1.25f,
-            key("한/영", special = true) { if (ko) toEnglish() else toKorean() } to 1.05f,
+            key("!#1", special = true) { toSymbols() } to 1.2f,
+            key("한/영", special = true) { if (ko) toEnglish() else toKorean() } to 1.25f,
             emojiKey() to 0.9f,
-            key(",", special = true) { commitPlain(",") } to 0.8f,
-            key("띄어쓰기") { space() } to spaceW(4.65f),
-            key(".", special = true) { commitPlain(".") } to 0.8f,
+            key(",", special = true) { commitPlain(",") } to 0.75f,
+            key("띄어쓰기") { space() } to spaceW(4.55f),
+            key(".", special = true) { commitPlain(".") } to 0.75f,
             enterKey() to 1.25f,
         )
         return column(listOf(
