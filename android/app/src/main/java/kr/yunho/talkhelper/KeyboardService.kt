@@ -1065,7 +1065,11 @@ class KeyboardService : InputMethodService() {
             unmuteBeep()
             if (!listening) return@postDelayed
             // 소리를 못 끈 때(블루투스·이어폰·음악 재생 중)는 구글 '띵'이 이미 울렸으니 우리 소리는 내지 않음 (진동만)
-            if (wasMuted) Sounds.listenStart(this)
+            if (wasMuted) {
+                Sounds.listenStart(this)
+                // 우리 시작 소리가 끝나면 다시 꺼 둠 → 듣는 동안 인식기 '삑' 소리가 안 남
+                Bg.main.postDelayed({ if (listening) muteBeep() }, 700)
+            }
             Sounds.buzz(this, 70)
             heardView()?.takeIf { heard.isBlank() && partial.isBlank() }?.text = if (searchMode) "예) 모임 날짜 언제로 정했지?" else "쉬어 가며 말해도 돼요. 다 말하면 아래를 누르거나 4초쯤 기다리세요"
             content.findViewWithTag<TextView>("readyTitle")?.let {
@@ -1101,8 +1105,9 @@ class KeyboardService : InputMethodService() {
         muteBeep()
         runCatching { r.startListening(i) }.onFailure { unmuteBeep(); stopRecognizer(); showKeys(); showInfo("음성 인식을 시작하지 못했어요.", color = Ui.RED) }
         Bg.main.removeCallbacks(unmuteTask)
+        // 이어 듣기로 다시 켤 때는 소리를 끈 채로 둠 — 예전엔 0.6초 뒤 되돌려서, 토막이 끝나고 다시 켤 때마다
+        // 구글 인식기의 '삑' 소리가 중간중간 들렸음 (신부님 2026-11-12). 다 듣고 끝낼 때(stopRecognizer) 되돌림
         if (waitingReady) Bg.main.postDelayed(readyFallback, 2000)   // 준비 알림이 안 오는 휴대폰
-        else Bg.main.postDelayed(unmuteTask, 600)
     }
 
     private var beepMuted = false
