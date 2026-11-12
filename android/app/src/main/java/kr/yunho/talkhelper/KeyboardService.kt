@@ -442,6 +442,7 @@ class KeyboardService : InputMethodService() {
 
     private fun pressPointer(v: View, e: MotionEvent) {
         val i = e.actionIndex
+        if (BuildConfig.E2E) android.util.Log.i("talkhelper-kb", "key pointer t=${e.eventTime}")
         val x: Float; val y: Float
         if (android.os.Build.VERSION.SDK_INT >= 29) { x = e.getRawX(i); y = e.getRawY(i) }
         else { val loc = IntArray(2); v.getLocationOnScreen(loc); x = loc[0] + e.getX(i); y = loc[1] + e.getY(i) }
@@ -505,6 +506,7 @@ class KeyboardService : InputMethodService() {
                 val inScroll = inScrollView(v)
                 when (e.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
+                        if (BuildConfig.E2E) android.util.Log.i("talkhelper-kb", "key down t=${e.eventTime}")   // 시험판만, 무슨 키인지는 남기지 않음
                         pop(v, true)
                         if (!inScroll) { v.isPressed = true; onClick(); tap(v) }
                     }
