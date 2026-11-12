@@ -583,13 +583,13 @@ class KeyboardService : InputMethodService() {
         val back = key("⌫", special = true, repeat = true) { backspace() } to 1.5f
         val bottom = listOf(
             // 아래 줄: 띄어쓰기 말고는 조금 줄이고 띄어쓰기를 넓게 (신부님 2026-11-12)
-            key("!#1", special = true) { toSymbols() } to 1.2f,
-            key("한/영", special = true) { if (ko) toEnglish() else toKorean() } to 1.25f,
-            emojiKey() to 0.9f,
-            key(",", special = true) { commitPlain(",") } to 0.75f,
-            key("띄어쓰기") { space() } to spaceW(4.55f),
-            key(".", special = true) { commitPlain(".") } to 0.75f,
-            enterKey() to 1.25f,
+            key("!#1", special = true) { toSymbols() } to BOTTOM_W[0],
+            key("한/영", special = true) { if (ko) toEnglish() else toKorean() } to BOTTOM_W[1],
+            emojiKey() to BOTTOM_W[2],
+            key(",", special = true) { commitPlain(",") } to BOTTOM_W[3],
+            key("띄어쓰기") { space() } to spaceW(BOTTOM_W[4]),
+            key(".", special = true) { commitPlain(".") } to BOTTOM_W[5],
+            enterKey() to BOTTOM_W[6],
         )
         return column(listOf(
             // 폴드처럼 넓으면 왼쪽(자음)·오른쪽(모음) 사이를 조금 띄움. 모든 줄에 같은 폭이라 키 줄이 어긋나지 않음
@@ -714,10 +714,13 @@ class KeyboardService : InputMethodService() {
         col.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, rowH * 3 - tabH))
         // 아래 줄: 글자 자판 아래 줄과 같은 높이
         val bottom = row(listOf(
-            key(if (emojiFrom == Layer.EN) "ABC" else "가", special = true) { layer = if (emojiFrom == Layer.EMOJI) Layer.KO else emojiFrom; showKeys() } to 1.3f,
-            key("띄어쓰기") { space() } to spaceW(3f),
-            key("⌫", special = true, repeat = true) { backspace() } to 1.3f,
-            enterKey() to 1.3f,
+            // 글자 자판 아래 줄과 같은 칸 폭: 돌아가기(!#1 자리)·기호(한/영 자리)·지우기(😊+쉼표 자리)·띄어쓰기·점·줄바꿈
+            key(if (emojiFrom == Layer.EN) "ABC" else "가", special = true) { layer = if (emojiFrom == Layer.EMOJI) Layer.KO else emojiFrom; showKeys() } to BOTTOM_W[0],
+            key("!#1", special = true) { toSymbols() } to BOTTOM_W[1],
+            key("⌫", special = true, repeat = true) { backspace() } to BOTTOM_W[2] + BOTTOM_W[3],
+            key("띄어쓰기") { space() } to spaceW(BOTTOM_W[4]),
+            key(".", special = true) { commitPlain(".") } to BOTTOM_W[5],
+            enterKey() to BOTTOM_W[6],
         ))
         col.addView(column(listOf(bottom), maxWidthDp = if (wide) squareWidthDp() else 520))
         if (!wide || screenWdp <= panelW + 16) return col
@@ -736,13 +739,14 @@ class KeyboardService : InputMethodService() {
         val r3 = "!?~'^*+".map { k("$it") }
         val back = key("⌫", special = true, repeat = true) { backspace() } to 1.5f
         val bottom = listOf(
-            key("가", special = true) { toKorean() } to 1.25f,
-            sk("#", 1.05f),
-            sk("=", 0.9f),
-            sk(",", 0.8f),
-            key("띄어쓰기") { space() } to spaceW(4.65f),
-            sk(".", 0.8f),
-            enterKey() to 1.25f,
+            // 한글 자판 아래 줄과 칸마다 같은 폭 → 자판을 바꿔도 띄어쓰기·옆 키 자리가 그대로 (신부님 2026-11-12)
+            key("가", special = true) { toKorean() } to BOTTOM_W[0],
+            sk("#", BOTTOM_W[1]),
+            sk("=", BOTTOM_W[2]),
+            sk(",", BOTTOM_W[3]),
+            key("띄어쓰기") { space() } to spaceW(BOTTOM_W[4]),
+            sk(".", BOTTOM_W[5]),
+            enterKey() to BOTTOM_W[6],
         )
         return column(listOf(
             row(r1.take(5) + mid() + r1.drop(5)),
@@ -1437,6 +1441,8 @@ class KeyboardService : InputMethodService() {
         private const val KEY_GAP_WIDE = 6
         /** 넓은 화면에서 자음·모음 사이 빈칸 (키 몇 개 폭) */
         private const val MID_GAP = 2.6f
+        /** 모든 자판 아래 줄 칸 폭 (한글·영어·기호·이모티콘이 같은 자리) */
+        private val BOTTOM_W = floatArrayOf(1.2f, 1.25f, 0.9f, 0.75f, 4.55f, 0.75f, 1.25f)
         private val KO_ROWS = listOf("ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ", "ㅁㄴㅇㄹㅎㅗㅓㅏㅣ", "ㅋㅌㅊㅍㅠㅜㅡ")
         private val KO_SHIFT = mapOf('ㅂ' to 'ㅃ', 'ㅈ' to 'ㅉ', 'ㄷ' to 'ㄸ', 'ㄱ' to 'ㄲ', 'ㅅ' to 'ㅆ', 'ㅐ' to 'ㅒ', 'ㅔ' to 'ㅖ')
         private val EN_ROWS = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
