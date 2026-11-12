@@ -517,6 +517,8 @@ class KeyboardService : InputMethodService() {
     private fun gap(w: Float): Pair<View, Float> = View(this) to w
     /** 넓은 화면에서 자음·모음 사이 빈칸 (좁은 화면은 없음) */
     private fun mid(): List<Pair<View, Float>> = if (wide) listOf(gap(MID_GAP)) else emptyList()
+    /** 띄어쓰기 폭: 넓은 화면에선 가운데 틈만큼 더 길게 (양손 엄지 어디서나 닿게, 신부님 2026-11-12) */
+    private fun spaceW(base: Float): Float = if (wide) base + MID_GAP else base
 
     /**
      * 넓은 화면 두벌식: 키가 정사각형에 가깝도록 전체 폭을 줄임 →
@@ -574,7 +576,7 @@ class KeyboardService : InputMethodService() {
             key("한/영", special = true) { if (ko) toEnglish() else toKorean() } to 1.2f,
             emojiKey() to 1f,
             key(",", special = true) { commitPlain(",") } to 0.9f,
-            key("띄어쓰기") { space() } to 3.4f,
+            key("띄어쓰기") { space() } to spaceW(3.4f),
             key(".", special = true) { commitPlain(".") } to 1f,
             enterKey() to 1.7f,
         )
@@ -702,7 +704,7 @@ class KeyboardService : InputMethodService() {
         // 아래 줄: 글자 자판 아래 줄과 같은 높이
         val bottom = row(listOf(
             key(if (emojiFrom == Layer.EN) "ABC" else "가", special = true) { layer = if (emojiFrom == Layer.EMOJI) Layer.KO else emojiFrom; showKeys() } to 1.3f,
-            key("띄어쓰기") { space() } to 3f,
+            key("띄어쓰기") { space() } to spaceW(3f),
             key("⌫", special = true, repeat = true) { backspace() } to 1.3f,
             enterKey() to 1.3f,
         ))
@@ -727,7 +729,7 @@ class KeyboardService : InputMethodService() {
             sk("#", 1.2f),
             sk("=", 1f),
             sk(",", 0.9f),
-            key("띄어쓰기") { space() } to 3.4f,
+            key("띄어쓰기") { space() } to spaceW(3.4f),
             sk(".", 1f),
             enterKey() to 1.7f,
         )
@@ -1417,7 +1419,7 @@ class KeyboardService : InputMethodService() {
         private val TOOL_KEYS = listOf("voice", "search", "tone", "layout", "settings")
         private const val KEY_GAP_WIDE = 6
         /** 넓은 화면에서 자음·모음 사이 빈칸 (키 몇 개 폭) */
-        private const val MID_GAP = 2.0f
+        private const val MID_GAP = 2.6f
         private val KO_ROWS = listOf("ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ", "ㅁㄴㅇㄹㅎㅗㅓㅏㅣ", "ㅋㅌㅊㅍㅠㅜㅡ")
         private val KO_SHIFT = mapOf('ㅂ' to 'ㅃ', 'ㅈ' to 'ㅉ', 'ㄷ' to 'ㄸ', 'ㄱ' to 'ㄲ', 'ㅅ' to 'ㅆ', 'ㅐ' to 'ㅒ', 'ㅔ' to 'ㅖ')
         private val EN_ROWS = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
