@@ -722,7 +722,7 @@ class KeyboardService : InputMethodService() {
             key(".", special = true) { commitPlain(".") } to BOTTOM_W[5],
             enterKey() to BOTTOM_W[6],
         ))
-        col.addView(column(listOf(bottom), maxWidthDp = if (wide) squareWidthDp() else 520))
+        col.addView(column(listOf(bottom), maxWidthDp = if (wide) squareWidthDp() else null))   // 글자 자판과 같은 폭 (예전 520dp 제한 때문에 조금 넓은 화면에서 아래 줄이 안쪽으로 들어갔음)
         if (!wide || screenWdp <= panelW + 16) return col
         return FrameLayout(this).apply {
             addView(col, FrameLayout.LayoutParams(dp(panelW), ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL))
