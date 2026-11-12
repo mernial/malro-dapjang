@@ -1034,7 +1034,7 @@ class KeyboardService : InputMethodService() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) { showInfo("이 휴대폰에서 음성 인식을 쓸 수 없어요.", color = Ui.RED); return }
         if (ClaudeProvider.get(this) == null) { showInfo("아직 준비가 안 됐어요. 앱을 열어 설정을 마쳐 주세요.", color = Ui.RED); return }
         heard.clear(); partial = ""
-        listenStartedAt = System.currentTimeMillis(); lastHeardAt = listenStartedAt
+        listenStartedAt = System.currentTimeMillis(); lastHeardAt = listenStartedAt; lastVoiceAt = 0L; errStreak = 0
         listening = true
         searchMode = search
         hideInfo()
@@ -1137,16 +1137,30 @@ class KeyboardService : InputMethodService() {
 
     private var listenStartedAt = 0L
     private var lastHeardAt = 0L
+    /** 마이크에 목소리가 들어온 마지막 때 (글자로 아직 안 바뀌었어도) */
+    private var lastVoiceAt = 0L
+    /** 글자 없이 연달아 난 오류 수 — 다시 켜는 간격을 조금씩 늘림 */
+    private var errStreak = 0
 
     /** 한 토막이 끝난 뒤 이어서 듣기. 4초 넘게 조용하면 그때까지 한 말로 다듬고, 8초 동안 아무 말도 없으면 멈춤 */
-    private fun keepListening() {
+    private fun keepListening(delayMs: Long = 60) {
         val now = System.currentTimeMillis()
         val spoken = heard.isNotBlank()
         when {
             spoken && now - lastHeardAt >= 4000 -> finishSpeech()
-            !spoken && now - listenStartedAt >= 10000 -> { stopRecognizer(); showKeys(); showInfo("말씀을 듣지 못했어요. 다시 눌러 주세요.") }
-            else -> Bg.main.post { if (listening) listen() }   // 기다리지 않고 바로 다시 들음 (그 사이 말이 빠지지 않게)
+            // 목소리가 들어오는 동안은 기다림 — 예전엔 말하는 중인데도 글자가 늦으면 10초에 끊고 '듣지 못했어요'라고 했음 (신부님 2026-11-12)
+            !spoken && now - maxOf(listenStartedAt, lastVoiceAt) >= 10000 -> { stopRecognizer(); showKeys(); showInfo("말씀을 듣지 못했어요. 다시 눌러 주세요.") }
+            !spoken && now - listenStartedAt >= 30000 -> { stopRecognizer(); showKeys(); showInfo("잘 알아듣지 못했어요. 휴대폰을 입 가까이 대고 다시 눌러 주세요.") }
+            // 인식기가 막 끝난 직후 바로 켜면 '아직 바쁨' 오류가 나 헛돌 수 있어 아주 잠깐 쉬고 다시 들음
+            else -> Bg.main.postDelayed({ if (listening) listen() }, delayMs)
         }
+    }
+
+    /** 인식기를 새로 만듦 ('바쁨'·연결 끊김 오류 뒤) */
+    private fun resetRecognizer() {
+        runCatching { recognizer?.cancel() }
+        runCatching { recognizer?.destroy() }
+        recognizer = null
     }
 
     private fun stopRecognizer() {
@@ -1179,22 +1193,22 @@ class KeyboardService : InputMethodService() {
 
     private val listener = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) { if (listening) onReady() }
-        override fun onBeginningOfSpeech() { if (listening && waitingReady) onReady() }
-        override fun onRmsChanged(rmsdB: Float) {}
+        override fun onBeginningOfSpeech() { lastVoiceAt = System.currentTimeMillis(); if (listening && waitingReady) onReady() }
+        override fun onRmsChanged(rmsdB: Float) { if (rmsdB > 5f) lastVoiceAt = System.currentTimeMillis() }
         override fun onBufferReceived(buffer: ByteArray?) {}
         override fun onEndOfSpeech() {}
         override fun onEvent(eventType: Int, params: Bundle?) {}
         override fun onPartialResults(b: Bundle?) {
             if (!listening) return
             partial = b?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-            if (partial.isNotBlank()) lastHeardAt = System.currentTimeMillis()
+            if (partial.isNotBlank()) { lastHeardAt = System.currentTimeMillis(); lastVoiceAt = lastHeardAt; errStreak = 0 }
             val now = (heard.toString() + " " + partial).trim()
             if (now.isNotBlank()) heardView()?.let { it.text = "“$now”"; it.setTextColor(Ui.BROWN) }
         }
         override fun onResults(b: Bundle?) {
             if (!listening) return
             val best = b?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-            if (best.isNotBlank()) { heard.append(' ').append(best); lastHeardAt = System.currentTimeMillis() }
+            if (best.isNotBlank()) { heard.append(' ').append(best); lastHeardAt = System.currentTimeMillis(); errStreak = 0 }
             partial = ""
             heardView()?.let { v -> heard.toString().trim().takeIf { it.isNotBlank() }?.let { v.text = "“$it”"; v.setTextColor(Ui.BROWN) } }
             // 음성 인식은 말이 잠깐만 끊겨도 한 토막을 끝냄 → 바로 다듬지 않고 이어서 들음.
@@ -1207,11 +1221,17 @@ class KeyboardService : InputMethodService() {
         }
         override fun onError(error: Int) {
             if (!listening) return
+            android.util.Log.i("talkhelper-kb", "speech error=$error streak=$errStreak")
             if (error != SpeechRecognizer.ERROR_NETWORK && error != SpeechRecognizer.ERROR_NETWORK_TIMEOUT && error != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
                 // 말이 없어서 끝난 것(조용함·못 알아들음)이면 계속 들음
                 if (partial.isNotBlank()) { heard.append(' ').append(partial); partial = "" }
                 if (searchMode && heard.isNotBlank()) { finishSpeech(); return }
-                keepListening(); return
+                errStreak++
+                // 바쁨(8)·클라이언트(5)·서버 끊김(11)은 인식기가 꼬인 것 → 새로 만들고 조금 쉬었다 다시.
+                // 예전엔 곧바로 다시 켜다 같은 오류로 헛돌아, 말해도 하나도 못 듣고 10초 뒤 '듣지 못했어요'가 떴음
+                val stuck = error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY || error == SpeechRecognizer.ERROR_CLIENT || error == 11
+                if (stuck || errStreak >= 3) resetRecognizer()
+                keepListening(if (stuck) 250L + 150L * errStreak.coerceAtMost(4) else 60L); return
             }
             if (heard.isNotBlank() || partial.isNotBlank()) { finishSpeech(); return }
             stopRecognizer()
