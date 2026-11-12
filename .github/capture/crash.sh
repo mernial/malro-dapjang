@@ -48,7 +48,11 @@ echo "글 칸: $B"
 if [ -n "$B" ]; then set -- $B; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 3; fi
 timeout 30 adb exec-out screencap -p > shots/keyboard.png
 # 이모티콘 판(위 탭): 😊 → 첫 탭 사진, '신앙' 탭(다섯째) 사진, '가'로 돌아감
-timeout 10 adb shell input tap 332 2182; sleep 2
+# 기호 자판: 아래 줄 자리가 한글과 같은지 (!#1 → 사진 → 가)
+timeout 10 adb shell input tap 70 2182; sleep 2
+timeout 30 adb exec-out screencap -p > shots/keyboard_sym.png
+timeout 10 adb shell input tap 70 2182; sleep 2
+timeout 10 adb shell input tap 295 2182; sleep 2
 timeout 30 adb exec-out screencap -p > shots/keyboard_emoji.png
 timeout 10 adb shell input tap 607 1674; sleep 2
 timeout 30 adb exec-out screencap -p > shots/keyboard_emoji2.png
