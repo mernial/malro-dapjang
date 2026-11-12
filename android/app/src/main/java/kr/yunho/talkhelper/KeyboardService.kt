@@ -282,6 +282,10 @@ class KeyboardService : InputMethodService() {
         content.addView(keys)
         // 누른 키가 살짝 커질 때 옆·위로 잘리지 않게
         unclip(keys); content.clipChildren = false; content.clipToPadding = false
+        content.post {
+            val root = content.parent as? View
+            android.util.Log.i("talkhelper-kb", "size root=${root?.height} pad=${root?.paddingBottom} content=${content.height} keys=${keys.height} keyH=$keyH screenH=$screenHdp")
+        }
     }
 
     // ───────── 블루투스(실물) 키보드 ─────────
