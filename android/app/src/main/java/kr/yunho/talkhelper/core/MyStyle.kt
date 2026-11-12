@@ -6,6 +6,11 @@ package kr.yunho.talkhelper.core
  */
 object MyStyle {
     const val MAX_EXAMPLES = 30
+
+    /** '내 말투'를 처음 고를 때 보여 주는 동의 안내 (구글 플레이 사용자 데이터 정책: 눈에 띄는 고지·동의) */
+    const val CONSENT_TEXT = "🪞 '내 말투'는 저장해 둔 카톡 대화에서 내가 보낸 말 가운데 최근 짧은 문장(최대 30개)을 " +
+        "말투 예시로 AI(Anthropic Claude)에 함께 보내요. 다른 사람이 보낸 말은 보내지 않고, 고르는 일은 휴대폰 안에서 해요. " +
+        "보낸 내용은 저장되지 않아요. 설정에서 언제든 끌 수 있어요."
     private const val MAX_LEN = 120
 
     // 안드로이드: "2024. 3. 5. 오후 3:12, 김미카엘 : 메시지" / "2024년 3월 5일 오후 3:12, 김미카엘 : 메시지"
@@ -46,6 +51,20 @@ object MyStyle {
             .filter { it.length in 2..MAX_LEN && !SKIP.matches(it) }.distinct().takeLast(max)
 
     /** 내 이름 짐작: 설정의 이름과 맞는 사람, 아니면 저장한 여러 방에 모두 나오는 단 한 사람 */
+    /**
+     * 여러 방의 '내가 보낸 말'(방마다 최근 것부터)을 번갈아 하나씩 모아 [max]개까지.
+     * 한 방의 말투만 몰리지 않게 하고, 같은 문장은 한 번만.
+     */
+    fun mergeExamples(perRoom: List<List<String>>, max: Int = MAX_EXAMPLES): List<String> {
+        val out = LinkedHashSet<String>()
+        var i = 0
+        while (out.size < max && perRoom.any { i < it.size }) {
+            for (list in perRoom) if (i < list.size && out.size < max) out.add(list[i])
+            i++
+        }
+        return out.toList()
+    }
+
     fun guessMe(myName: String, sendersByRoom: List<List<String>>): String? {
         val all = sendersByRoom.flatten().toSet()
         if (myName.isNotBlank()) all.firstOrNull { it == myName || it.contains(myName) || myName.contains(it) }?.let { return it }

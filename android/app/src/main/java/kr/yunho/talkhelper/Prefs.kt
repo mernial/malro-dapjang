@@ -111,6 +111,14 @@ class Prefs(ctx: Context) {
         roomKey(room)?.let { sp.edit().putString("mode:$it", m.name).apply() }
     }
 
+    /**
+     * '내 말투'에 내보낸 대화 속 내가 보낸 말을 예시로 쓰는 데 동의했는지.
+     * null = 아직 안 물어봄, true = 동의, false = 쓰지 않음
+     */
+    var myStyleConsent: Boolean?
+        get() = if (sp.contains("myStyleConsent")) sp.getBoolean("myStyleConsent", false) else null
+        set(v) { if (v == null) sp.edit().remove("myStyleConsent").apply() else sp.edit().putBoolean("myStyleConsent", v).apply() }
+
     /** 말로 답장 키보드 색 (KbTheme.id) */
     var keyboardTheme: String
         get() = sp.getString("keyboardTheme", "warm") ?: "warm"

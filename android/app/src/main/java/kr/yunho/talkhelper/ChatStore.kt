@@ -188,6 +188,19 @@ object ChatStore {
         return MyStyle.examples(chat, me)
     }
 
+    /**
+     * 키보드용 '내 말투' 예시: 저장한 모든 대화에서 내가 보낸 말만 골라 모음 (키보드는 지금 어느 방인지 모름).
+     * 다른 사람이 보낸 말은 넣지 않음. 휴대폰 안에서만 고름.
+     */
+    fun myStyleAll(c: Context): List<String> {
+        val perRoom = Rooms.ids(c).mapNotNull { r ->
+            val chat = chatText(c, r) ?: return@mapNotNull null
+            val me = meFor(c, r, chat) ?: return@mapNotNull null
+            MyStyle.examples(chat, me)
+        }
+        return MyStyle.mergeExamples(perRoom)
+    }
+
     fun delete(c: Context, room: String) {
         File(dir(c), "$room.txt").delete()
         mediaDir(c, room).deleteRecursively()
