@@ -1,0 +1,31 @@
+name: 비공개 테스트에 하루 한 번 올리기
+
+# 내부 테스트에 올라간 그날 마지막 버전을 비공개 테스트(테스터)에 올림.
+# 플레이는 앱마다 하루 저장 횟수가 정해져 있어, 합칠 때마다 올리지 않고 하루 한 번만 (신부님 2026-11-12)
+on:
+  schedule:
+    - cron: "17 14 * * *"   # 매일 한국 시간 밤 11시 17분
+  workflow_dispatch:         # 필요하면 Actions 화면에서 바로 돌림
+
+concurrency:
+  group: talk-helper-release   # 빌드·업로드와 겹치지 않게
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    env:
+      PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 비공개 테스트에 올리기
+        if: ${{ env.PLAY_JSON != '' }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          data = json.loads(os.environ["PLAY_JSON"].strip(), strict=False)
+          with open(os.path.join(os.environ["RUNNER_TEMP"], "play-service-account.json"), "w") as f:
+              json.dump(data, f)
+          PY
+          pip install -q google-auth requests
+          SA_PATH="$RUNNER_TEMP/play-service-account.json" python3 .github/play/promote.py

@@ -112,10 +112,5 @@ jobs:
           mappingFile: android/app/build/outputs/mapping/playRelease/mapping.txt
           track: internal
           status: completed
-      # main 에 합친 버전은 비공개 테스트(가족 테스터)에도 올림 → 구글 검토 뒤 테스터 폰에 자동 업데이트
-      - name: 비공개 테스트에도 올리기 (main 만)
-        if: ${{ github.ref == 'refs/heads/main' && env.PLAY_JSON != '' && env.SIGNING_STORE_FILE != '' }}
-        working-directory: .
-        run: |
-          pip install -q google-auth requests
-          SA_PATH="$RUNNER_TEMP/play-service-account.json" python3 .github/play/promote.py
+      # 비공개 테스트(테스터)에는 하루 한 번만 올림 → .github/workflows/play-closed.yml
+      #  (합칠 때마다 올리면 플레이 하루 저장 횟수를 넘어 막혔음, 2026-11-12)
