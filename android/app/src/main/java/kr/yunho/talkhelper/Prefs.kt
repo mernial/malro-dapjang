@@ -111,6 +111,11 @@ class Prefs(ctx: Context) {
         roomKey(room)?.let { sp.edit().putString("mode:$it", m.name).apply() }
     }
 
+    /** 말로 답장 키보드 색 (KbTheme.id) */
+    var keyboardTheme: String
+        get() = sp.getString("keyboardTheme", "warm") ?: "warm"
+        set(v) = sp.edit().putString("keyboardTheme", v).apply()
+
     /** 말로 답장 키보드 자판: "dubeol"(두벌식) / "cji"(천지인) */
     var keyboardLayout: String
         get() = sp.getString("keyboardLayout", "dubeol") ?: "dubeol"

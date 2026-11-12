@@ -594,6 +594,41 @@ class MainActivity : Activity() {
         paintTones()
         body.add(toneCard, 10)
 
+        // C-2. 키보드 색: 다섯 가지 중 고름 (신부님 요청 2026-11-12)
+        body.add(Kit.section(ctx, R.drawable.ic_keyboard, "키보드 색"), 24)
+        val colorCard = Kit.card(ctx, 16)
+        val colorChips = LinkedHashMap<String, android.widget.TextView>()
+        fun paintColors() {
+            colorChips.forEach { (id, v) ->
+                val t = KbTheme.of(id)
+                val on = id == p.keyboardTheme
+                v.text = if (on) "✓ ${t.label}" else t.label
+                v.setTextColor(t.text)
+                v.typeface = if (on) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
+                v.background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(t.bg); cornerRadius = Ui.dp(ctx, 14).toFloat()
+                    setStroke(Ui.dp(ctx, if (on) 3 else 1), if (on) Ui.BROWN else t.edge)
+                }
+                v.contentDescription = "키보드 색 ${t.label}" + if (on) ", 고름" else ""
+            }
+        }
+        val themes = KbTheme.ALL
+        for (line in themes.chunked(2)) {
+            val row = Ui.hbox(ctx)
+            for (t in line) {
+                val c = Kit.chip(ctx, t.label).apply {
+                    setOnClickListener { p.keyboardTheme = t.id; paintColors() }
+                }
+                colorChips[t.id] = c
+                row.add(c)
+            }
+            if (line.size < 2) row.add(View(ctx))
+            colorCard.add(row, if (line.first() == themes.first()) 0 else 8)
+        }
+        colorCard.add(Ui.text(ctx, "고른 색은 다음에 키보드를 열 때 바로 바뀌어요.", 13f, color = Ui.MUTED), 10)
+        paintColors()
+        body.add(colorCard, 10)
+
         // D. 보내는 방식 (카톡 위 버튼이 직접 보내는 직접 설치판만. 키보드는 보내기를 사용자가 누름)
         if (!store) {
             body.add(Kit.section(ctx, R.drawable.ic_send, "보내는 방식"), 24)
