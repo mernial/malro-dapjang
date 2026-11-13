@@ -90,6 +90,9 @@ timeout 30 adb exec-out screencap -p > shots/keyboard_cji.png
 # 천지인만: 같은 자리 키로 !#1 → 기호 → 123 큰 숫자판 → 가 (천지인으로)
 timeout 10 adb shell input tap 78 2180; sleep 2
 timeout 30 adb exec-out screencap -p > shots/keyboard_cji_sym.png
+timeout 10 adb shell input tap 80 2045; sleep 2   # 1/2 → 둘째 장
+timeout 30 adb exec-out screencap -p > shots/keyboard_cji_sym2.png
+timeout 10 adb shell input tap 80 2045; sleep 2   # 2/2 → 첫째 장
 timeout 10 adb shell input tap 70 2182; sleep 2
 timeout 30 adb exec-out screencap -p > shots/keyboard_num.png
 timeout 10 adb shell input tap 200 2182; sleep 2   # 숫자판 '가' (왼쪽 아래 둘째)
