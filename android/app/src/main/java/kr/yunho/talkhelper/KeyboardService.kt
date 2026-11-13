@@ -834,10 +834,18 @@ class KeyboardService : InputMethodService() {
         fun k(ch: String) = key(ch) { commitPlain(ch) } to 1f
         fun line(chars: List<String>) = row(chars.map { k(it) })
         val p1 = symPage == 0
-        val r1 = "1234567890".map { "$it" }
-        val r2 = if (p1) listOf("+", "×", "÷", "=", "/", "_", "<", ">", "[", "]") else listOf("`", "~", "\\", "|", "{", "}", "€", "£", "¥", "₩")
+        val cji = cjiNumPad()
+        // 천지인은 숫자를 큰 숫자판(123)에서 치므로 숫자 줄 대신 기호를 한 줄 더 (신부님 2026-11-13)
+        val r1 = if (!cji) "1234567890".map { "$it" }
+            else if (p1) listOf("~", "`", "|", "\\", "{", "}", "₩", "€", "£", "¥")
+            else listOf("♥", "♪", "♬", "☞", "☜", "↑", "↓", "←", "→", "♨")
+        val r2 = if (p1) listOf("+", "×", "÷", "=", "/", "_", "<", ">", "[", "]")
+            else if (cji) listOf("「", "」", "『", "』", "《", "》", "〈", "〉", "【", "】")
+            else listOf("`", "~", "\\", "|", "{", "}", "€", "£", "¥", "₩")
         val r3 = if (p1) listOf("!", "@", "#", "$", "%", "^", "&", "*", "(", ")") else listOf("°", "•", "○", "●", "□", "■", "♤", "♡", "◇", "♧")
-        val r4 = if (p1) listOf("-", "'", "\"", ":", ";", ",", "?") else listOf("☆", "★", "※", "《", "》", "¡", "¿")
+        val r4 = if (p1) listOf("-", "'", "\"", ":", ";", ",", "?")
+            else if (cji) listOf("☆", "★", "※", "…", "·", "¡", "¿")
+            else listOf("☆", "★", "※", "《", "》", "¡", "¿")
         val rows = listOf(
             line(r1), line(r2), line(r3),
             row(listOf(key(if (p1) "1/2" else "2/2", special = true) { symPage = 1 - symPage; showKeys() } to 1.5f) +
