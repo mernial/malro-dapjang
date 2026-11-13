@@ -258,7 +258,7 @@ class KeyboardService : InputMethodService() {
         val newAction = if (opts and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0 || multi) EditorInfo.IME_ACTION_NONE else act
         val actionChanged = newAction != editorAction
         editorAction = newAction
-        val want = if (cls == EditorInfo.TYPE_CLASS_NUMBER || cls == EditorInfo.TYPE_CLASS_PHONE) Layer.NUM else if (layer == Layer.SYM || layer == Layer.NUM) (if (symFrom == Layer.EN) Layer.EN else Layer.KO) else if (layer == Layer.EMOJI) (if (emojiFrom == Layer.EN) Layer.EN else Layer.KO) else layer
+        val want = if (cls == EditorInfo.TYPE_CLASS_NUMBER || cls == EditorInfo.TYPE_CLASS_PHONE) (if (prefs.keyboardLayout == "cji") Layer.NUM else Layer.SYM) else if (layer == Layer.SYM || layer == Layer.NUM) (if (symFrom == Layer.EN) Layer.EN else Layer.KO) else if (layer == Layer.EMOJI) (if (emojiFrom == Layer.EN) Layer.EN else Layer.KO) else layer
         if (want != layer || !restarting || actionChanged) { layer = want; shift = false; if (::content.isInitialized && !listening) showKeys() }
     }
 
@@ -631,10 +631,12 @@ class KeyboardService : InputMethodService() {
     /** 기호·숫자판에서 돌아갈 글자 자판 (한글/영어) */
     private var symFrom = Layer.KO
     private fun toSymbols() { finishComposing(); if (layer == Layer.KO || layer == Layer.EN) symFrom = layer; layer = Layer.SYM; shift = false; showKeys() }
-    /** 같은 자리 키를 누를 때마다: 글자 → 기호(!#1) → 숫자판(123) → 글자(가) (신부님 2026-11-13) */
+    /** 천지인: 같은 자리 키를 누를 때마다 글자 → 기호(!#1) → 숫자판(123) → 글자(가) (신부님 2026-11-13). 두벌식·영어는 글자 ↔ 기호 */
     private fun toNumPad() { finishComposing(); layer = Layer.NUM; shift = false; showKeys() }
     private fun backToLetters() { layer = if (symFrom == Layer.EN) Layer.EN else Layer.KO; shift = false; showKeys() }
     private fun lettersLabel() = if (symFrom == Layer.EN) "ABC" else "가"
+    /** 큰 숫자판은 천지인에서만 */
+    private fun cjiNumPad() = prefs.keyboardLayout == "cji" && symFrom == Layer.KO
 
     /** 두벌식(한글 쿼티)·영어 쿼티 */
     private fun qwerty(rows: List<String>, shifted: Map<Char, Char>?): View {
@@ -830,8 +832,8 @@ class KeyboardService : InputMethodService() {
         val back = key("⌫", special = true, repeat = true) { backspace() } to 1.5f
         val bottom = listOf(
             // 한글 자판 아래 줄과 칸마다 같은 폭 → 자판을 바꿔도 띄어쓰기·옆 키 자리가 그대로 (신부님 2026-11-12)
-            // 같은 자리 키를 한 번 더 누르면 큰 숫자판
-            key("123", special = true) { toNumPad() } to BOTTOM_W[0],
+            // 천지인에서 왔으면 같은 자리 키를 한 번 더 누르면 큰 숫자판, 두벌식·영어는 글자 자판으로 (신부님 2026-11-13)
+            (if (cjiNumPad()) key("123", special = true) { toNumPad() } else key(lettersLabel(), special = true) { backToLetters() }) to BOTTOM_W[0],
             sk("#", BOTTOM_W[1]),
             sk("=", BOTTOM_W[2]),
             sk(",", BOTTOM_W[3]),
