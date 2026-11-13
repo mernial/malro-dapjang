@@ -851,19 +851,20 @@ class KeyboardService : InputMethodService() {
             row(listOf(key(if (p1) "1/2" else "2/2", special = true) { symPage = 1 - symPage; showKeys() } to 1.5f) +
                 r4.map { k(it) } + listOf(key("⌫", special = true, repeat = true) { backspace() } to 1.5f)),
             // 아래 줄은 자판을 바꿔도 칸 크기·자리가 그대로 (신부님 2026-11-13)
+            // 기호를 넣고 띄어쓰기를 누르면 글자 자판으로 돌아감 (삼성 키보드처럼, 신부님 2026-11-14)
             //  천지인 쪽(천지인·기호·숫자판): 반칸·반칸·한칸·한칸·한칸 / 두벌식 쪽(두벌식·영어·기호·이모티콘): BOTTOM_W 일곱 칸
             if (cji) row(listOf(
                 key("123", special = true) { symPage = 0; toNumPad() } to 0.5f,
                 key("가", special = true) { symPage = 0; backToLetters() } to 0.5f,
                 key(",", special = true) { commitPlain(",") } to 1f,
-                key("띄어쓰기") { space() } to 1f,
+                key("띄어쓰기") { space(); symPage = 0; backToLetters() } to 1f,
                 enterKey() to 1f,
             )) else row(listOf(
                 key(lettersLabel(), special = true) { symPage = 0; backToLetters() } to BOTTOM_W[0],
                 key("한/영", special = true) { symPage = 0; symFrom = if (symFrom == Layer.EN) Layer.KO else Layer.EN; backToLetters() } to BOTTOM_W[1],
                 emojiKey() to BOTTOM_W[2],
                 key(",", special = true) { commitPlain(",") } to BOTTOM_W[3],
-                key("띄어쓰기") { space() } to spaceW(BOTTOM_W[4]),
+                key("띄어쓰기") { space(); symPage = 0; backToLetters() } to spaceW(BOTTOM_W[4]),
                 key(".", special = true) { commitPlain(".") } to BOTTOM_W[5],
                 enterKey() to BOTTOM_W[6],
             )),
