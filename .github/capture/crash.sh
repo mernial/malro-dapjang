@@ -68,7 +68,7 @@ for i in $(seq 1 30); do adb shell input keyevent KEYCODE_DEL; done
 # 기호 자판: 아래 줄 자리가 한글과 같은지 (!#1 → 사진 → 가)
 timeout 10 adb shell input tap 70 2182; sleep 2
 timeout 30 adb exec-out screencap -p > shots/keyboard_sym.png
-timeout 10 adb shell input tap 70 2182; sleep 2
+timeout 10 adb shell input tap 70 2182; sleep 2   # 두벌식은 같은 자리 '가' → 한글
 timeout 10 adb shell input tap 295 2182; sleep 2
 timeout 30 adb exec-out screencap -p > shots/keyboard_emoji.png
 timeout 10 adb shell input tap 607 1674; sleep 2
@@ -87,6 +87,16 @@ echo "천지인 단추: $K"
 if [ -n "$K" ]; then set -- $K; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 3
 else timeout 10 adb shell input tap 950 1592; sleep 3; fi   # 키보드 창은 uiautomator 에 안 보일 때가 있어 자리로 누름 (위 줄 오른쪽 ⇄)
 timeout 30 adb exec-out screencap -p > shots/keyboard_cji.png
+# 천지인만: 같은 자리 키로 !#1 → 기호 → 123 큰 숫자판 → 가 (천지인으로)
+timeout 10 adb shell input tap 78 2180; sleep 2
+timeout 30 adb exec-out screencap -p > shots/keyboard_cji_sym.png
+timeout 10 adb shell input tap 80 2045; sleep 2   # 1/2 → 둘째 장
+timeout 30 adb exec-out screencap -p > shots/keyboard_cji_sym2.png
+timeout 10 adb shell input tap 80 2045; sleep 2   # 2/2 → 첫째 장
+timeout 10 adb shell input tap 70 2182; sleep 2
+timeout 30 adb exec-out screencap -p > shots/keyboard_num.png
+timeout 10 adb shell input tap 200 2182; sleep 2   # 숫자판 '가' (왼쪽 아래 둘째)
+timeout 30 adb exec-out screencap -p > shots/keyboard_back.png
 timeout 10 adb shell input tap 950 1592; sleep 2   # 다시 두벌식으로
 timeout 20 adb shell cmd overlay enable com.android.internal.systemui.navbar.threebutton; sleep 3
 # 폴드를 편 것처럼 넓은 화면으로 바꿔 키보드 사진 (자음·모음 사이 띄움 확인)

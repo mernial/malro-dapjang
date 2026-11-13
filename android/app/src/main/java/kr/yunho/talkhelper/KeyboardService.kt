@@ -52,7 +52,7 @@ class KeyboardService : InputMethodService() {
     private lateinit var content: FrameLayout
 
     /** 자판 종류: 한글(두벌식/천지인) · 영어 · 숫자·기호 */
-    private enum class Layer { KO, EN, SYM, EMOJI }
+    private enum class Layer { KO, EN, SYM, NUM, EMOJI }
     private var layer = Layer.KO
     private var shift = false
 
@@ -258,13 +258,16 @@ class KeyboardService : InputMethodService() {
         val newAction = if (opts and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0 || multi) EditorInfo.IME_ACTION_NONE else act
         val actionChanged = newAction != editorAction
         editorAction = newAction
-        val want = if (cls == EditorInfo.TYPE_CLASS_NUMBER || cls == EditorInfo.TYPE_CLASS_PHONE) Layer.SYM else if (layer == Layer.SYM) Layer.KO else if (layer == Layer.EMOJI) (if (emojiFrom == Layer.EN) Layer.EN else Layer.KO) else layer
+        val want = if (cls == EditorInfo.TYPE_CLASS_NUMBER || cls == EditorInfo.TYPE_CLASS_PHONE) (if (prefs.keyboardLayout == "cji") Layer.NUM else Layer.SYM) else if (layer == Layer.SYM || layer == Layer.NUM) (if (symFrom == Layer.EN) Layer.EN else Layer.KO) else if (layer == Layer.EMOJI) (if (emojiFrom == Layer.EN) Layer.EN else Layer.KO) else layer
         if (want != layer || !restarting || actionChanged) { layer = want; shift = false; if (::content.isInitialized && !listening) showKeys() }
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
         // 키보드가 내려가면 이모티콘·기호 판은 닫아 둠 → 다음에 열면 늘 글자 자판부터 (루비로사 2026-11-10)
-        if (layer == Layer.EMOJI || layer == Layer.SYM) { layer = if (emojiFrom == Layer.EN && layer == Layer.EMOJI) Layer.EN else Layer.KO; shift = false; if (::content.isInitialized) showKeys() }
+        if (layer == Layer.EMOJI || layer == Layer.SYM || layer == Layer.NUM) {
+            layer = if ((layer == Layer.EMOJI && emojiFrom == Layer.EN) || (layer != Layer.EMOJI && symFrom == Layer.EN)) Layer.EN else Layer.KO
+            shift = false; if (::content.isInitialized) showKeys()
+        }
         stopRecognizer()
         hangul.clear()
         super.onFinishInputView(finishingInput)
@@ -298,6 +301,7 @@ class KeyboardService : InputMethodService() {
             Layer.KO -> if (prefs.keyboardLayout == "cji") cheonjiin() else qwerty(KO_ROWS, KO_SHIFT)
             Layer.EN -> qwerty(EN_ROWS, null)
             Layer.SYM -> symbols()
+            Layer.NUM -> numPad()
             Layer.EMOJI -> emojis()
         }
         content.addView(keys)
@@ -378,7 +382,8 @@ class KeyboardService : InputMethodService() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (currentInputConnection == null || !hwKeyboard() && event.deviceId == android.view.KeyCharacterMap.VIRTUAL_KEYBOARD) return super.onKeyDown(keyCode, event)
+        // 실물 자판이 아닌 키(화면 자판·시스템)는 그대로. 휴대폰 설정 조회(hwKeyboard)는 키마다 하지 않음 — 매직 키보드로 칠 때 느렸음 (신부님 2026-11-13)
+        if (currentInputConnection == null || event.deviceId == android.view.KeyCharacterMap.VIRTUAL_KEYBOARD) return super.onKeyDown(keyCode, event)
         // 한/영 바꾸기
         if (keyCode == KeyEvent.KEYCODE_LANGUAGE_SWITCH || keyCode == KeyEvent.KEYCODE_KANA || keyCode == KeyEvent.KEYCODE_EISU ||
             keyCode == KeyEvent.KEYCODE_ALT_RIGHT || (keyCode == KeyEvent.KEYCODE_SPACE && event.isShiftPressed)) {
@@ -624,7 +629,15 @@ class KeyboardService : InputMethodService() {
 
     private fun toKorean() { layer = Layer.KO; shift = false; showKeys() }
     private fun toEnglish() { finishComposing(); layer = Layer.EN; shift = false; showKeys() }
-    private fun toSymbols() { finishComposing(); layer = Layer.SYM; shift = false; showKeys() }
+    /** 기호·숫자판에서 돌아갈 글자 자판 (한글/영어) */
+    private var symFrom = Layer.KO
+    private fun toSymbols() { finishComposing(); if (layer == Layer.KO || layer == Layer.EN) symFrom = layer; layer = Layer.SYM; shift = false; showKeys() }
+    /** 천지인: 같은 자리 키를 누를 때마다 글자 → 기호(!#1) → 숫자판(123) → 글자(가) (신부님 2026-11-13). 두벌식·영어는 글자 ↔ 기호 */
+    private fun toNumPad() { finishComposing(); layer = Layer.NUM; shift = false; showKeys() }
+    private fun backToLetters() { layer = if (symFrom == Layer.EN) Layer.EN else Layer.KO; shift = false; showKeys() }
+    private fun lettersLabel() = if (symFrom == Layer.EN) "ABC" else "가"
+    /** 큰 숫자판은 천지인에서만 */
+    private fun cjiNumPad() = prefs.keyboardLayout == "cji" && symFrom == Layer.KO
 
     /** 두벌식(한글 쿼티)·영어 쿼티 */
     private fun qwerty(rows: List<String>, shifted: Map<Char, Char>?): View {
@@ -786,31 +799,79 @@ class KeyboardService : InputMethodService() {
         }
     }
 
-    private fun symbols(): View {
-        // 한글 자판과 같은 틀: ⌫ 는 셋째 줄 오른쪽 끝, 띄어쓰기·완료도 같은 자리 (신부님 요청 2026-11-11)
-        // 자주 쓰는 ! ? ~ 는 엄지가 닿는 셋째 줄, . , 는 띄어쓰기 옆
-        fun k(ch: String, w: Float = 1f) = key(ch) { commitPlain(ch) } to w
-        fun sk(ch: String, w: Float) = key(ch, special = true) { commitPlain(ch) } to w
-        val r1 = "1234567890".map { k("$it") }
-        val r2 = "-/:;()₩&@\"".map { k("$it") }
-        val r3 = "!?~'^*+".map { k("$it") }
-        val back = key("⌫", special = true, repeat = true) { backspace() } to 1.5f
-        val bottom = listOf(
-            // 한글 자판 아래 줄과 칸마다 같은 폭 → 자판을 바꿔도 띄어쓰기·옆 키 자리가 그대로 (신부님 2026-11-12)
-            key("가", special = true) { toKorean() } to BOTTOM_W[0],
-            sk("#", BOTTOM_W[1]),
-            sk("=", BOTTOM_W[2]),
-            sk(",", BOTTOM_W[3]),
-            key("띄어쓰기") { space() } to spaceW(BOTTOM_W[4]),
-            sk(".", BOTTOM_W[5]),
-            enterKey() to BOTTOM_W[6],
+    /**
+     * 큰 숫자판 (삼성 키보드 숫자판처럼, 전화 걸 때 모양). 기호 자판에서 '123'을 누르면 뜨고,
+     * 숫자만 받는 칸(전화번호·인증번호)에서도 처음부터 이 판.
+     */
+    private fun numPad(): View {
+        fun n(d: String) = key(d) { commitPlain(d) }.apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, keyTextSp + 6) } to 1f
+        val back = key("⌫", special = true, repeat = true) { backspace() } to 1f
+        val rows = listOf(
+            row(listOf(n("1"), n("2"), n("3"), back)),
+            row(listOf(n("4"), n("5"), n("6"), enterKey() to 1f)),
+            row(listOf(n("7"), n("8"), n("9"), key(".,-/", special = true) { cyclePunct(".,-/") } to 1f)),
+            row(listOf(
+                // 삼성 숫자판처럼 왼쪽 아래 !@# (기호) · 가 (글자)
+                key("!@#", special = true) { toSymbols() } to 0.5f,
+                key(lettersLabel(), special = true) { backToLetters() } to 0.5f,
+                n("0"),
+                key("띄어쓰기") { space() } to 1f,
+                key(",", special = true) { commitPlain(",") } to 1f,
+            )),
         )
-        return column(listOf(
-            row(r1.take(5) + mid() + r1.drop(5)),
-            row(r2.take(5) + mid() + r2.drop(5)),
-            row(listOf(sk("%", 1.5f)) + r3.take(4) + mid() + r3.drop(4) + listOf(back)),
-            row(bottom),
-        ), maxWidthDp = if (wide) squareWidthDp() else null)
+        // 넓은 화면(폴드)에선 숫자판이 너무 넓지 않게 가운데에
+        return column(rows, maxWidthDp = if (wide) 560 else null)
+    }
+
+    /** 기호 자판 쪽 (1/2 ↔ 2/2) */
+    private var symPage = 0
+
+    /**
+     * 기호 자판: 삼성 키보드 기호 배열 (위 숫자 줄 + 기호 세 줄 + 아래 줄, 1/2 를 누르면 둘째 장) — 두벌식·천지인 모두 (신부님 2026-11-13 '삼성 배열을 기본으로')
+     * 아래 줄 왼쪽: 천지인은 '123'(큰 숫자판)·'가', 두벌식·영어는 '가/ABC'·'한/영'
+     */
+    private fun symbols(): View {
+        fun k(ch: String) = key(ch) { commitPlain(ch) } to 1f
+        fun line(chars: List<String>) = row(chars.map { k(it) })
+        val p1 = symPage == 0
+        val cji = cjiNumPad()
+        // 천지인은 숫자를 큰 숫자판(123)에서 치므로 숫자 줄 대신 기호를 한 줄 더 (신부님 2026-11-13)
+        val r1 = if (!cji) "1234567890".map { "$it" }
+            else if (p1) listOf("~", "`", "|", "\\", "{", "}", "₩", "€", "£", "¥")
+            else listOf("♥", "♪", "♬", "☞", "☜", "↑", "↓", "←", "→", "♨")
+        val r2 = if (p1) listOf("+", "×", "÷", "=", "/", "_", "<", ">", "[", "]")
+            else if (cji) listOf("「", "」", "『", "』", "《", "》", "〈", "〉", "【", "】")
+            else listOf("`", "~", "\\", "|", "{", "}", "€", "£", "¥", "₩")
+        val r3 = if (p1) listOf("!", "@", "#", "$", "%", "^", "&", "*", "(", ")") else listOf("°", "•", "○", "●", "□", "■", "♤", "♡", "◇", "♧")
+        val r4 = if (p1) listOf("-", "'", "\"", ":", ";", if (cji) "." else ",", "?")
+            else if (cji) listOf("☆", "★", "※", "…", "·", "¡", "¿")
+            else listOf("☆", "★", "※", "《", "》", "¡", "¿")
+        val rows = listOf(
+            line(r1), line(r2), line(r3),
+            row(listOf(key(if (p1) "1/2" else "2/2", special = true) { symPage = 1 - symPage; showKeys() } to 1.5f) +
+                r4.map { k(it) } + listOf(key("⌫", special = true, repeat = true) { backspace() } to 1.5f)),
+            // 아래 줄은 자판을 바꿔도 칸 크기·자리가 그대로 (신부님 2026-11-13)
+            //  천지인 쪽(천지인·기호·숫자판): 반칸·반칸·한칸·한칸·한칸 / 두벌식 쪽(두벌식·영어·기호·이모티콘): BOTTOM_W 일곱 칸
+            if (cji) row(listOf(
+                key("123", special = true) { symPage = 0; toNumPad() } to 0.5f,
+                key("가", special = true) { symPage = 0; backToLetters() } to 0.5f,
+                key(",", special = true) { commitPlain(",") } to 1f,
+                key("띄어쓰기") { space() } to 1f,
+                enterKey() to 1f,
+            )) else row(listOf(
+                key(lettersLabel(), special = true) { symPage = 0; backToLetters() } to BOTTOM_W[0],
+                key("한/영", special = true) { symPage = 0; symFrom = if (symFrom == Layer.EN) Layer.KO else Layer.EN; backToLetters() } to BOTTOM_W[1],
+                emojiKey() to BOTTOM_W[2],
+                key(",", special = true) { commitPlain(",") } to BOTTOM_W[3],
+                key("띄어쓰기") { space() } to spaceW(BOTTOM_W[4]),
+                key(".", special = true) { commitPlain(".") } to BOTTOM_W[5],
+                enterKey() to BOTTOM_W[6],
+            )),
+        )
+        // 다섯 줄: 위 네 줄만 조금 낮추고 아래 줄은 다른 자판과 같은 높이 → 전체 높이도 비슷
+        val h = keyH * 3 / 4
+        rows.dropLast(1).forEach { r -> for (i in 0 until r.childCount) r.getChildAt(i).layoutParams.height = h }
+        return column(rows, maxWidthDp = if (wide) squareWidthDp() else null)
     }
 
     // ───────── 글자 넣기 ─────────
@@ -847,9 +908,8 @@ class KeyboardService : InputMethodService() {
         render()
     }
 
-    private fun cyclePunct() {
+    private fun cyclePunct(marks: String = ".,?!") {
         val ic = currentInputConnection ?: return
-        val marks = ".,?!"
         val now = System.currentTimeMillis()
         if (lastCjiKey == "punct" && now - lastCjiAt < 1200) {
             ic.deleteSurroundingText(1, 0)
