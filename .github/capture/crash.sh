@@ -68,7 +68,10 @@ for i in $(seq 1 30); do adb shell input keyevent KEYCODE_DEL; done
 # 기호 자판: 아래 줄 자리가 한글과 같은지 (!#1 → 사진 → 가)
 timeout 10 adb shell input tap 70 2182; sleep 2
 timeout 30 adb exec-out screencap -p > shots/keyboard_sym.png
-timeout 10 adb shell input tap 70 2182; sleep 2
+timeout 10 adb shell input tap 70 2182; sleep 2   # 같은 자리 '123' → 큰 숫자판
+timeout 30 adb exec-out screencap -p > shots/keyboard_num.png
+timeout 10 adb shell input tap 70 2182; sleep 2   # 같은 자리 '가' → 한글
+timeout 30 adb exec-out screencap -p > shots/keyboard_back.png
 timeout 10 adb shell input tap 295 2182; sleep 2
 timeout 30 adb exec-out screencap -p > shots/keyboard_emoji.png
 timeout 10 adb shell input tap 607 1674; sleep 2

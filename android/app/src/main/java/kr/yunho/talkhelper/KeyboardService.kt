@@ -52,7 +52,7 @@ class KeyboardService : InputMethodService() {
     private lateinit var content: FrameLayout
 
     /** 자판 종류: 한글(두벌식/천지인) · 영어 · 숫자·기호 */
-    private enum class Layer { KO, EN, SYM, EMOJI }
+    private enum class Layer { KO, EN, SYM, NUM, EMOJI }
     private var layer = Layer.KO
     private var shift = false
 
@@ -258,13 +258,16 @@ class KeyboardService : InputMethodService() {
         val newAction = if (opts and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0 || multi) EditorInfo.IME_ACTION_NONE else act
         val actionChanged = newAction != editorAction
         editorAction = newAction
-        val want = if (cls == EditorInfo.TYPE_CLASS_NUMBER || cls == EditorInfo.TYPE_CLASS_PHONE) Layer.SYM else if (layer == Layer.SYM) Layer.KO else if (layer == Layer.EMOJI) (if (emojiFrom == Layer.EN) Layer.EN else Layer.KO) else layer
+        val want = if (cls == EditorInfo.TYPE_CLASS_NUMBER || cls == EditorInfo.TYPE_CLASS_PHONE) Layer.NUM else if (layer == Layer.SYM || layer == Layer.NUM) (if (symFrom == Layer.EN) Layer.EN else Layer.KO) else if (layer == Layer.EMOJI) (if (emojiFrom == Layer.EN) Layer.EN else Layer.KO) else layer
         if (want != layer || !restarting || actionChanged) { layer = want; shift = false; if (::content.isInitialized && !listening) showKeys() }
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
         // 키보드가 내려가면 이모티콘·기호 판은 닫아 둠 → 다음에 열면 늘 글자 자판부터 (루비로사 2026-11-10)
-        if (layer == Layer.EMOJI || layer == Layer.SYM) { layer = if (emojiFrom == Layer.EN && layer == Layer.EMOJI) Layer.EN else Layer.KO; shift = false; if (::content.isInitialized) showKeys() }
+        if (layer == Layer.EMOJI || layer == Layer.SYM || layer == Layer.NUM) {
+            layer = if ((layer == Layer.EMOJI && emojiFrom == Layer.EN) || (layer != Layer.EMOJI && symFrom == Layer.EN)) Layer.EN else Layer.KO
+            shift = false; if (::content.isInitialized) showKeys()
+        }
         stopRecognizer()
         hangul.clear()
         super.onFinishInputView(finishingInput)
@@ -298,6 +301,7 @@ class KeyboardService : InputMethodService() {
             Layer.KO -> if (prefs.keyboardLayout == "cji") cheonjiin() else qwerty(KO_ROWS, KO_SHIFT)
             Layer.EN -> qwerty(EN_ROWS, null)
             Layer.SYM -> symbols()
+            Layer.NUM -> numPad()
             Layer.EMOJI -> emojis()
         }
         content.addView(keys)
@@ -624,7 +628,13 @@ class KeyboardService : InputMethodService() {
 
     private fun toKorean() { layer = Layer.KO; shift = false; showKeys() }
     private fun toEnglish() { finishComposing(); layer = Layer.EN; shift = false; showKeys() }
-    private fun toSymbols() { finishComposing(); layer = Layer.SYM; shift = false; showKeys() }
+    /** 기호·숫자판에서 돌아갈 글자 자판 (한글/영어) */
+    private var symFrom = Layer.KO
+    private fun toSymbols() { finishComposing(); if (layer == Layer.KO || layer == Layer.EN) symFrom = layer; layer = Layer.SYM; shift = false; showKeys() }
+    /** 같은 자리 키를 누를 때마다: 글자 → 기호(!#1) → 숫자판(123) → 글자(가) (신부님 2026-11-13) */
+    private fun toNumPad() { finishComposing(); layer = Layer.NUM; shift = false; showKeys() }
+    private fun backToLetters() { layer = if (symFrom == Layer.EN) Layer.EN else Layer.KO; shift = false; showKeys() }
+    private fun lettersLabel() = if (symFrom == Layer.EN) "ABC" else "가"
 
     /** 두벌식(한글 쿼티)·영어 쿼티 */
     private fun qwerty(rows: List<String>, shifted: Map<Char, Char>?): View {
@@ -786,6 +796,29 @@ class KeyboardService : InputMethodService() {
         }
     }
 
+    /**
+     * 큰 숫자판 (삼성 키보드 숫자판처럼, 전화 걸 때 모양). 기호 자판에서 '123'을 누르면 뜨고,
+     * 숫자만 받는 칸(전화번호·인증번호)에서도 처음부터 이 판.
+     */
+    private fun numPad(): View {
+        fun n(d: String) = key(d) { commitPlain(d) }.apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, keyTextSp + 6) } to 1f
+        val back = key("⌫", special = true, repeat = true) { backspace() } to 1f
+        val rows = listOf(
+            row(listOf(n("1"), n("2"), n("3"), back)),
+            row(listOf(n("4"), n("5"), n("6"), enterKey() to 1f)),
+            row(listOf(n("7"), n("8"), n("9"), key(".,-/", special = true) { cyclePunct(".,-/") } to 1f)),
+            row(listOf(
+                key(lettersLabel(), special = true) { backToLetters() } to 0.5f,
+                key("!#1", special = true) { toSymbols() } to 0.5f,
+                n("0"),
+                key("띄어쓰기") { space() } to 1f,
+                key(",", special = true) { commitPlain(",") } to 1f,
+            )),
+        )
+        // 넓은 화면(폴드)에선 숫자판이 너무 넓지 않게 가운데에
+        return column(rows, maxWidthDp = if (wide) 560 else null)
+    }
+
     private fun symbols(): View {
         // 한글 자판과 같은 틀: ⌫ 는 셋째 줄 오른쪽 끝, 띄어쓰기·완료도 같은 자리 (신부님 요청 2026-11-11)
         // 자주 쓰는 ! ? ~ 는 엄지가 닿는 셋째 줄, . , 는 띄어쓰기 옆
@@ -797,7 +830,8 @@ class KeyboardService : InputMethodService() {
         val back = key("⌫", special = true, repeat = true) { backspace() } to 1.5f
         val bottom = listOf(
             // 한글 자판 아래 줄과 칸마다 같은 폭 → 자판을 바꿔도 띄어쓰기·옆 키 자리가 그대로 (신부님 2026-11-12)
-            key("가", special = true) { toKorean() } to BOTTOM_W[0],
+            // 같은 자리 키를 한 번 더 누르면 큰 숫자판
+            key("123", special = true) { toNumPad() } to BOTTOM_W[0],
             sk("#", BOTTOM_W[1]),
             sk("=", BOTTOM_W[2]),
             sk(",", BOTTOM_W[3]),
@@ -847,9 +881,8 @@ class KeyboardService : InputMethodService() {
         render()
     }
 
-    private fun cyclePunct() {
+    private fun cyclePunct(marks: String = ".,?!") {
         val ic = currentInputConnection ?: return
-        val marks = ".,?!"
         val now = System.currentTimeMillis()
         if (lastCjiKey == "punct" && now - lastCjiAt < 1200) {
             ic.deleteSurroundingText(1, 0)
