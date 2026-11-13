@@ -843,27 +843,34 @@ class KeyboardService : InputMethodService() {
             else if (cji) listOf("「", "」", "『", "』", "《", "》", "〈", "〉", "【", "】")
             else listOf("`", "~", "\\", "|", "{", "}", "€", "£", "¥", "₩")
         val r3 = if (p1) listOf("!", "@", "#", "$", "%", "^", "&", "*", "(", ")") else listOf("°", "•", "○", "●", "□", "■", "♤", "♡", "◇", "♧")
-        val r4 = if (p1) listOf("-", "'", "\"", ":", ";", ",", "?")
+        val r4 = if (p1) listOf("-", "'", "\"", ":", ";", if (cji) "." else ",", "?")
             else if (cji) listOf("☆", "★", "※", "…", "·", "¡", "¿")
             else listOf("☆", "★", "※", "《", "》", "¡", "¿")
         val rows = listOf(
             line(r1), line(r2), line(r3),
             row(listOf(key(if (p1) "1/2" else "2/2", special = true) { symPage = 1 - symPage; showKeys() } to 1.5f) +
                 r4.map { k(it) } + listOf(key("⌫", special = true, repeat = true) { backspace() } to 1.5f)),
-            row(listOf(
-                if (cjiNumPad()) key("123", special = true) { symPage = 0; toNumPad() } to 1.2f
-                else key(lettersLabel(), special = true) { symPage = 0; backToLetters() } to 1.2f,
-                if (cjiNumPad()) key("가", special = true) { symPage = 0; backToLetters() } to 1.2f
-                else key("한/영", special = true) { symPage = 0; symFrom = if (symFrom == Layer.EN) Layer.KO else Layer.EN; backToLetters() } to 1.2f,
+            // 아래 줄은 자판을 바꿔도 칸 크기·자리가 그대로 (신부님 2026-11-13)
+            //  천지인 쪽(천지인·기호·숫자판): 반칸·반칸·한칸·한칸·한칸 / 두벌식 쪽(두벌식·영어·기호·이모티콘): BOTTOM_W 일곱 칸
+            if (cji) row(listOf(
+                key("123", special = true) { symPage = 0; toNumPad() } to 0.5f,
+                key("가", special = true) { symPage = 0; backToLetters() } to 0.5f,
                 key(",", special = true) { commitPlain(",") } to 1f,
-                key("띄어쓰기") { space() } to 4f,
-                key(".", special = true) { commitPlain(".") } to 1f,
-                enterKey() to 1.6f,
+                key("띄어쓰기") { space() } to 1f,
+                enterKey() to 1f,
+            )) else row(listOf(
+                key(lettersLabel(), special = true) { symPage = 0; backToLetters() } to BOTTOM_W[0],
+                key("한/영", special = true) { symPage = 0; symFrom = if (symFrom == Layer.EN) Layer.KO else Layer.EN; backToLetters() } to BOTTOM_W[1],
+                emojiKey() to BOTTOM_W[2],
+                key(",", special = true) { commitPlain(",") } to BOTTOM_W[3],
+                key("띄어쓰기") { space() } to spaceW(BOTTOM_W[4]),
+                key(".", special = true) { commitPlain(".") } to BOTTOM_W[5],
+                enterKey() to BOTTOM_W[6],
             )),
         )
-        // 다섯 줄이라 키를 조금 낮춰 전체 높이는 네 줄 자판과 비슷하게
-        val h = keyH * 4 / 5
-        rows.forEach { r -> for (i in 0 until r.childCount) r.getChildAt(i).layoutParams.height = h }
+        // 다섯 줄: 위 네 줄만 조금 낮추고 아래 줄은 다른 자판과 같은 높이 → 전체 높이도 비슷
+        val h = keyH * 3 / 4
+        rows.dropLast(1).forEach { r -> for (i in 0 until r.childCount) r.getChildAt(i).layoutParams.height = h }
         return column(rows, maxWidthDp = if (wide) squareWidthDp() else null)
     }
 
