@@ -823,32 +823,40 @@ class KeyboardService : InputMethodService() {
         return column(rows, maxWidthDp = if (wide) 560 else null)
     }
 
+    /** 기호 자판 쪽 (1/2 ↔ 2/2) */
+    private var symPage = 0
+
+    /**
+     * 기호 자판: 삼성 키보드 기호 배열 (위 숫자 줄 + 기호 세 줄 + 아래 줄, 1/2 를 누르면 둘째 장) — 두벌식·천지인 모두 (신부님 2026-11-13 '삼성 배열을 기본으로')
+     * 아래 줄 왼쪽: 천지인은 '123'(큰 숫자판)·'가', 두벌식·영어는 '가/ABC'·'한/영'
+     */
     private fun symbols(): View {
-        // 한글 자판과 같은 틀: ⌫ 는 셋째 줄 오른쪽 끝, 띄어쓰기·완료도 같은 자리 (신부님 요청 2026-11-11)
-        // 자주 쓰는 ! ? ~ 는 엄지가 닿는 셋째 줄, . , 는 띄어쓰기 옆
-        fun k(ch: String, w: Float = 1f) = key(ch) { commitPlain(ch) } to w
-        fun sk(ch: String, w: Float) = key(ch, special = true) { commitPlain(ch) } to w
-        val r1 = "1234567890".map { k("$it") }
-        val r2 = "-/:;()₩&@\"".map { k("$it") }
-        val r3 = "!?~'^*+".map { k("$it") }
-        val back = key("⌫", special = true, repeat = true) { backspace() } to 1.5f
-        val bottom = listOf(
-            // 한글 자판 아래 줄과 칸마다 같은 폭 → 자판을 바꿔도 띄어쓰기·옆 키 자리가 그대로 (신부님 2026-11-12)
-            // 천지인에서 왔으면 같은 자리 키를 한 번 더 누르면 큰 숫자판, 두벌식·영어는 글자 자판으로 (신부님 2026-11-13)
-            (if (cjiNumPad()) key("123", special = true) { toNumPad() } else key(lettersLabel(), special = true) { backToLetters() }) to BOTTOM_W[0],
-            sk("#", BOTTOM_W[1]),
-            sk("=", BOTTOM_W[2]),
-            sk(",", BOTTOM_W[3]),
-            key("띄어쓰기") { space() } to spaceW(BOTTOM_W[4]),
-            sk(".", BOTTOM_W[5]),
-            enterKey() to BOTTOM_W[6],
+        fun k(ch: String) = key(ch) { commitPlain(ch) } to 1f
+        fun line(chars: List<String>) = row(chars.map { k(it) })
+        val p1 = symPage == 0
+        val r1 = "1234567890".map { "$it" }
+        val r2 = if (p1) listOf("+", "×", "÷", "=", "/", "_", "<", ">", "[", "]") else listOf("`", "~", "\\", "|", "{", "}", "€", "£", "¥", "₩")
+        val r3 = if (p1) listOf("!", "@", "#", "$", "%", "^", "&", "*", "(", ")") else listOf("°", "•", "○", "●", "□", "■", "♤", "♡", "◇", "♧")
+        val r4 = if (p1) listOf("-", "'", "\"", ":", ";", ",", "?") else listOf("☆", "★", "※", "《", "》", "¡", "¿")
+        val rows = listOf(
+            line(r1), line(r2), line(r3),
+            row(listOf(key(if (p1) "1/2" else "2/2", special = true) { symPage = 1 - symPage; showKeys() } to 1.5f) +
+                r4.map { k(it) } + listOf(key("⌫", special = true, repeat = true) { backspace() } to 1.5f)),
+            row(listOf(
+                if (cjiNumPad()) key("123", special = true) { symPage = 0; toNumPad() } to 1.2f
+                else key(lettersLabel(), special = true) { symPage = 0; backToLetters() } to 1.2f,
+                if (cjiNumPad()) key("가", special = true) { symPage = 0; backToLetters() } to 1.2f
+                else key("한/영", special = true) { symPage = 0; symFrom = if (symFrom == Layer.EN) Layer.KO else Layer.EN; backToLetters() } to 1.2f,
+                key(",", special = true) { commitPlain(",") } to 1f,
+                key("띄어쓰기") { space() } to 4f,
+                key(".", special = true) { commitPlain(".") } to 1f,
+                enterKey() to 1.6f,
+            )),
         )
-        return column(listOf(
-            row(r1.take(5) + mid() + r1.drop(5)),
-            row(r2.take(5) + mid() + r2.drop(5)),
-            row(listOf(sk("%", 1.5f)) + r3.take(4) + mid() + r3.drop(4) + listOf(back)),
-            row(bottom),
-        ), maxWidthDp = if (wide) squareWidthDp() else null)
+        // 다섯 줄이라 키를 조금 낮춰 전체 높이는 네 줄 자판과 비슷하게
+        val h = keyH * 4 / 5
+        rows.forEach { r -> for (i in 0 until r.childCount) r.getChildAt(i).layoutParams.height = h }
+        return column(rows, maxWidthDp = if (wide) squareWidthDp() else null)
     }
 
     // ───────── 글자 넣기 ─────────
