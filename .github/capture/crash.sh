@@ -92,7 +92,7 @@ timeout 10 adb shell input tap 78 2180; sleep 2
 timeout 30 adb exec-out screencap -p > shots/keyboard_cji_sym.png
 timeout 10 adb shell input tap 70 2182; sleep 2
 timeout 30 adb exec-out screencap -p > shots/keyboard_num.png
-timeout 10 adb shell input tap 60 2182; sleep 2
+timeout 10 adb shell input tap 200 2182; sleep 2   # 숫자판 '가' (왼쪽 아래 둘째)
 timeout 30 adb exec-out screencap -p > shots/keyboard_back.png
 timeout 10 adb shell input tap 950 1592; sleep 2   # 다시 두벌식으로
 timeout 20 adb shell cmd overlay enable com.android.internal.systemui.navbar.threebutton; sleep 3

@@ -382,7 +382,8 @@ class KeyboardService : InputMethodService() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (currentInputConnection == null || !hwKeyboard() && event.deviceId == android.view.KeyCharacterMap.VIRTUAL_KEYBOARD) return super.onKeyDown(keyCode, event)
+        // 실물 자판이 아닌 키(화면 자판·시스템)는 그대로. 휴대폰 설정 조회(hwKeyboard)는 키마다 하지 않음 — 매직 키보드로 칠 때 느렸음 (신부님 2026-11-13)
+        if (currentInputConnection == null || event.deviceId == android.view.KeyCharacterMap.VIRTUAL_KEYBOARD) return super.onKeyDown(keyCode, event)
         // 한/영 바꾸기
         if (keyCode == KeyEvent.KEYCODE_LANGUAGE_SWITCH || keyCode == KeyEvent.KEYCODE_KANA || keyCode == KeyEvent.KEYCODE_EISU ||
             keyCode == KeyEvent.KEYCODE_ALT_RIGHT || (keyCode == KeyEvent.KEYCODE_SPACE && event.isShiftPressed)) {
@@ -810,8 +811,9 @@ class KeyboardService : InputMethodService() {
             row(listOf(n("4"), n("5"), n("6"), enterKey() to 1f)),
             row(listOf(n("7"), n("8"), n("9"), key(".,-/", special = true) { cyclePunct(".,-/") } to 1f)),
             row(listOf(
+                // 삼성 숫자판처럼 왼쪽 아래 !@# (기호) · 가 (글자)
+                key("!@#", special = true) { toSymbols() } to 0.5f,
                 key(lettersLabel(), special = true) { backToLetters() } to 0.5f,
-                key("!#1", special = true) { toSymbols() } to 0.5f,
                 n("0"),
                 key("띄어쓰기") { space() } to 1f,
                 key(",", special = true) { commitPlain(",") } to 1f,
