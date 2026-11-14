@@ -7,7 +7,7 @@
 
 ## 「말로 답장」 (android/)
 
-카카오톡 위에 뜨는 🎤 버튼으로 말하면 Claude(Haiku 5.5)가 말투를 다듬어 카톡으로 보내 주는 안드로이드 앱. 전체 기능·주소·요금·문제 해결은 `docs/talk-helper-summary.md`(PDF: `docs/말로답장_전체정리.pdf`)에 정리돼 있으니 먼저 읽으세요.
+카카오톡 위에 뜨는 🎤 버튼으로 말하면 Claude(Haiku 5.5)가 말투를 다듬어 카톡으로 보내 주는 안드로이드 앱. 전체 기능·주소·요금·문제 해결은 `docs/talk-helper-summary.md`(PDF: `docs/말로답장_전체정리.pdf`)에 정리돼 있으니 먼저 읽으세요. **키보드 일은 `docs/keyboard-guide.md`**(정해진 규칙·고칠 곳 찾기·확인법·바뀐 기록)부터.
 
 - 패키지 `kr.yunho.talkhelper`, Kotlin, AppCompat 없이 기본 Activity. 플레이버 `play`(플레이 스토어판, 지금 쓰는 것) / `github`(예전 직접 설치판 — **2026-11-10 배포 중단**: 접근성·알림 답장을 빼고 첫 화면은 플레이판으로 옮기기 안내 `moveToPlay`만. Releases 의 talk-helper.apk·version.json 은 예전 설치자에게 이 안내판을 올려 주려고 남김).
 - 주요 파일: `KakaoAccessibilityService.kt`(떠 있는 버튼·동그라미 메뉴·카톡 화면 읽기/입력/전송·대화 내보내기 자동화), `HelperActivity.kt`(카톡 위 카드), `AskActivity.kt`(대화에서 찾기·내보낸 대화 받기), `MainActivity.kt`(첫 화면, 제목을 길게 누르면 숨은 설정), `core/`(Claude 호출·프롬프트·순수 로직, JVM 단위 테스트 있음).
