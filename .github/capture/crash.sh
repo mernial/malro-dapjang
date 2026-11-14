@@ -121,6 +121,9 @@ timeout 20 adb shell uiautomator dump /sdcard/l.xml >/dev/null 2>&1
 L=$(timeout 20 adb shell cat /sdcard/l.xml | tr '>' '\n' | grep 'class="android.widget.EditText"' | tail -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')
 if [ -n "$L" ]; then set -- $L; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 3; fi
 timeout 30 adb exec-out screencap -p > shots/keyboard_fold_land.png
+timeout 10 adb shell input tap 136 1430; sleep 2   # !#1 → 기호 (한글과 칸이 맞는지)
+timeout 30 adb exec-out screencap -p > shots/keyboard_fold_sym.png
+timeout 10 adb shell input tap 136 1430; sleep 2   # 가 → 한글
 timeout 10 adb logcat -d -s talkhelper-kb | tail -6
 adb shell input keyevent KEYCODE_BACK; sleep 1; adb shell input keyevent KEYCODE_BACK; sleep 1
 timeout 20 adb shell cmd overlay enable com.android.internal.systemui.navbar.threebutton
