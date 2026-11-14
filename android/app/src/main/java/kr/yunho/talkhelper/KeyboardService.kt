@@ -999,6 +999,9 @@ class KeyboardService : InputMethodService() {
             setTextColor(if (dark) Ui.BROWN else Ui.YELLOW)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             if (label == "↵") setTextSize(TypedValue.COMPLEX_UNIT_SP, keyTextSp + 6)
+            // 글자를 다시 넣고 그림으로 바꿔야 새 색이 들어감. 예전엔 🔎 그림이 처음 색(갈색) 그대로라
+            // 카톡 검색창에서 갈색 키 위에 갈색 돋보기 → 안 보였음 (루비로사 2026-11-14)
+            text = label
             Ui.iconize(this)
         }
     }
