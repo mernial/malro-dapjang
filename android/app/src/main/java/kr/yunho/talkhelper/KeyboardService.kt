@@ -832,7 +832,8 @@ class KeyboardService : InputMethodService() {
      */
     private fun symbols(): View {
         fun k(ch: String) = key(ch) { commitPlain(ch) } to 1f
-        fun line(chars: List<String>) = row(chars.map { k(it) })
+        // 폴드처럼 넓은 화면에선 한글 자판과 같은 자리에 가운데 틈 (신부님 2026-11-14 '한글·기호 칸이 안 맞아')
+        fun line(chars: List<String>) = chars.map { k(it) }.let { ks -> row(ks.take(5) + mid() + ks.drop(5)) }
         val p1 = symPage == 0
         val cji = cjiNumPad()
         // 천지인은 숫자를 큰 숫자판(123)에서 치므로 숫자 줄 대신 기호를 한 줄 더 (신부님 2026-11-13)
@@ -849,7 +850,7 @@ class KeyboardService : InputMethodService() {
         val rows = listOf(
             line(r1), line(r2), line(r3),
             row(listOf(key(if (p1) "1/2" else "2/2", special = true) { symPage = 1 - symPage; showKeys() } to 1.5f) +
-                r4.map { k(it) } + listOf(key("⌫", special = true, repeat = true) { backspace() } to 1.5f)),
+                r4.map { k(it) }.let { ks -> ks.take(4) + mid() + ks.drop(4) } + listOf(key("⌫", special = true, repeat = true) { backspace() } to 1.5f)),
             // 아래 줄은 자판을 바꿔도 칸 크기·자리가 그대로 (신부님 2026-11-13)
             // 기호를 넣고 띄어쓰기를 누르면 글자 자판으로 돌아감 (삼성 키보드처럼, 신부님 2026-11-14)
             //  천지인 쪽(천지인·기호·숫자판): 반칸·반칸·한칸·한칸·한칸 / 두벌식 쪽(두벌식·영어·기호·이모티콘): BOTTOM_W 일곱 칸
