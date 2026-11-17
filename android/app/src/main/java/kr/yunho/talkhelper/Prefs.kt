@@ -87,7 +87,7 @@ class Prefs(ctx: Context) {
 
     /** 마지막으로 고른 말투 모드 (방마다 따로 고른 게 없는 방에서 씀) */
     var mode: Mode
-        get() = runCatching { Mode.valueOf(sp.getString("mode", Mode.POLITE.name)!!) }.getOrDefault(Mode.POLITE)
+        get() = modeOf(sp.getString("mode", Mode.POLITE.name)) ?: Mode.POLITE
         set(v) = sp.edit().putString("mode", v.name).apply()
 
     /** 말투를 방마다 기억하는 열쇠 (인원수·'…'·띄어쓰기를 뺀 방 이름) */
@@ -102,8 +102,12 @@ class Prefs(ctx: Context) {
         val saved = sp.getString("mode:$k", null)
             ?: if (kr.yunho.talkhelper.core.RoomMatch.isTruncated(room))
                 sp.all.entries.firstOrNull { (key, _) -> key.startsWith("mode:$k") }?.value as? String else null
-        return saved?.let { runCatching { Mode.valueOf(it) }.getOrNull() } ?: mode
+        return saved?.let { modeOf(it) } ?: mode
     }
+
+    /** 저장된 이름 → 말투. 없앤 '내 말투'(MINE)는 '그대로'로 (2026-11-17) */
+    private fun modeOf(name: String?): Mode? =
+        if (name == "MINE") Mode.VERBATIM else runCatching { Mode.valueOf(name!!) }.getOrNull()
 
     /** 이 방의 말투를 [m] 으로 (다른 방은 그대로). 방 이름이 없으면 기본 말투만 바꿈 */
     fun setModeFor(room: String?, m: Mode) {
