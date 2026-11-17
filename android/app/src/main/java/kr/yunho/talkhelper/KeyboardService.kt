@@ -287,6 +287,10 @@ class KeyboardService : InputMethodService() {
         if (hangul.isComposing && candidatesEnd != -1 && newSelEnd != candidatesEnd) {
             hangul.clear()
             currentInputConnection?.finishComposingText()
+        } else if (hangul.isComposing && candidatesStart == -1 && System.currentTimeMillis() - lastEditAt > 250) {
+            // 앱이 조합 중인 글자를 스스로 바꿔 넣음 (카톡 '@진' → 이름 고르기 등). 조합을 잊어야
+            // 다음 글자를 칠 때 '진'이 다시 붙지 않음 (신부님 2026-11-17). 방금 우리가 넣은 직후의 늦은 알림은 무시
+            hangul.clear()
         }
     }
 
@@ -879,7 +883,11 @@ class KeyboardService : InputMethodService() {
     // ───────── 글자 넣기 ─────────
 
     /** 조합 중인 글자를 입력칸에 반영 (한 번에 묶어 보내 커서 알림이 뒤섞이지 않게) */
+    /** 키보드가 입력칸을 마지막으로 고친 때 (늦게 오는 커서 알림과 앱이 바꾼 것을 가리려고) */
+    private var lastEditAt = 0L
+
     private fun render() {
+        lastEditAt = System.currentTimeMillis()
         val ic = currentInputConnection ?: return
         ic.beginBatchEdit()
         val done = hangul.takeCommitted()
