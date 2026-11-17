@@ -415,7 +415,7 @@ class MainActivity : Activity() {
         col.addView(Ui.text(ctx, getString(R.string.app_name), 26f, bold = true).apply {
             setOnLongClickListener { showAdvanced = !showAdvanced; showSettings = false; showHelp = false; render(); true }
         })
-        col.add(Ui.text(ctx, "말하면, 내 말투로 답장해요", 14f, color = Ui.MUTED), 2)
+        col.add(Ui.text(ctx, "말하면, 고른 말투로 답장해요", 14f, color = Ui.MUTED), 2)
         row.addView(col, LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         if (!showSettings && !showHelp && !showAdvanced) {
             val gear = android.widget.FrameLayout(ctx).apply {
