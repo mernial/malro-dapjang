@@ -17,6 +17,7 @@
 | 지우기(⌫)·띄어쓰기·줄바꿈 자리는 한글과 기호가 같은 자리 | 11-11 | `qwerty()`, `symbols()` |
 | 줄바꿈 키 = 갈색 바탕 + 노란 큰 글씨 (어두운 키보드는 노란 바탕). 검색창이면 🔎 | 11-12, 11-14 | `enterKey()` |
 | 말투 단추는 **그림만** (정중하게 = 합장 손 `ic_pray`) | 11-11 | `toneChips()`, `paintTone()`, `Ui.kt` |
+| 말투는 정중하게·친구처럼·업무 연락·자녀에게·**그대로**(말한 그대로, AI 안 부름). '내 말투'는 없앰 | 11-17 | `core/Mode.kt` |
 | 다듬기·찾기 모델은 `claude-haiku-5-5` (Sonnet 안 씀) | — | `core/`, 서버 `server/` |
 | 보내기는 **사용자가 직접** (카카오 정책). 키보드는 입력칸에 넣기만 | 11-10 | `put()` |
 
@@ -53,7 +54,7 @@
 - 구글 인식기 '삑' 막기 → `muteBeep()`, `unmuteBeep()` (스피커일 때만, 블루투스·이어폰은 안 끔 — 차 음량 0 문제)
 - 이어 듣기·'듣지 못했어요' → `keepListening()`, `listener.onError()`, `resetRecognizer()`
 - 다듬기 → `rewrite()` → 입력칸에 넣기 `put()` / 찾기 → `searchAll()`, `showAnswer()`
-- '내 말투' 동의 → `askStyleConsent()` (키보드), `MainActivity.askStyleConsent()` (첫 화면), 예시 고르기 `ChatStore.myStyleAll()`, `core/MyStyle.kt`
+- 말투 '그대로'(✍, AI 안 부름) → `core/Mode.kt` `VERBATIM`, `App.kt` `Counting.rewrite`, `core/Verbatim.kt`. ('내 말투'는 11-17 없앰 — 저장된 MINE 은 '그대로'로 `Prefs.modeOf`)
 
 ### 말투·위 단축키 줄
 - 말투 칩 → `toneChips()`, `switchTone()` / 단축키 순서 끌어 바꾸기 → `onCreateInputView()` 안 `tool()`, `toolOrder()`

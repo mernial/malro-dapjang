@@ -9,7 +9,6 @@ enum class Mode(val label: String, val emoji: String) {
     FRIENDLY("친구처럼", "😊"),
     BUSINESS("업무 연락", "💼"),
     PARENT("자녀에게", "🤗"),
-    MINE("내 말투", "🪞"),
     /** 다듬지 않고 말한 그대로 받아 적기 (AI 를 부르지 않음, 신부님 2026-11-17) */
     VERBATIM("그대로", "✍");
 }

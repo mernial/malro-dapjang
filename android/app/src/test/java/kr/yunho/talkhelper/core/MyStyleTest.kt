@@ -41,14 +41,6 @@ class MyStyleTest {
     }
 
     @Test
-    fun myStyleGoesIntoPrompt() {
-        val u = Prompts.user(Mode.MINE, "알았어 고마워", null, myStyle = listOf("넵 ㅎㅎ", "내일 봬요~"))
-        assertEquals(true, u.contains("<내평소말투>\n- 넵 ㅎㅎ\n- 내일 봬요~\n</내평소말투>"))
-        assertEquals(false, Prompts.user(Mode.POLITE, "알았어", null).contains("내평소말투"))
-        assertEquals(true, Prompts.system(Mode.MINE).contains("<내평소말투>"))
-    }
-
-    @Test
     fun mergesRoomsTakingTurnsWithoutDuplicates() {
         val a = listOf("a1", "a2", "a3", "같은말")
         val b = listOf("b1", "같은말", "b2")

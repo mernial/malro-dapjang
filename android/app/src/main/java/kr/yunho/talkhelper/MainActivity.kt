@@ -511,7 +511,6 @@ class MainActivity : Activity() {
         kr.yunho.talkhelper.core.Mode.FRIENDLY -> "알았어, 고마워!"
         kr.yunho.talkhelper.core.Mode.BUSINESS -> "네, 확인했습니다. 감사합니다."
         kr.yunho.talkhelper.core.Mode.PARENT -> "그래, 알았다~ 고마워."
-        kr.yunho.talkhelper.core.Mode.MINE -> "평소 내가 쓰는 말투로 바꿔 줘요."
         kr.yunho.talkhelper.core.Mode.VERBATIM -> "알았어 고마워 (말한 그대로)"
     }
 
@@ -579,8 +578,7 @@ class MainActivity : Activity() {
                     contentDescription = "${m.label} 말투"
                     setOnClickListener {
                         // '내 말투'는 처음 한 번, 내가 보낸 말을 예시로 AI에 보내도 되는지 물음
-                        if (m == kr.yunho.talkhelper.core.Mode.MINE && p.myStyleConsent == null) askStyleConsent { p.mode = m; paintTones() }
-                        else { p.mode = m; paintTones() }
+                        p.mode = m; paintTones()
                     }
                 }
                 chips[m] = c
@@ -762,24 +760,9 @@ class MainActivity : Activity() {
         etc.addView(Kit.navRow(ctx, R.drawable.ic_bell, "업데이트 소식", "이번에 바뀐 것 다시 보기") { showNews() })
         with(Kit) { etc.addDivider(10) }
         etc.addView(Kit.navRow(ctx, R.drawable.ic_trash, "저장한 대화·기록 지우기", "설정은 그대로 남아요") { confirmClearAll() })
-        etc.addDivider2(ctx)
-        etc.addView(Kit.toggleRow(ctx, R.drawable.ic_user, "내 말투에 내 대화 쓰기",
-            "저장한 대화에서 내가 보낸 말(최대 30개)을 말투 예시로 AI에 보내요", p.myStyleConsent == true) { on -> p.myStyleConsent = on })
         body.add(etc, 24)
     }
 
-    private fun LinearLayout.addDivider2(ctx: android.content.Context) { with(Kit) { addDivider(10) } }
-
-    /** '내 말투' 동의 창 (처음 한 번). 어느 쪽을 골라도 [then] 계속 */
-    private fun askStyleConsent(then: () -> Unit) {
-        AlertDialog.Builder(this)
-            .setTitle("내 말투")
-            .setMessage(kr.yunho.talkhelper.core.MyStyle.CONSENT_TEXT.removePrefix("🪞 "))
-            .setPositiveButton("동의하고 쓰기") { _, _ -> Prefs(this).myStyleConsent = true; then() }
-            .setNegativeButton("예시 없이 쓰기") { _, _ -> Prefs(this).myStyleConsent = false; then() }
-            .setCancelable(false)
-            .show()
-    }
 
     // ───────── 말로 답장 키보드 ─────────
 
