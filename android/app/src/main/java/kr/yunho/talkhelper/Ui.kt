@@ -49,7 +49,7 @@ object Ui {
         "🔊" to R.drawable.ic_volume, "☰" to R.drawable.ic_menu,
         // 말투
         "🙏" to R.drawable.ic_pray, "😊" to R.drawable.ic_smile, "💼" to R.drawable.ic_briefcase,
-        "🤗" to R.drawable.ic_heart, "🪞" to R.drawable.ic_user,
+        "🤗" to R.drawable.ic_heart, "🪞" to R.drawable.ic_user, "✍" to R.drawable.ic_pen,
     )
 
     fun iconize(ctx: Context, s: CharSequence, color: Int, sizePx: Int): CharSequence {

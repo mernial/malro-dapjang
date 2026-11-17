@@ -97,7 +97,9 @@ object ClaudeProvider {
     /** 성공한 요청마다 이번 달 사용량에 더함 */
     private class Counting(private val inner: Assistant, private val app: Context) : Assistant {
         override fun rewrite(mode: Mode, spoken: String, screenText: String?, myName: String, myRole: String, myStyle: List<String>) =
-            inner.rewrite(mode, spoken, screenText, myName, myRole, myStyle).also { Prefs(app).addUsage(UsageStats.Kind.REWRITE, inner.lastUsage) }
+            // '그대로'는 AI 를 부르지 않고 말한 글을 그대로 (요금·서버 없음)
+            if (mode == Mode.VERBATIM) kr.yunho.talkhelper.core.Verbatim.clean(spoken)
+            else inner.rewrite(mode, spoken, screenText, myName, myRole, myStyle).also { Prefs(app).addUsage(UsageStats.Kind.REWRITE, inner.lastUsage) }
 
         override fun answer(question: String, chat: String, room: String?, manyRooms: Boolean) =
             inner.answer(question, chat, room, manyRooms).also { Prefs(app).addUsage(UsageStats.Kind.SEARCH, inner.lastUsage) }

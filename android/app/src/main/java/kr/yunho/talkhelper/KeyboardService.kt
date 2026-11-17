@@ -1478,7 +1478,7 @@ class KeyboardService : InputMethodService() {
     }
 
     /** 입력칸에 넣기 (방금 넣은 글이 커서 바로 앞에 그대로 있으면 지우고 바꿈) */
-    private fun put(text: String) {
+    private fun put(text: String, aiMade: Boolean = mode != Mode.VERBATIM) {
         finishComposing()
         val ic = currentInputConnection ?: return
         inserted?.let { old ->
@@ -1494,7 +1494,8 @@ class KeyboardService : InputMethodService() {
         showInfo("✅ 넣었어요. 확인하고 직접 보내세요. 말투를 바꾸려면 위 '말투 ▾'")
         infoRow.tag = "done"
         val ai = text
-        infoRow.addView(TextView(this).apply {
+        // '그대로'는 AI 가 만든 글이 아니라 🚩 이상해요 를 띄우지 않음
+        if (aiMade) infoRow.addView(TextView(this).apply {
             this.text = "🚩 이상해요"
             setTextColor(th.muted)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)

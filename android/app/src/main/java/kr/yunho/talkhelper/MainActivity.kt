@@ -512,6 +512,7 @@ class MainActivity : Activity() {
         kr.yunho.talkhelper.core.Mode.BUSINESS -> "네, 확인했습니다. 감사합니다."
         kr.yunho.talkhelper.core.Mode.PARENT -> "그래, 알았다~ 고마워."
         kr.yunho.talkhelper.core.Mode.MINE -> "평소 내가 쓰는 말투로 바꿔 줘요."
+        kr.yunho.talkhelper.core.Mode.VERBATIM -> "알았어 고마워 (말한 그대로)"
     }
 
     private fun done() {
