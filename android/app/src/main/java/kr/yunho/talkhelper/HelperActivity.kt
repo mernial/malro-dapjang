@@ -1062,7 +1062,7 @@ class HelperActivity : Activity() {
         val m = mode
         Bg.run({
             // '내 말투': 이 방을 내보내 저장해 뒀으면 그 방에서 내가 보낸 말, 아니면 화면의 내 말풍선을 예시로
-            val style = emptyList<String>()   // '내 말투'는 없앰 (2026-11-17)
+            val style = if (m == Mode.MINE) ChatStore.myStyle(this, chatForThisRoom().second).ifEmpty { kr.yunho.talkhelper.core.MyStyle.fromScreen(screenText) } else emptyList()
             claude.rewrite(m, spoken, screenText, prefs.myName, prefs.myRole, style)
                 .also { claude.lastUsage?.let { u -> prefs.lastUsage = u.describe() } }
         }) { r ->
@@ -1121,7 +1121,7 @@ class HelperActivity : Activity() {
         sendButton.isEnabled = false
         val spoken = lastSpoken
         Bg.run({
-            val style = emptyList<String>()   // '내 말투'는 없앰 (2026-11-17)
+            val style = if (m == Mode.MINE) ChatStore.myStyle(this, chatForThisRoom().second).ifEmpty { kr.yunho.talkhelper.core.MyStyle.fromScreen(screenText) } else emptyList()
             claude.rewrite(m, spoken, screenText, prefs.myName, prefs.myRole, style)
         }) { r ->
             if (isFinishing || job != toneJob) return@run
