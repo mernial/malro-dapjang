@@ -130,8 +130,8 @@ timeout 20 adb shell cmd overlay enable com.android.internal.systemui.navbar.thr
 adb shell wm size reset; adb shell wm density reset; sleep 4
 # 찾기 화면: '내 파일 폴더에서도 찾기' 단추와 동의 창
 adb shell input keyevent KEYCODE_HOME; sleep 1
-timeout 30 adb shell am start -n $PKG/.AskActivity; sleep 3
-adb shell input keyevent KEYCODE_BACK; sleep 1   # 키보드 내리기
+timeout 30 adb shell am start -W -n $PKG/.AskActivity; sleep 4
+adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS >/dev/null 2>&1 || true
 timeout 30 adb exec-out screencap -p > shots/ask_files.png
 timeout 20 adb shell uiautomator dump /sdcard/f.xml >/dev/null 2>&1
 F=$(timeout 20 adb shell cat /sdcard/f.xml | tr '>' '\n' | grep 'text="[^"]*내 파일 폴더에서도 찾기"' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')
