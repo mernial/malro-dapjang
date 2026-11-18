@@ -45,6 +45,8 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
         private const val REQ_FOLDER = 12
         private const val SCREEN = "\u0000screen"   // '지금 화면' 을 나타내는 내부 이름
         private const val ALL = "\u0000all"         // '저장된 모든 대화' 를 나타내는 내부 이름
+        private const val FILES = "\u0000files"     // '내 파일 폴더' 를 나타내는 내부 이름
+        private const val REQ_DOCS = 13
 
         fun chatsDir(c: Context) = ChatStore.dir(c)
         /** 저장된 대화 번호들 (최근 순). 보여 줄 이름은 Rooms.name */
@@ -230,6 +232,7 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
         val saved = savedRooms(this@AskActivity)
         val sources = buildList {
             if (screenText != null) add(SCREEN)
+            if (DocIndex.enabled(this@AskActivity)) add(FILES)
             if (saved.size >= 2) add(ALL)   // 방이 둘 이상이면 한꺼번에 찾기도
             addAll(saved)
         }
@@ -242,16 +245,26 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
             val label = when (s) {
                 SCREEN -> "📱 지금 카톡 화면의 대화"
                 ALL -> "🔎 저장된 모든 대화에서 (${saved.size}개)"
+                FILES -> "📁 내 파일 폴더 '${DocIndex.folderName(this) ?: "고른 폴더"}'에서 (${DocIndex.docs(this).size}개)"
                 else -> "💬 ${Rooms.name(this, s)}"
             }
             val on = s == selected
             body.add(Ui.button(this, label, if (on) Ui.YELLOW else Ui.CARD, sp = 18f) { selected = s; render() }
                 .apply { background = Ui.rounded(this@AskActivity, if (on) Ui.YELLOW else Ui.CARD, 18, if (on) Ui.BROWN else Ui.LINE) }, 8)
         }
-        if (selected != null && selected != SCREEN && selected != ALL) {
+        if (selected == FILES) {
+            body.add(Ui.text(this, "이 폴더에 넣은 파일만 찾아요. 글 파일·PDF는 내용까지, 한글·사진 같은 파일은 이름으로 찾아요.", 14f, color = Ui.MUTED), 6)
+            val r = Ui.hbox(this)
+            r.add(Ui.button(this, "🔄 다시 읽기", Ui.CARD, sp = 15f) { refreshDocs() })
+            r.add(Ui.button(this, "그만 쓰기", Ui.CARD, Ui.RED, sp = 15f) { confirmStopDocs() })
+            body.add(r, 6)
+        } else if (!DocIndex.enabled(this)) {
+            body.add(Ui.button(this, "📁 내 파일 폴더에서도 찾기", Ui.CARD, sp = 16f) { askDocConsent() }, 10)
+        }
+        if (selected != null && selected != SCREEN && selected != ALL && selected != FILES) {
             body.add(Ui.button(this, "이 대화 지우기", Ui.CARD, Ui.RED, sp = 14f) { confirmDelete(selected!!) }, 6)
         }
-        if (selected != null && selected != SCREEN && selected != ALL) {
+        if (selected != null && selected != SCREEN && selected != ALL && selected != FILES) {
             val room = selected!!
             val me = Prefs(this).kakaoMe(room)
             body.add(Ui.button(this, if (me != null) "🪞 이 방에서 나: $me (바꾸기)" else "🪞 내 말투 배우기: 내 이름 고르기", Ui.CARD, sp = 14f) {
@@ -312,6 +325,16 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
     @Deprecated("Activity 기본 결과 받기")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_DOCS) {
+            val tree = data?.data
+            if (resultCode != RESULT_OK || tree == null) return
+            runCatching { contentResolver.takePersistableUriPermission(tree, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            Prefs(this).docTree = tree.toString()
+            Prefs(this).docConsent = true
+            selected = FILES
+            refreshDocs()
+            return
+        }
         if (requestCode == REQ_FOLDER && resultCode == RESULT_OK) {
             val tree = data?.data ?: return
             showBusy("📁 대화와 사진을 가져오는 중이에요…\n사진이 많으면 조금 걸려요")
@@ -329,9 +352,89 @@ class AskActivity : Activity(), TextToSpeech.OnInitListener {
             .onFailure { Toast.makeText(this, "폴더를 고를 수 없는 휴대폰이에요.", Toast.LENGTH_LONG).show() }
     }
 
+    // ───────── 내 파일 폴더 ─────────
+
+    private fun askDocConsent() {
+        AlertDialog.Builder(this)
+            .setTitle("내 파일 폴더에서 찾기")
+            .setMessage(DocIndex.CONSENT_TEXT.removePrefix("📁 "))
+            .setPositiveButton("동의하고 폴더 고르기") { _, _ -> pickDocFolder() }
+            .setNegativeButton("취소", null)
+            .show()
+    }
+
+    private fun pickDocFolder() {
+        val i = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        // 처음엔 '다운로드' 를 열어 둠 (그 안에 새 폴더를 만들어 고르도록)
+        runCatching { i.putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI,
+            android.provider.DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", "primary:Download")) }
+        runCatching { startActivityForResult(i, REQ_DOCS) }
+            .onFailure { Toast.makeText(this, "폴더를 고를 수 없는 휴대폰이에요.", Toast.LENGTH_LONG).show() }
+    }
+
+    private fun refreshDocs() {
+        showBusy("📁 폴더의 파일을 읽는 중이에요…\nPDF가 많으면 조금 걸려요")
+        Bg.run({ DocIndex.refresh(this) }) { r ->
+            if (isFinishing) return@run
+            hideBusy()
+            Toast.makeText(this, r.fold({ "파일 ${it}개를 읽었어요." }, { "폴더를 읽지 못했어요: ${it.message}" }), Toast.LENGTH_LONG).show()
+            render()
+        }
+    }
+
+    private fun confirmStopDocs() {
+        AlertDialog.Builder(this).setMessage("내 파일 폴더에서 찾기를 그만 쓸까요? 앱이 꺼내 둔 글자를 지우고 폴더 허락도 돌려줘요. (폴더의 파일은 그대로예요)")
+            .setPositiveButton("그만 쓰기") { _, _ -> DocIndex.stop(this); selected = savedRooms(this).firstOrNull(); render() }
+            .setNegativeButton("취소", null).show()
+    }
+
+    /** 이름이 맞는 파일을 눌러 열 수 있게 */
+    private fun showDocMatches(docs: List<DocIndex.Doc>) {
+        if (docs.isEmpty()) return
+        photoBox.removeAllViews()
+        photoBox.add(Ui.text(this, "📄 이름이 맞는 파일 (누르면 열려요)", 15f, bold = true), 0)
+        for (d in docs) photoBox.add(Ui.button(this, d.name, Ui.CARD, sp = 15f) {
+            runCatching {
+                startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(d.uri), d.mime.ifBlank { "*/*" })
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+            }.onFailure { Toast.makeText(this, "이 파일을 열 수 있는 앱이 없어요.", Toast.LENGTH_LONG).show() }
+        }, 6)
+        photoBox.visibility = View.VISIBLE
+    }
+
+    private fun searchDocs(q: String) {
+        val claude = ClaudeProvider.get(this)
+        if (claude == null) { Toast.makeText(this, "먼저 앱 설정을 마쳐 주세요.", Toast.LENGTH_LONG).show(); return }
+        showBusy("📁 내 파일 폴더에서 찾고 있어요…\n\n물어본 것: $q")
+        answer.visibility = View.GONE
+        photoBox.visibility = View.GONE
+        Bg.run({
+            runCatching { DocIndex.refresh(this) }   // 새로 넣은 파일도 (바뀐 것만 다시 읽음)
+            val names = DocIndex.nameMatches(this, q)
+            val docs = DocIndex.forSearch(this)
+            val ans = if (docs.isEmpty()) null else claude.answer(q, ChatSearch.excerptMany(docs, q), null, manyRooms = true)
+            names to ans
+        }) { r ->
+            if (isFinishing) return@run
+            hideBusy()
+            r.onSuccess { (names, ans) ->
+                answer.text = when {
+                    ans != null -> Ui.answer(ChatSearch.splitAnswer(ans).first)
+                    names.isNotEmpty() -> "글자를 읽을 수 있는 파일은 없지만, 이름이 맞는 파일을 찾았어요."
+                    else -> "폴더에서 찾을 수 있는 파일이 없어요. 글 파일이나 PDF를 그 폴더에 넣어 주세요."
+                }
+                showDocMatches(names)
+                if (ans != null && Prefs(this).readAnswers) speak(ChatSearch.splitAnswer(ans).first)
+            }.onFailure { answer.text = (it as? HelperException)?.message ?: "문제가 생겼어요: ${it.message}" }
+            answer.visibility = View.VISIBLE
+            (body.parent as? ScrollView)?.post { (body.parent as ScrollView).smoothScrollTo(0, answer.top) }
+        }
+    }
+
     private fun search() {
         val q = question.text.toString().trim()
         if (q.isEmpty()) { Toast.makeText(this, "무엇을 찾을지 말하거나 써 주세요.", Toast.LENGTH_SHORT).show(); return }
+        if (selected == FILES) { searchDocs(q); return }
         val all = selected == ALL
         val chat = chatOf(selected)
         if (!all && chat.isNullOrBlank()) { Toast.makeText(this, "먼저 찾을 대화를 골라 주세요.", Toast.LENGTH_SHORT).show(); return }

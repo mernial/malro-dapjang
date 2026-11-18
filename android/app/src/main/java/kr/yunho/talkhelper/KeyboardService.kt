@@ -1514,9 +1514,11 @@ class KeyboardService : InputMethodService() {
         showInfo("🔎 \"$question\" 저장해 둔 대화에서 찾는 중…")
         Bg.run({
             val ids = Rooms.ids(this)
-            if (ids.isEmpty()) null
+            // 내 파일 폴더에서 찾기에 동의했으면 그 폴더의 파일도 함께 (고른 폴더만, 신부님 2026-11-18)
+            val files = if (DocIndex.enabled(this)) runCatching { DocIndex.refresh(this); DocIndex.forSearch(this) }.getOrDefault(emptyList()) else emptyList()
+            if (ids.isEmpty() && files.isEmpty()) null
             else {
-                val rooms = ids.map { r -> (Rooms.name(this, r) ?: r) to ChatStore.chatText(this, r).orEmpty() }.filter { it.second.isNotBlank() }
+                val rooms = ids.map { r -> (Rooms.name(this, r) ?: r) to ChatStore.chatText(this, r).orEmpty() }.filter { it.second.isNotBlank() } + files
                 claude.answer(question, ChatSearch.excerptMany(rooms, question), null, manyRooms = true)
             }
         }) { r ->
