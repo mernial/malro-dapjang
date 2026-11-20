@@ -73,7 +73,7 @@ timeout 10 adb shell input tap 295 2182; sleep 2
 timeout 30 adb exec-out screencap -p > shots/keyboard_emoji.png
 timeout 10 adb shell input tap 607 1674; sleep 2
 timeout 30 adb exec-out screencap -p > shots/keyboard_emoji2.png
-timeout 10 adb shell input swipe 540 2060 540 1760 600; sleep 1   # 이모티콘을 위로 밀어 올려도 탭과 안 겹치는지 (루비로사 2026-11-21)
+timeout 10 adb shell input tap 214 1700; sleep 2; timeout 10 adb shell input swipe 540 2060 540 1760 600; sleep 1   # 이모티콘을 위로 밀어 올려도 탭과 안 겹치는지 (루비로사 2026-11-21)
 timeout 30 adb exec-out screencap -p > shots/keyboard_emoji_scroll.png
 timeout 10 adb shell input tap 82 2182; sleep 2
 # 제스처 내비게이션(삼성 폰처럼 아래 막대만)에서도 아래 줄이 안 잘리는지
