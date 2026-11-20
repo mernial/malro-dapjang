@@ -515,7 +515,9 @@ class KeyboardService : InputMethodService() {
     private fun unclip(v: View) {
         if (v !is ViewGroup) return
         // 이모티콘 스크롤 칸은 자르기를 그대로 둠 — 끄면 위로 올린 이모티콘이 탭 위에 겹쳐 보임 (루비로사 2026-11-21)
-        if (v is ScrollView || v is android.widget.HorizontalScrollView) return
+        // 스크롤 칸의 내용은 '감싼 칸'이 잘라 주므로, 스크롤 칸을 바로 감싼 칸도 자르기를 켜 둠 (emojis() 의 clipBox)
+        if (v is ScrollView || v is HorizontalScrollView) return
+        if ((0 until v.childCount).any { v.getChildAt(it) is ScrollView || v.getChildAt(it) is HorizontalScrollView }) return
         v.clipChildren = false; v.clipToPadding = false
         for (i in 0 until v.childCount) unclip(v.getChildAt(i))
     }
@@ -787,7 +789,8 @@ class KeyboardService : InputMethodService() {
         val rowH = keyH + 2 * dp(if (wide) 5 else 4)
         val tabH = dp(46)
         col.addView(tabBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, tabH))
-        col.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, rowH * 3 - tabH))
+        val clipBox = FrameLayout(this).apply { addView(scroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)) }
+        col.addView(clipBox, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, rowH * 3 - tabH))
         // 아래 줄: 글자 자판 아래 줄과 같은 높이
         val bottom = row(listOf(
             // 글자 자판 아래 줄과 같은 칸 폭: 돌아가기(!#1 자리)·기호(한/영 자리)·지우기(😊+쉼표 자리)·띄어쓰기·점·줄바꿈
