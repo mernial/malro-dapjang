@@ -514,6 +514,8 @@ class KeyboardService : InputMethodService() {
 
     private fun unclip(v: View) {
         if (v !is ViewGroup) return
+        // 이모티콘 스크롤 칸은 자르기를 그대로 둠 — 끄면 위로 올린 이모티콘이 탭 위에 겹쳐 보임 (루비로사 2026-11-21)
+        if (v is ScrollView || v is android.widget.HorizontalScrollView) return
         v.clipChildren = false; v.clipToPadding = false
         for (i in 0 until v.childCount) unclip(v.getChildAt(i))
     }
