@@ -13,3 +13,8 @@
 -dontwarn java.beans.**
 -dontwarn kotlin.reflect.jvm.internal.**
 -dontwarn org.jetbrains.annotations.**
+
+# PDF 글자 꺼내기 (pdfbox-android): 글꼴·리소스를 이름으로 찾음
+-keep class com.tom_roush.** { *; }
+-dontwarn com.tom_roush.**
+-dontwarn com.gemalto.jp2.**

@@ -119,6 +119,14 @@ class Prefs(ctx: Context) {
         get() = if (sp.contains("myStyleConsent")) sp.getBoolean("myStyleConsent", false) else null
         set(v) { if (v == null) sp.edit().remove("myStyleConsent").apply() else sp.edit().putBoolean("myStyleConsent", v).apply() }
 
+    /** '내 파일 폴더에서 찾기': 고른 폴더(문서 트리 주소)와 동의 여부 */
+    var docTree: String?
+        get() = sp.getString("docTree", null)
+        set(v) { if (v == null) sp.edit().remove("docTree").apply() else sp.edit().putString("docTree", v).apply() }
+    var docConsent: Boolean
+        get() = sp.getBoolean("docConsent", false)
+        set(v) = sp.edit().putBoolean("docConsent", v).apply()
+
     /** 말로 답장 키보드 색 (KbTheme.id) */
     var keyboardTheme: String
         get() = sp.getString("keyboardTheme", "warm") ?: "warm"

@@ -514,6 +514,10 @@ class KeyboardService : InputMethodService() {
 
     private fun unclip(v: View) {
         if (v !is ViewGroup) return
+        // 이모티콘 스크롤 칸은 자르기를 그대로 둠 — 끄면 위로 올린 이모티콘이 탭 위에 겹쳐 보임 (루비로사 2026-11-21)
+        // 스크롤 칸의 내용은 '감싼 칸'이 잘라 주므로, 스크롤 칸을 바로 감싼 칸도 자르기를 켜 둠 (emojis() 의 clipBox)
+        if (v is ScrollView || v is HorizontalScrollView) return
+        if ((0 until v.childCount).any { v.getChildAt(it) is ScrollView || v.getChildAt(it) is HorizontalScrollView }) return
         v.clipChildren = false; v.clipToPadding = false
         for (i in 0 until v.childCount) unclip(v.getChildAt(i))
     }
@@ -785,7 +789,8 @@ class KeyboardService : InputMethodService() {
         val rowH = keyH + 2 * dp(if (wide) 5 else 4)
         val tabH = dp(46)
         col.addView(tabBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, tabH))
-        col.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, rowH * 3 - tabH))
+        val clipBox = FrameLayout(this).apply { addView(scroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)) }
+        col.addView(clipBox, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, rowH * 3 - tabH))
         // 아래 줄: 글자 자판 아래 줄과 같은 높이
         val bottom = row(listOf(
             // 글자 자판 아래 줄과 같은 칸 폭: 돌아가기(!#1 자리)·기호(한/영 자리)·지우기(😊+쉼표 자리)·띄어쓰기·점·줄바꿈
@@ -1514,9 +1519,11 @@ class KeyboardService : InputMethodService() {
         showInfo("🔎 \"$question\" 저장해 둔 대화에서 찾는 중…")
         Bg.run({
             val ids = Rooms.ids(this)
-            if (ids.isEmpty()) null
+            // 내 파일 폴더에서 찾기에 동의했으면 그 폴더의 파일도 함께 (고른 폴더만, 신부님 2026-11-18)
+            val files = if (DocIndex.enabled(this)) runCatching { DocIndex.refresh(this); DocIndex.forSearch(this) }.getOrDefault(emptyList()) else emptyList()
+            if (ids.isEmpty() && files.isEmpty()) null
             else {
-                val rooms = ids.map { r -> (Rooms.name(this, r) ?: r) to ChatStore.chatText(this, r).orEmpty() }.filter { it.second.isNotBlank() }
+                val rooms = ids.map { r -> (Rooms.name(this, r) ?: r) to ChatStore.chatText(this, r).orEmpty() }.filter { it.second.isNotBlank() } + files
                 claude.answer(question, ChatSearch.excerptMany(rooms, question), null, manyRooms = true)
             }
         }) { r ->
