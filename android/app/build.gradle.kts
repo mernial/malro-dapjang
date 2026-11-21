@@ -101,6 +101,8 @@ dependencies {
     implementation("com.google.android.play:integrity:1.4.0")
     // 플레이 권고: 간접으로 들어오던 옛 androidx.fragment 1.0.0 대신 최신으로
     implementation("androidx.fragment:fragment:1.8.5")
+    // '내 파일 폴더에서 찾기': PDF 글자 꺼내기 (Apache 2.0, 휴대폰 안에서만)
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     // 플레이 스토어판: 새 버전이 있는지 플레이 스토어에 물어봄
     "playImplementation"("com.google.android.play:app-update:2.1.0")
     testImplementation("junit:junit:4.13.2")

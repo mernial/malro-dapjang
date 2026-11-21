@@ -130,6 +130,17 @@ timeout 10 adb logcat -d -s talkhelper-kb | tail -6
 adb shell input keyevent KEYCODE_BACK; sleep 1; adb shell input keyevent KEYCODE_BACK; sleep 1
 timeout 20 adb shell cmd overlay enable com.android.internal.systemui.navbar.threebutton
 adb shell wm size reset; adb shell wm density reset; sleep 4
+# 찾기 화면: '내 파일 폴더에서도 찾기' 단추와 동의 창
+adb shell input keyevent KEYCODE_HOME; sleep 1
+timeout 30 adb shell am start -W -n $PKG/.AskActivity; sleep 4
+adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS >/dev/null 2>&1 || true
+timeout 30 adb exec-out screencap -p > shots/ask_files.png
+timeout 20 adb shell uiautomator dump /sdcard/f.xml >/dev/null 2>&1
+F=$(timeout 20 adb shell cat /sdcard/f.xml | tr '>' '\n' | grep 'text="[^"]*내 파일 폴더에서도 찾기"' | head -1 | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')
+echo "파일 찾기 단추: $F"
+if [ -n "$F" ]; then set -- $F; timeout 10 adb shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )); sleep 2; fi
+timeout 30 adb exec-out screencap -p > shots/ask_files_consent.png
+adb shell input keyevent KEYCODE_BACK; sleep 1
 # 키보드까지 준비된 첫 화면 (새 디자인 확인): 위·아래로 한 장씩, 설정 화면 한 장
 adb shell input keyevent KEYCODE_BACK; sleep 1; adb shell input keyevent KEYCODE_HOME; sleep 1
 timeout 30 adb shell am start -n $PKG/.MainActivity; sleep 4
