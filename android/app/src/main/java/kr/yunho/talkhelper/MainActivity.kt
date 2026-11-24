@@ -765,6 +765,9 @@ class MainActivity : Activity() {
         etc.addDivider2(ctx)
         etc.addView(Kit.toggleRow(ctx, R.drawable.ic_user, "내 말투에 내 대화 쓰기",
             "저장한 대화에서 내가 보낸 말(최대 30개)을 말투 예시로 AI에 보내요", p.myStyleConsent == true) { on -> p.myStyleConsent = on })
+        etc.addDivider2(ctx)
+        etc.addView(Kit.toggleRow(ctx, R.drawable.ic_smile, "이모티콘 추천",
+            "'사랑'을 치면 ❤️처럼 위 줄에 어울리는 이모티콘을 보여 줘요 (휴대폰 안에서만)", p.emojiSuggest) { on -> p.emojiSuggest = on })
         body.add(etc, 24)
     }
 

@@ -127,6 +127,11 @@ class Prefs(ctx: Context) {
         get() = sp.getBoolean("docConsent", false)
         set(v) = sp.edit().putBoolean("docConsent", v).apply()
 
+    /** 낱말을 치면 위 줄에 이모티콘 추천 (루비로사 건의 2026-11-24) */
+    var emojiSuggest: Boolean
+        get() = sp.getBoolean("emojiSuggest", true)
+        set(v) = sp.edit().putBoolean("emojiSuggest", v).apply()
+
     /** 말로 답장 키보드 색 (KbTheme.id) */
     var keyboardTheme: String
         get() = sp.getString("keyboardTheme", "warm") ?: "warm"
