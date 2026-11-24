@@ -65,6 +65,10 @@ timeout 20 adb shell uiautomator dump /sdcard/t3.xml >/dev/null 2>&1
 echo "꾹 누르기 결과: $(timeout 20 adb shell cat /sdcard/t3.xml | tr '>' '\n' | grep 'class="android.widget.EditText"' | head -1 | sed -E 's/.* text="([^"]*)".*/\1/')"
 timeout 10 adb logcat -d -s talkhelper-kb | grep -i "key " | tail -20
 for i in $(seq 1 30); do adb shell input keyevent KEYCODE_DEL; done
+# 이모티콘 추천: 낱말을 치면 위 줄에 이모티콘 (루비로사 2026-11-24)
+adb shell input text 'ok'; sleep 2
+timeout 30 adb exec-out screencap -p > shots/keyboard_suggest.png
+for i in 1 2 3; do adb shell input keyevent KEYCODE_DEL; done; sleep 1
 # 기호 자판: 아래 줄 자리가 한글과 같은지 (!#1 → 사진 → 가)
 timeout 10 adb shell input tap 70 2182; sleep 2
 timeout 30 adb exec-out screencap -p > shots/keyboard_sym.png

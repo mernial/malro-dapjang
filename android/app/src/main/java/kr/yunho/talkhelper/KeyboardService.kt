@@ -48,6 +48,10 @@ class KeyboardService : InputMethodService() {
     // 화면 조각
     private lateinit var toneButton: TextView
     private lateinit var infoRow: LinearLayout
+    private lateinit var toolbarRow: LinearLayout
+    private lateinit var suggestRow: LinearLayout
+    private var suggestShown: List<String> = emptyList()
+    private var noSuggest = false
     private lateinit var infoText: TextView
     private lateinit var content: FrameLayout
 
@@ -178,7 +182,14 @@ class KeyboardService : InputMethodService() {
             val (v, w) = tools.getValue(k)()
             toolbar.addView(v, LinearLayout.LayoutParams(0, dp(42), w).apply { marginEnd = dp(4) })
         }
-        r.addView(toolbar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        // 이모티콘 추천 줄: 낱말을 치면 단축키 줄 자리에 잠깐 (🎤 말로 답장은 그대로 왼쪽에) — 루비로사 건의 2026-11-24
+        toolbarRow = toolbar
+        suggestRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; visibility = View.GONE }
+        suggestShown = emptyList()
+        val toolHolder = FrameLayout(ctx)
+        toolHolder.addView(toolbar, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        toolHolder.addView(suggestRow, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        r.addView(toolHolder, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         // 2) 알림 줄 (넣었어요·말투 고르기·오류)
         infoRow = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
@@ -247,6 +258,10 @@ class KeyboardService : InputMethodService() {
         hangul.clear()
         lastCjiKey = null
         if (!restarting) { inserted = null; cache.clear(); lastSpoken = ""; hideInfo() }
+        val variation = (info?.inputType ?: 0) and EditorInfo.TYPE_MASK_VARIATION
+        noSuggest = variation == EditorInfo.TYPE_TEXT_VARIATION_PASSWORD || variation == EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
+            variation == EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD || ((info?.inputType ?: 0) and EditorInfo.TYPE_MASK_CLASS) != EditorInfo.TYPE_CLASS_TEXT
+        showSuggest(emptyList())
         mode = prefs.mode
         if (::toneButton.isInitialized) paintTone()
         // 숫자만 받는 칸이면 숫자 자판, 아니면 한글 자판부터
@@ -292,6 +307,41 @@ class KeyboardService : InputMethodService() {
             // 다음 글자를 칠 때 '진'이 다시 붙지 않음 (신부님 2026-11-17). 방금 우리가 넣은 직후의 늦은 알림은 무시
             hangul.clear()
         }
+        updateSuggest()
+    }
+
+    // ───────── 이모티콘 추천 ─────────
+
+    private fun updateSuggest() {
+        if (!::suggestRow.isInitialized) return
+        val on = !noSuggest && !listening && prefs.emojiSuggest && (layer == Layer.KO || layer == Layer.EN)
+        val before = if (on) currentInputConnection?.getTextBeforeCursor(24, 0)?.toString().orEmpty() else ""
+        showSuggest(if (on) kr.yunho.talkhelper.core.EmojiSuggest.suggest(before) else emptyList())
+    }
+
+    private fun showSuggest(list: List<String>) {
+        if (!::suggestRow.isInitialized || list == suggestShown) return
+        suggestShown = list
+        suggestRow.removeAllViews()
+        if (list.isEmpty()) { suggestRow.visibility = View.GONE; toolbarRow.visibility = View.VISIBLE; return }
+        // 왼쪽은 늘 '🎤 말로 답장' (추천이 떠도 바로 말할 수 있게)
+        suggestRow.addView(TextView(this).apply {
+            text = "🎤 말로 답장"; gravity = Gravity.CENTER; maxLines = 1
+            setTextColor(Ui.YELLOW); setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f); typeface = android.graphics.Typeface.DEFAULT_BOLD
+            background = Ui.rounded(this@KeyboardService, Ui.BROWN, 12); setPadding(dp(4), 0, dp(4), 0)
+            setOnClickListener { startVoice(search = false) }
+            Ui.iconize(this)
+        }, LinearLayout.LayoutParams(0, dp(42), 1.6f).apply { marginEnd = dp(4) })
+        for (e in list) suggestRow.addView(TextView(this).apply {
+            text = e; gravity = Gravity.CENTER
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
+            background = Ui.rounded(this@KeyboardService, th.key, 12, th.edge)
+            contentDescription = "$e 넣기"
+            setOnClickListener { Sounds.buzz(this@KeyboardService, 8, 40); useEmoji(e) }
+        }, LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(4) })
+        repeat(5 - list.size) { suggestRow.addView(View(this), LinearLayout.LayoutParams(0, dp(42), 1f).apply { marginEnd = dp(4) }) }
+        toolbarRow.visibility = View.INVISIBLE
+        suggestRow.visibility = View.VISIBLE
     }
 
     // ───────── 자판 ─────────
