@@ -1001,7 +1001,15 @@ class KeyboardService : InputMethodService() {
     private fun space() {
         val now = System.currentTimeMillis()
         val ic = currentInputConnection
-        if (ic != null && !hangul.isComposing && now - lastSpaceAt < 1000) {
+        val cji = prefs.keyboardLayout == "cji" && layer != Layer.EN
+        // 천지인: 'ㅋ'처럼 자음·모음 하나만 치고 있으면 첫 띄어쓰기는 글자만 끝냄(빈칸 없음), 다음 띄어쓰기에 빈칸
+        // → 'ㅋㅋㅋ'·'ㅎㅎ'가 'ㅋ ㅋ ㅋ'로 벌어지지 않음 (루비로사 건의 2026-11-25, 삼성 천지인처럼)
+        if (cji && hangul.isComposing && hangul.composing.length == 1 && hangul.composing[0] in '\u3131'..'\u318E') {
+            finishComposing(); lastCjiKey = null; inserted = null; lastSpaceAt = 0L
+            return
+        }
+        // 띄어쓰기 두 번 = 마침표는 두벌식·영어만 (천지인은 안 함 — 신부님 2026-11-25)
+        if (!cji && ic != null && !hangul.isComposing && now - lastSpaceAt < 1000) {
             val before = ic.getTextBeforeCursor(2, 0)?.toString().orEmpty()
             if (before.length == 2 && before[1] == ' ' && (before[0].isLetterOrDigit())) {
                 ic.deleteSurroundingText(1, 0)
